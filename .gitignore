@@ -6,5 +6,3 @@ testresults
 
 *.wasm
 *.wat
-
-c_headers

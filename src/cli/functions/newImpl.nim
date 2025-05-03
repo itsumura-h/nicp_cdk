@@ -1,50 +1,54 @@
 # import std/os
 import std/strutils
 import std/strformat
-# import std/sequtils
 import std/os
 import std/osproc
 import std/json
+import std/httpclient
 import illwill
 
-const configContent = """
+
+proc configContent(projectPath: string):string = &"""
+import std/os
+
 --mm: "orc"
 --threads: "off"
 --cpu: "wasm32"
 --os: "linux"
 --nomain
---cc: "clang" # コンパイラ：clang を利用
+--cc: "clang"
 --define: "useMalloc"
 
-# WASI ターゲットだが、icpp-pro のように自己完結型にするために静的リンクを強制
+# Enforce static linking for the WASI target to make it self-contained, similar to icpp-pro
 switch("passC", "-target wasm32-wasi")
 switch("passL", "-target wasm32-wasi")
-switch("passL", "-static") # 必要なライブラリ群を静的にリンクする
-switch("passL", "-nostartfiles") # 標準のスタートアップコードをリンクしない
-switch("passL", "-Wl,--no-entry") # エントリーポイント処理を行わない
+switch("passL", "-static") # Statically link necessary libraries
+switch("passL", "-nostartfiles") # Do not link standard startup files
+switch("passL", "-Wl,--no-entry") # Do not enforce an entry point
 switch("passC", "-fno-exceptions")
 
-# ic wasi polyfill のパス指定
+# ic0.h path
+let cHeadersPath = "{projectPath}/c_headers"
+switch("passC", "-I" & cHeadersPath)
+switch("passL", "-L" & cHeadersPath)
+
+# ic wasi polyfill path
 switch("passL", "-L/application/wasm-tools/ic-wasi-polyfill/target/wasm32-wasip1/release")
 switch("passL", "-lic_wasi_polyfill")
 
-# ic0.h のパス指定
-switch("passC", "-I" & "/application/src/nim_ic_cdk/c_headers")
-switch("passL", "-L" & "/application/src/nim_ic_cdk/c_headers")
-
-# WASI SDK の sysroot / include 指定
+# WASI SDK sysroot / include
 let wasiSysroot = "/root/wasi-sdk-25.0-x86_64-linux/share/wasi-sysroot"
 switch("passC", "--sysroot=" & wasiSysroot)
 switch("passL", "--sysroot=" & wasiSysroot)
 switch("passC", "-I" & wasiSysroot & "/include")
 
-# WASI でのエミュレーション設定
+# WASI emulation settings
 switch("passC", "-D_WASI_EMULATED_SIGNAL")
 switch("passL", "-lwasi-emulated-signal")
 """
 
 const mainCode = """
-import nim_ic_cdk
+import nicp_cdk
 
 proc greet() {.query.} =
   let request = Request.new()
@@ -72,6 +76,11 @@ rm -f wasi.wasm
 """
 
 
+proc downloadFile(client: HttpClient, url: string, path: string) =
+  let content = client.getContent(url)
+  writeFile(path, content)
+
+
 proc new*(args: seq[string]):int =
   ## Creates a new Nim project
   # ───────────────────────────────────────────────────────────────────────────────
@@ -80,6 +89,7 @@ proc new*(args: seq[string]):int =
     stderr.writeLine("Error: プロジェクト名を指定してください。")
     quit(1)
   let projectName = args[0].replace(" ", "_").replace("-", "_")
+  let projectPath = getCurrentDir() / projectName
 
   # ───────────────────────────────────────────────────────────────────────────────
   # 共通変数
@@ -208,7 +218,7 @@ proc new*(args: seq[string]):int =
     return 1
 
   removeFile(getCurrentDir() / projectName / &"src/{projectName}_backend/main.mo")
-  writeFile(getCurrentDir() / projectName / &"src/{projectName}_backend/config.nims", configContent)
+  writeFile(getCurrentDir() / projectName / &"src/{projectName}_backend/config.nims", configContent(projectPath))
   writeFile(getCurrentDir() / projectName / &"src/{projectName}_backend/main.nim", mainCode)
   writeFile(getCurrentDir() / projectName / &"{projectName}.did", didContent)
   writeFile(getCurrentDir() / projectName / &"build.sh", buildContent(projectName))
@@ -229,4 +239,16 @@ proc new*(args: seq[string]):int =
       }
     ]
   }
-  writeFile(getCurrentDir() / projectName / "dfx.json", dfxJson.pretty())
+  writeFile(projectPath / "dfx.json", dfxJson.pretty())
+
+  # download c headers
+  let cHeaderPath = projectPath / "c_headers"
+  createDir(cHeaderPath)
+  const ic0Url = "https://raw.githubusercontent.com/icppWorld/icpp-pro/refs/heads/main/src/icpp/ic/ic0/ic0.h"
+  const icWasiPolyfillUrl = "https://raw.githubusercontent.com/icppWorld/icpp-pro/refs/heads/main/src/icpp/ic/ic0/ic_wasi_polyfill.h"
+  const wasmSymbolUrl = "https://raw.githubusercontent.com/icppWorld/icpp-pro/refs/heads/main/src/icpp/ic/icapi/wasm_symbol.h"
+  let client = newHttpClient()
+  defer: client.close()
+  downloadFile(client, ic0Url, cHeaderPath / "ic0.h")
+  downloadFile(client, icWasiPolyfillUrl, cHeaderPath / "ic_wasi_polyfill.h")
+  downloadFile(client, wasmSymbolUrl, cHeaderPath / "wasm_symbol.h")
