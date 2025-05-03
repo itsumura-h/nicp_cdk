@@ -1,0 +1,55 @@
+# このファイルはic0.txtから自動生成されています。
+
+proc ic0_msg_arg_data_size*(): int {.header:"ic0.h", importc.}
+proc ic0_msg_arg_data_copy*(dst: int, offset: int, size: int) {.header:"ic0.h", importc.}
+proc ic0_msg_caller_size*(): int {.header:"ic0.h", importc.}
+proc ic0_msg_caller_copy*(dst: int, offset: int, size: int) {.header:"ic0.h", importc.}
+proc ic0_msg_reject_code*(): uint32 {.header:"ic0.h", importc.}
+proc ic0_msg_reject_msg_size*(): int {.header:"ic0.h", importc.}
+proc ic0_msg_reject_msg_copy*(dst: int, offset: int, size: int) {.header:"ic0.h", importc.}
+proc ic0_msg_deadline*(): uint64 {.header:"ic0.h", importc.}
+proc ic0_msg_reply_data_append*(src: int, size: int) {.header:"ic0.h", importc.}
+proc ic0_msg_reply*() {.header:"ic0.h", importc.}
+proc ic0_msg_reject*(src: int, size: int) {.header:"ic0.h", importc.}
+proc ic0_msg_cycles_available128*(dst: int) {.header:"ic0.h", importc.}
+proc ic0_msg_cycles_refunded128*(dst: int) {.header:"ic0.h", importc.}
+proc ic0_msg_cycles_accept128*(max_amount_high: uint64, max_amount_low: uint64, dst: int) {.header:"ic0.h", importc.}
+proc ic0_cycles_burn128*(amount_high: uint64, amount_low: uint64, dst: int) {.header:"ic0.h", importc.}
+proc ic0_canister_self_size*(): int {.header:"ic0.h", importc.}
+proc ic0_canister_self_copy*(dst: int, offset: int, size: int) {.header:"ic0.h", importc.}
+proc ic0_canister_cycle_balance128*(dst: int) {.header:"ic0.h", importc.}
+proc ic0_canister_liquid_cycle_balance128*(dst: int) {.header:"ic0.h", importc.}
+proc ic0_canister_status*(): uint32 {.header:"ic0.h", importc.}
+proc ic0_canister_version*(): uint64 {.header:"ic0.h", importc.}
+proc ic0_subnet_self_size*(): int {.header:"ic0.h", importc.}
+proc ic0_subnet_self_copy*(dst: int, offset: int, size: int) {.header:"ic0.h", importc.}
+proc ic0_msg_method_name_size*(): int {.header:"ic0.h", importc.}
+proc ic0_msg_method_name_copy*(dst: int, offset: int, size: int) {.header:"ic0.h", importc.}
+proc ic0_accept_message*() {.header:"ic0.h", importc.}
+proc ic0_call_new*(callee_src: int, callee_size: int, name_src: int, name_size: int, reply_fun: int, reply_env: int, reject_fun: int, reject_env: int) {.header:"ic0.h", importc.}
+proc ic0_call_on_cleanup*(fun: int, env: int) {.header:"ic0.h", importc.}
+proc ic0_call_data_append*(src: int, size: int) {.header:"ic0.h", importc.}
+proc ic0_call_with_best_effort_response*(timeout_seconds: uint32) {.header:"ic0.h", importc.}
+proc ic0_call_cycles_add128*(amount_high: uint64, amount_low: uint64) {.header:"ic0.h", importc.}
+proc ic0_call_perform*(): uint32 {.header:"ic0.h", importc.}
+proc ic0_stable64_size*(): uint64 {.header:"ic0.h", importc.}
+proc ic0_stable64_grow*(new_pages: uint64): uint64 {.header:"ic0.h", importc.}
+proc ic0_stable64_write*(offset: uint64, src: uint64, size: uint64) {.header:"ic0.h", importc.}
+proc ic0_stable64_read*(dst: uint64, offset: uint64, size: uint64) {.header:"ic0.h", importc.}
+proc ic0_certified_data_set*(src: int, size: int) {.header:"ic0.h", importc.}
+proc ic0_data_certificate_present*(): uint32 {.header:"ic0.h", importc.}
+proc ic0_data_certificate_size*(): int {.header:"ic0.h", importc.}
+proc ic0_data_certificate_copy*(dst: int, offset: int, size: int) {.header:"ic0.h", importc.}
+proc ic0_time*(): uint64 {.header:"ic0.h", importc.}
+proc ic0_global_timer_set*(timestamp: uint64): uint64 {.header:"ic0.h", importc.}
+proc ic0_performance_counter*(counter_type: uint32): uint64 {.header:"ic0.h", importc.}
+proc ic0_is_controller*(src: int, size: int): uint32 {.header:"ic0.h", importc.}
+proc ic0_in_replicated_execution*(): uint32 {.header:"ic0.h", importc.}
+proc ic0_cost_call*(method_name_size: uint64, payload_size: uint64, dst: int) {.header:"ic0.h", importc.}
+proc ic0_cost_create_canister*(dst: int) {.header:"ic0.h", importc.}
+proc ic0_cost_http_request*(request_size: uint64, max_res_bytes: uint64, dst: int) {.header:"ic0.h", importc.}
+proc ic0_cost_sign_with_ecdsa*(src: int, size: int, ecdsa_curve: uint32, dst: int): uint32 {.header:"ic0.h", importc.}
+proc ic0_cost_sign_with_schnorr*(src: int, size: int, algorithm: uint32, dst: int): uint32 {.header:"ic0.h", importc.}
+proc ic0_cost_vetkd_derive_encrypted_key*(src: int, size: int, vetkd_curve: uint32, dst: int): uint32 {.header:"ic0.h", importc.}
+proc ic0_debug_print*(src: int, size: int) {.header:"ic0.h", importc.}
+proc ic0_trap*(src: int, size: int) {.header:"ic0.h", importc.}

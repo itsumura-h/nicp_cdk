@@ -1,0 +1,11 @@
+service : {
+  greet: (text) -> (text) query;
+  requestAndResponse: (bool, nat, int, float32, text) -> (text) query;
+  argBool: (bool) -> (bool) query;
+  argInt: (int) -> (int) query;
+  argNat: (nat) -> (nat) query;
+  argFloat: (float32) -> (float32) query;
+  argText: (text) -> (text) query;
+  msgPrincipal: () -> (principal) query;
+  responseEmpty: () -> () query;
+}

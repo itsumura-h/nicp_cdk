@@ -1,0 +1,10 @@
+services:
+  app:
+    build:
+      context: .
+      dockerfile: docker/develop.Dockerfile
+    tty: true
+    volumes:
+      - .:/application
+    ports:
+      - 4943:4943

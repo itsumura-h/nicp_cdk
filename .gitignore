@@ -1,0 +1,8 @@
+*
+!*.*
+!*/
+
+testresults
+
+*.wasm
+*.wat
