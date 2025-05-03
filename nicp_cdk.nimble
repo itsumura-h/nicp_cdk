@@ -1,7 +1,7 @@
 # Package
 
 version       = "0.1.0"
-author        = "itsumura-h"
+author        = "@dumblepytech1 as 'medy'"
 description   = "Internet Computer CDK for Nim"
 license       = "MIT"
 srcDir        = "src"
