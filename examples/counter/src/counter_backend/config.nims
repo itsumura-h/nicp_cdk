@@ -1,3 +1,5 @@
+import std/os
+
 --mm: "orc"
 --threads: "off"
 --cpu: "wasm32"
@@ -19,8 +21,9 @@ switch("passL", "-L/application/wasm-tools/ic-wasi-polyfill/target/wasm32-wasip1
 switch("passL", "-lic_wasi_polyfill")
 
 # ic0.h のパス指定
-switch("passC", "-I" & "/application/c_headers")
-switch("passL", "-L" & "/application/c_headers")
+let cHeadersPath = getEnv("IC_C_HEADERS_PATH")
+switch("passC", "-I" & cHeadersPath)
+switch("passL", "-L" & cHeadersPath)
 
 # WASI SDK の sysroot / include 指定
 let wasiSysroot = "/root/wasi-sdk-25.0-x86_64-linux/share/wasi-sysroot"

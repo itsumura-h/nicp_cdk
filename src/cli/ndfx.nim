@@ -1,8 +1,8 @@
 import ./functions/ic0
 import ./functions/newImpl
-
+import ./functions/cheadersImpl
 when isMainModule:
   import cligen
   dispatchMulti(
-    [ic0.ic0], [newImpl.new]
+    [ic0.ic0], [newImpl.new], [cheadersImpl.cheaders]
   )
