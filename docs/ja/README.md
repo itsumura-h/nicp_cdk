@@ -33,7 +33,7 @@ https://github.com/dfinity/candid/tree/master/test
 ### ic-wasi-polyfillのビルド
 
 ```sh
-git submodule add https://github.com/wasm-forge/ic-wasi-polyfill wasm-tools/ic-wasi-polyfill
+git submodule add -f https://github.com/wasm-forge/ic-wasi-polyfill wasm-tools/ic-wasi-polyfill
 
 cd /application/wasm-tools/ic-wasi-polyfill
 rustup target add wasm32-wasip1
