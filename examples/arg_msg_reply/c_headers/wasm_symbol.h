@@ -1,5 +1,3 @@
-// https://github.com/icppWorld/icpp-pro/blob/main/src/icpp/ic/icapi/wasm_symbol.h
-
 // Macros for importing & exporting Wasm symbols
 #pragma once
 

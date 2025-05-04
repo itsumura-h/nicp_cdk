@@ -1,4 +1,33 @@
-FROM ubuntu:24.04
+FROM ubuntu:24.04 AS wasi-tools
+
+# prevent timezone dialogue
+ENV DEBIAN_FRONTEND=noninteractive
+
+RUN apt update && \
+    apt upgrade -y
+RUN apt install -y \
+        build-essential \
+        curl \
+        git
+
+# rust
+WORKDIR /root
+RUN curl https://sh.rustup.rs -sSf | sh -s -- -y
+ENV PATH $PATH:/root/.cargo/bin
+
+# build ic-wasi-polyfill
+WORKDIR /root
+RUN git clone https://github.com/wasm-forge/ic-wasi-polyfill
+WORKDIR /root/ic-wasi-polyfill
+RUN rustup target add wasm32-wasip1
+RUN cargo build --release --target wasm32-wasip1
+
+# wasi2ic
+WORKDIR /root
+RUN cargo install wasi2ic
+
+# ================================================================================
+FROM ubuntu:24.04 AS app
 
 # prevent timezone dialogue
 ENV DEBIAN_FRONTEND=noninteractive
@@ -16,8 +45,8 @@ RUN apt update && \
     git
 
 # LLVM
-# 引用: https://github.com/ICPorts-labs/chico/blob/main/examples/HelloWorld/Dockerfile#L32
-# 引用 https://github.com/dfinity/examples/tree/master/c/reverse
+# reference: https://github.com/ICPorts-labs/chico/blob/main/examples/HelloWorld/Dockerfile#L32
+# reference: https://github.com/dfinity/examples/tree/master/c/reverse
 RUN apt install -y lldb lld gcc-multilib
 
 RUN apt autoremove -y
@@ -33,7 +62,7 @@ RUN DFXVM_INIT_YES=$DFXVM_INIT_YES DFX_VERSION=$DFX_VERSION ./install.sh
 RUN rm -f install.sh
 
 # wasi
-# 引用: https://github.com/ICPorts-labs/chico/blob/main/examples/HelloWorld/Dockerfile#L48-L59
+# reference: https://github.com/ICPorts-labs/chico/blob/main/examples/HelloWorld/Dockerfile#L48-L59
 # https://github.com/WebAssembly/wasi-sdk/releases/latest
 WORKDIR /root
 ENV WASI_VERSION="25"
@@ -41,9 +70,10 @@ ENV WASI_VERSION_FULL="$WASI_VERSION.0"
 RUN curl -L -o wasi-sdk.tar.gz https://github.com/WebAssembly/wasi-sdk/releases/download/wasi-sdk-${WASI_VERSION}/wasi-sdk-${WASI_VERSION_FULL}-x86_64-linux.tar.gz
 RUN tar -xzf wasi-sdk.tar.gz
 RUN rm wasi-sdk.tar.gz
-ENV WASI_SDK_PATH="/root/wasi-sdk-${WASI_VERSION_FULL}"
-ENV PATH $PATH:"${WASI_SDK_PATH}-x86_64-linux/bin"
+RUN mv "wasi-sdk-${WASI_VERSION_FULL}-x86_64-linux" ".wasi-sdk"
+ENV WASI_SDK_PATH "/root/.wasi-sdk"
 RUN echo $WASI_SDK_PATH
+ENV PATH $PATH:"${WASI_SDK_PATH}/bin"
 
 # webt
 # https://github.com/WebAssembly/wabt
@@ -67,9 +97,13 @@ RUN tar zxf nimlangserver.tar.gz
 RUN rm -f nimlangserver.tar.gz
 RUN mv nimlangserver /root/.nimble/bin/
 
-# rust
-WORKDIR /root
-RUN curl https://sh.rustup.rs -sSf | sh -s -- -y
+# copy from wasi-tools
+COPY --from=wasi-tools /root/ic-wasi-polyfill/target/wasm32-wasip1/release/* /root/.ic-wasi-polyfill/
+ENV IC_WASI_POLYFILL_PATH "/root/.ic-wasi-polyfill"
+COPY --from=wasi-tools /root/.cargo/bin/* /root/.cargo/bin/
+
+# make path to rust bin
+ENV PATH $PATH:/root/.cargo/bin
 
 RUN git config --global --add safe.directory /application
 WORKDIR /application

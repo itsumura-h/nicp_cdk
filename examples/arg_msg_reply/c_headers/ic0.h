@@ -1,6 +1,3 @@
-// https://github.com/dfinity/cdk-rs/blob/main/src/ic0/src/ic0.rs
-// https://github.com/icppWorld/icpp-pro/blob/main/src/icpp/ic/ic0/ic0.h
-
 // Functions that can be imported from the ic0 wasm runtime
 // This header is imported by both C & C++ code
 // See: https://isocpp.org/wiki/faq/mixing-c-and-cpp#include-c-hdrs-personal
@@ -9,7 +6,7 @@
 
 // only include this in C++ files
 // Ensure the WASI polyfill library is initialized first
-#include "./ic_wasi_polyfill.h"
+#include "ic_wasi_polyfill.h"
 
 extern "C" {
 #endif

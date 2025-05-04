@@ -1,33 +1,37 @@
+import std/os
+
 --mm: "orc"
 --threads: "off"
 --cpu: "wasm32"
 --os: "linux"
 --nomain
---cc: "clang" # コンパイラ：clang を利用
+--cc: "clang"
 --define: "useMalloc"
 
-# WASI ターゲットだが、icpp-pro のように自己完結型にするために静的リンクを強制
+# Enforce static linking for the WASI target to make it self-contained, similar to icpp-pro
 switch("passC", "-target wasm32-wasi")
 switch("passL", "-target wasm32-wasi")
-switch("passL", "-static") # 必要なライブラリ群を静的にリンクする
-switch("passL", "-nostartfiles") # 標準のスタートアップコードをリンクしない
-switch("passL", "-Wl,--no-entry") # エントリーポイント処理を行わない
+switch("passL", "-static") # Statically link necessary libraries
+switch("passL", "-nostartfiles") # Do not link standard startup files
+switch("passL", "-Wl,--no-entry") # Do not enforce an entry point
 switch("passC", "-fno-exceptions")
 
-# ic wasi polyfill のパス指定
-switch("passL", "-L/application/wasm-tools/ic-wasi-polyfill/target/wasm32-wasip1/release")
+# ic0.h path
+let cHeadersPath = "/application/examples/counter/c_headers"
+switch("passC", "-I" & cHeadersPath)
+switch("passL", "-L" & cHeadersPath)
+
+# ic wasi polyfill path
+let icWasiPolyfillPath = getEnv("IC_WASI_POLYFILL_PATH")
+switch("passL", "-L" & icWasiPolyfillPath)
 switch("passL", "-lic_wasi_polyfill")
 
-# ic0.h のパス指定
-switch("passC", "-I" & "/application/c_headers")
-switch("passL", "-L" & "/application/c_headers")
-
-# WASI SDK の sysroot / include 指定
-let wasiSysroot = "/root/wasi-sdk-25.0-x86_64-linux/share/wasi-sysroot"
+# WASI SDK sysroot / include
+let wasiSysroot = getEnv("WASI_SDK_PATH") / "share/wasi-sysroot"
 switch("passC", "--sysroot=" & wasiSysroot)
 switch("passL", "--sysroot=" & wasiSysroot)
 switch("passC", "-I" & wasiSysroot & "/include")
 
-# WASI でのエミュレーション設定
+# WASI emulation settings
 switch("passC", "-D_WASI_EMULATED_SIGNAL")
 switch("passL", "-lwasi-emulated-signal")

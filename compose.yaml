@@ -2,7 +2,7 @@ services:
   app:
     build:
       context: .
-      dockerfile: docker/develop.Dockerfile
+      dockerfile: docker/app/develop.Dockerfile
     tty: true
     volumes:
       - .:/application

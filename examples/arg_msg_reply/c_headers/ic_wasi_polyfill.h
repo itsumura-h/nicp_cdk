@@ -1,5 +1,3 @@
-// https://github.com/icppWorld/icpp-pro/blob/main/src/icpp/ic/ic0/ic_wasi_polyfill.h
-
 #pragma once
 
 // -------------------------------------------------------------------
