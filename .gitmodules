@@ -1,3 +1,0 @@
-[submodule "wasm-tools/ic-wasi-polyfill"]
-	path = wasm-tools/ic-wasi-polyfill
-	url = https://github.com/wasm-forge/ic-wasi-polyfill

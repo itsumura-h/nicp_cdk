@@ -6,3 +6,5 @@ testresults
 
 *.wasm
 *.wat
+
+./.wasi-tools

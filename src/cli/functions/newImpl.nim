@@ -33,11 +33,12 @@ switch("passC", "-I" & cHeadersPath)
 switch("passL", "-L" & cHeadersPath)
 
 # ic wasi polyfill path
-switch("passL", "-L/application/wasm-tools/ic-wasi-polyfill/target/wasm32-wasip1/release")
+let icWasiPolyfillPath = getEnv("IC_WASI_POLYFILL_PATH")
+switch("passL", "-L" & icWasiPolyfillPath)
 switch("passL", "-lic_wasi_polyfill")
 
 # WASI SDK sysroot / include
-let wasiSysroot = "/root/wasi-sdk-25.0-x86_64-linux/share/wasi-sysroot"
+let wasiSysroot = getEnv("WASI_SDK_PATH") / "share/wasi-sysroot"
 switch("passC", "--sysroot=" & wasiSysroot)
 switch("passL", "--sysroot=" & wasiSysroot)
 switch("passC", "-I" & wasiSysroot & "/include")
@@ -176,17 +177,8 @@ proc new*(args: seq[string]):int =
     else:
       discard
 
-  # ───────────────────────────────────────────────────────────────────────────────
-  # 結果表示
   illwillDeinit()    # 画面制御を元に戻す
-  echo ""
-  echo "Project Name:  ", projectName
-  echo "Framework:     ", chosenFW
-  echo "Extra Features:"
-  for i, feat in features:
-    if selectedFeats[i]:
-      echo "- ", feat
-
+  # ───────────────────────────────────────────────────────────────────────────────
 
   let framework = (
     proc():string =
@@ -211,7 +203,6 @@ proc new*(args: seq[string]):int =
   let selectedFeatsListStr = "--extras " & selectedFeatsList.join(" --extras ")
 
   let command = &"dfx new {projectName} --type motoko --frontend {framework} {selectedFeatsListStr}"
-  echo command
   let (output, exitCode) = execCmdEx(command)
   if exitCode != 0:
     echo "Error: ", output
