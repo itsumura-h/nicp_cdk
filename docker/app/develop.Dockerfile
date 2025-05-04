@@ -1,7 +1,5 @@
 FROM ubuntu:24.04 AS wasi-tools
 
-ENV DEBIAN_FRONTEND=noninteractive
-
 RUN apt update && \
     apt upgrade -y
 RUN apt install -y \
