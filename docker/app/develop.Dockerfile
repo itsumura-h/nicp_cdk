@@ -1,5 +1,8 @@
 FROM ubuntu:24.04 AS wasi-tools
 
+# prevent timezone dialogue
+ENV DEBIAN_FRONTEND=noninteractive
+
 RUN apt update && \
     apt upgrade -y
 RUN apt install -y \
@@ -24,7 +27,6 @@ WORKDIR /root
 RUN cargo install wasi2ic
 
 # ================================================================================
-# prevent timezone dialogue
 FROM ubuntu:24.04 AS app
 
 # prevent timezone dialogue
