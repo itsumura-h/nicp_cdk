@@ -5,17 +5,16 @@ author        = "@dumblepytech1 as 'medy'"
 description   = "Internet Computer CDK for Nim"
 license       = "MIT"
 srcDir        = "src"
-installExt    = @["nim", "h"]
+installExt    = @["nim"]
 bin           = @["cli/ndfx"]
 backend       = "c"
-skipDirs      = @["src/cli"]
+skipDirs      = @["c_headers"]
 binDir        = "src/bin"
 
 
 # Dependencies
 
 requires "nim >= 2.2.2"
-
 requires "cligen >= 1.8.3"
 requires "illwill >= 0.4.1"
 requires "base32 >= 0.1.3"

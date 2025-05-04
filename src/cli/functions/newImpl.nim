@@ -4,11 +4,10 @@ import std/strformat
 import std/os
 import std/osproc
 import std/json
-import std/httpclient
 import illwill
 
 
-proc configContent(projectPath: string):string = &"""
+const configContent = """
 import std/os
 
 --mm: "orc"
@@ -34,7 +33,7 @@ when defined(release):
   switch("passL", "-flto") # link time optimization for linker
 
 # ic0.h path
-let cHeadersPath = "{projectPath}/c_headers"
+let cHeadersPath = "/root/.ic-c-headers"
 switch("passC", "-I" & cHeadersPath)
 switch("passL", "-L" & cHeadersPath)
 
@@ -81,12 +80,6 @@ echo "wasi2ic wasi.wasm main.wasm"
 wasi2ic wasi.wasm main.wasm
 rm -f wasi.wasm
 """
-
-
-proc downloadFile(client: HttpClient, url: string, path: string) =
-  let content = client.getContent(url)
-  writeFile(path, content)
-
 
 proc new*(args: seq[string]):int =
   ## Creates a new Nim project
@@ -219,7 +212,7 @@ proc new*(args: seq[string]):int =
     return 1
 
   removeFile(getCurrentDir() / projectName / &"src/{projectName}_backend/main.mo")
-  writeFile(getCurrentDir() / projectName / &"src/{projectName}_backend/config.nims", configContent(projectPath))
+  writeFile(getCurrentDir() / projectName / &"src/{projectName}_backend/config.nims", configContent)
   writeFile(getCurrentDir() / projectName / &"src/{projectName}_backend/main.nim", mainCode)
   writeFile(getCurrentDir() / projectName / &"{projectName}.did", didContent)
   writeFile(getCurrentDir() / projectName / &"build.sh", buildContent(projectName))
@@ -241,15 +234,3 @@ proc new*(args: seq[string]):int =
     ]
   }
   writeFile(projectPath / "dfx.json", dfxJson.pretty())
-
-  # download c headers
-  let cHeaderPath = projectPath / "c_headers"
-  createDir(cHeaderPath)
-  const ic0Url = "https://raw.githubusercontent.com/icppWorld/icpp-pro/refs/heads/main/src/icpp/ic/ic0/ic0.h"
-  const icWasiPolyfillUrl = "https://raw.githubusercontent.com/icppWorld/icpp-pro/refs/heads/main/src/icpp/ic/ic0/ic_wasi_polyfill.h"
-  const wasmSymbolUrl = "https://raw.githubusercontent.com/icppWorld/icpp-pro/refs/heads/main/src/icpp/ic/icapi/wasm_symbol.h"
-  let client = newHttpClient()
-  defer: client.close()
-  downloadFile(client, ic0Url, cHeaderPath / "ic0.h")
-  downloadFile(client, icWasiPolyfillUrl, cHeaderPath / "ic_wasi_polyfill.h")
-  downloadFile(client, wasmSymbolUrl, cHeaderPath / "wasm_symbol.h")
