@@ -40,7 +40,8 @@ apt install -y \
   build-essential \
   libunwind-dev \
   lldb \
-  lld gcc-multilib \
+  lld \
+  gcc-multilib \
   xz-utils \
   wget \
   curl \
