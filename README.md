@@ -17,8 +17,9 @@ Another motivational essay:
 
 ## Requirements
 
-- [Nim](https://nim-lang.org/install.html)  
+- [Nim](https://nim-lang.org)  
 - [WASI SDK (includes Clang)](https://github.com/WebAssembly/wasi-sdk)  
+- [ic-wasi-polyfill](https://github.com/wasm-forge/ic-wasi-polyfill)  
 - [wasi2ic](https://github.com/wasm-forge/wasi2ic)  
 - [Internet Computer SDK](https://internetcomputer.org/docs/current/developer-docs/setup/install/sdk-install)  
 
@@ -26,7 +27,7 @@ Another motivational essay:
 
 - [Nim language server](https://github.com/nim-lang/langserver) (recommended for Nim development)  
 - [WebAssembly Binary Toolkit](https://github.com/WebAssembly/wabt)  
-- [Rust](https://www.rust-lang.org/tools/install)  
+- [Rust](https://www.rust-lang.org) (for building ic-wasi-polyfill)
 
 ## Installation
 
