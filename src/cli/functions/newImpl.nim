@@ -25,7 +25,13 @@ switch("passL", "-target wasm32-wasi")
 switch("passL", "-static") # Statically link necessary libraries
 switch("passL", "-nostartfiles") # Do not link standard startup files
 switch("passL", "-Wl,--no-entry") # Do not enforce an entry point
-switch("passC", "-fno-exceptions")
+switch("passC", "-fno-exceptions") # Do not use exceptions
+
+# optimize
+when defined(release):
+  switch("passC", "-Os") # optimize for size
+  switch("passC", "-flto") # link time optimization for compiler
+  switch("passL", "-flto") # link time optimization for linker
 
 # ic0.h path
 let cHeadersPath = "{projectPath}/c_headers"
@@ -200,7 +206,11 @@ proc new*(args: seq[string]):int =
         selectedFeatsList.add("bitcoin")
       of "Frontend tests":
         selectedFeatsList.add("frontend-tests")
-  let selectedFeatsListStr = "--extras " & selectedFeatsList.join(" --extras ")
+  let selectedFeatsListStr = 
+    if selectedFeatsList.len > 0:
+      "--extras " & selectedFeatsList.join(" --extras ")
+    else:
+      ""
 
   let command = &"dfx new {projectName} --type motoko --frontend {framework} {selectedFeatsListStr}"
   let (output, exitCode) = execCmdEx(command)
