@@ -15,18 +15,6 @@ I chose Nim for developing ICP canisters because:
 Another motivational essay:  
 [The Strength in Simplicity: The Aesthetics of Japanese Traditional Crafts and Distributed Systems](./docs/en/strength_in_simplicity.md)
 
-## Why Nim for ICP canisters?
-
-I chose Nim for developing ICP canisters because:
-- Nim can be transpiled to C, which allows it to target WebAssembly (WASM).
-- Nim is a high-level language, making it as easy to write and read as Python.
-- Nim is a statically typed language.
-- Nim has a package manager, which makes it easy to install and manage dependencies.
-- Nim has one of the best memory management systems: the compiler automatically controls the lifetime of variables without garbage collection (GC) or manual memory management.
-
-Another motivational essay:  
-[The Strength in Simplicity: The Aesthetics of Japanese Traditional Crafts and Distributed Systems](./docs/en/strength_in_simplicity.md)
-
 ## Requirements
 
 - [Nim](https://nim-lang.org)  
