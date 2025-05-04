@@ -3,13 +3,14 @@ import std/strformat
 import std/httpclient
 
 
-proc downloadFile(client: HttpClient, url: string, path: string) =
+proc downloadFile(client: HttpClient, url: string, path: string):bool =
   if fileExists(path):
     echo &"File `{path}` already exists"
-    return
+    return false
   
   let content = client.getContent(url)
   writeFile(path, content)
+  return true
 
 
 proc cHeaders*(path="/root/.ic-c-headers", force=false) =
@@ -27,8 +28,10 @@ proc cHeaders*(path="/root/.ic-c-headers", force=false) =
   const wasmSymbolUrl = "https://raw.githubusercontent.com/itsumura-h/nicp_cdk/refs/heads/main/src/c_headers/wasm_symbol.h"
   let client = newHttpClient()
   defer: client.close()
-  downloadFile(client, ic0Url, path / "ic0.h")
-  downloadFile(client, icWasiPolyfillUrl, path / "ic_wasi_polyfill.h")
-  downloadFile(client, wasmSymbolUrl, path / "wasm_symbol.h")
-  echo "Downloaded c headers"
-  echo &"Please set the `cHeadersPath` in config.nims to `{path}`"
+  let res1 = downloadFile(client, ic0Url, path / "ic0.h")
+  let res2 = downloadFile(client, icWasiPolyfillUrl, path / "ic_wasi_polyfill.h")
+  let res3 = downloadFile(client, wasmSymbolUrl, path / "wasm_symbol.h")
+  if res1 and res2 and res3:
+    echo "Downloaded c headers"
+    echo &"Please set the `cHeadersPath` in config.nims to `{path}`"
+  

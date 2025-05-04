@@ -117,6 +117,16 @@ Now you can use the `ndfx` command.
 
 ## Create a new project
 
+### Download c headers
+
+```sh
+ndfx c_headers
+```
+`/root/.ic-c-headers` will be created.
+
+
+### Create a new project
+
 ```sh
 ndfx new hello
 cd hello
@@ -127,7 +137,7 @@ cd hello
 > - Is the `ic wasi polyfill path` correct?  
 > - Is the `WASI SDK sysroot` correct?  
 
-### Build and run a local network
+### Run a local network and deploy
 
 ```sh
 dfx stop && dfx start --clean --background --host 0.0.0.0:4943

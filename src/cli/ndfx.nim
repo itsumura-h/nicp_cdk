@@ -1,8 +1,8 @@
-import ./functions/ic0
-import ./functions/newImpl
+import ./functions/new_impl
+import ./functions/c_headers_impl
 
 when isMainModule:
   import cligen
   dispatchMulti(
-    [ic0.ic0], [newImpl.new]
+    [new_impl.new], [c_headers_impl.cHeaders]
   )
