@@ -1,8 +1,14 @@
 import std/endians
+import std/sequtils
+import std/strutils
 import ../algorithm/leb128
 import ./consts
 import ./ic_principal
 import ./ic_text
+
+
+proc toString*(data: seq[byte]): string =
+  return data.mapIt(it.toHex()).join("")
 
 
 #---- Candid 型タグの定義 ----

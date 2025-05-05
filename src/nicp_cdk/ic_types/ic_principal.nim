@@ -82,10 +82,14 @@ proc fromText*(_:type Principal, text: string): Principal =
 
 proc readPrincipal*(data: seq[byte]; offset: var int): Principal =
   ## Read a principal from a byte sequence and return it
+  # 長さを読み取る
   let len = int(decodeULEB128(data, offset))
-  let slice = data[offset ..< offset + len]
+  let principalLength = data[offset ..< offset+len][len-1].int
   offset += len
-  let principal = Principal.fromBlob(slice)
+  # 長さ分のバイト列を取得
+  let principalBytes = data[offset ..< offset + principalLength]
+  offset += principalLength
+  let principal = Principal.fromBlob(principalBytes)
   return principal
 
 
@@ -99,6 +103,7 @@ proc serializeCandid*(value: Principal): seq[byte] =
   buf.add byte(1); buf.add tagPrincipal
   # 3. 値シーケンス: IDフォーム(1) + バイト列長(ULEB128) + 生バイト列
   buf.add byte(1)                                      # IDフォーム識別子 :contentReference[oaicite:4]{index=4}
+  echo "encodeULEB128(uint(value.bytes.len)): ", encodeULEB128(uint(value.bytes.len))
   buf.add encodeULEB128(uint(value.bytes.len))        # ULEB128で長さを符号無しエンコード :contentReference[oaicite:5]{index=5}
   for b in value.bytes:
     buf.add b                                          # 生バイト列をそのまま追加
