@@ -103,7 +103,6 @@ proc serializeCandid*(value: Principal): seq[byte] =
   buf.add byte(1); buf.add tagPrincipal
   # 3. 値シーケンス: IDフォーム(1) + バイト列長(ULEB128) + 生バイト列
   buf.add byte(1)                                      # IDフォーム識別子 :contentReference[oaicite:4]{index=4}
-  echo "encodeULEB128(uint(value.bytes.len)): ", encodeULEB128(uint(value.bytes.len))
   buf.add encodeULEB128(uint(value.bytes.len))        # ULEB128で長さを符号無しエンコード :contentReference[oaicite:5]{index=5}
   for b in value.bytes:
     buf.add b                                          # 生バイト列をそのまま追加
