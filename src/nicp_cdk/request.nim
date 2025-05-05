@@ -1,4 +1,5 @@
 import ./ic_types/candid
+import ./ic_types/ic_principal
 import ./ic0/ic0
 
 
@@ -46,3 +47,10 @@ proc getStr*(self:Request, index:int): string =
   ## Get the argument at the specified index as a string
   assert self.values[index].kind == ctText
   return self.values[index].textVal
+
+
+# 指定されたインデックスの引数を Principal として取得する
+proc getPrincipal*(self:Request, index:int): Principal =
+  ## Get the argument at the specified index as a principal
+  assert self.values[index].kind == ctPrincipal
+  return self.values[index].principalVal

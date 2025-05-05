@@ -82,10 +82,14 @@ proc fromText*(_:type Principal, text: string): Principal =
 
 proc readPrincipal*(data: seq[byte]; offset: var int): Principal =
   ## Read a principal from a byte sequence and return it
+  # 長さを読み取る
   let len = int(decodeULEB128(data, offset))
-  let slice = data[offset ..< offset + len]
+  let principalLength = data[offset ..< offset+len][len-1].int
   offset += len
-  let principal = Principal.fromBlob(slice)
+  # 長さ分のバイト列を取得
+  let principalBytes = data[offset ..< offset + principalLength]
+  offset += principalLength
+  let principal = Principal.fromBlob(principalBytes)
   return principal
 
 

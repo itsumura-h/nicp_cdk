@@ -1,29 +1,5 @@
 import std/macros
 
-
-# {.emit: """
-# #pragma once
-
-# // See: https://lld.llvm.org/WebAssembly.html#imports
-# #define WASM_SYMBOL_IMPORTED(module, name)                                     \
-#   __attribute__((import_module(module))) __attribute__((import_name(name)));
-
-# // See: https://lld.llvm.org/WebAssembly.html#exports
-# #define WASM_SYMBOL_EXPORTED(name)                                             \
-#   asm(name) __attribute__((visibility("default")));
-# """.}
-
-# proc WASM_SYMBOL_IMPORTED*(module: string, name: string) {.header:"wasm_symbol.h", importc.}
-# proc WASM_SYMBOL_EXPORTED*(name: string) {.header:"wasm_symbol.h", importc.}
-
-# proc WASM_SYMBOL_IMPORTED*(module: string, name: string) = 
-#   {.emit:"""
-# // See: https://lld.llvm.org/WebAssembly.html#imports
-# #define WASM_SYMBOL_IMPORTED(module, name)                                     \
-#   __attribute__((import_module(module))) __attribute__((import_name(name)));
-# """.}
-
-
 # 引用
 # https://github.com/yglukhov/wasmrt/blob/master/wasmrt.nim#L4-L10
 
@@ -56,6 +32,7 @@ macro update*(p: untyped): untyped =
       name & "\"))) $# $#$#"
   result.addPragma(newColonExpr(ident"codegenDecl", newLit(codegenPragma)))
   result.addPragma(ident"exportc")
+
 
 {.emit: """
 #include <stddef.h>
