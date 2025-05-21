@@ -18,6 +18,7 @@ proc reply*(msg: bool) =
   ic0_msg_reply_data_append(ptrToInt(addr response[0]), response.len)
   ic0_msg_reply()
 
+
 proc reply*(msg: int32) =
   let response = serializeCandid(msg)
   ic0_msg_reply_data_append(ptrToInt(addr response[0]), response.len)

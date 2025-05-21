@@ -1,0 +1,162 @@
+# ic_async.nim
+# Nim向け: asyncdispatchライクなインターフェースで、ic0コールバックを隠蔽するライブラリ
+# - Future[T]
+# - proc call*(methodName: string, payload: seq[byte]): Future[seq[byte]]
+# - proc await*[T](f: Future[T]): T
+# - proc spawn*[T](f: Future[T]): Future[T]
+
+import std/tables
+import std/sequtils
+import std/streams
+import std/macros
+import ../ic0/ic0
+import ../ic_types/ic_principal
+
+# ----------------------------------------------------------------
+# Future 型定義
+# ----------------------------------------------------------------
+type
+  Future*[T] = ref object
+    completed*: bool
+    result*: T
+    callbacks*: seq[proc(res: T)]
+
+# Future を新規生成
+proc newFuture*[T](): Future[T] =
+  new(result)
+  result.completed = false
+  result.result = default(T)
+  result.callbacks = @[]
+  result
+
+# Future を完了させ、登録コールバックをすべて呼び出す
+proc complete*[T](f: Future[T], res: T) =
+  if not f.completed:
+    f.completed = true
+    f.result = res
+    for cb in f.callbacks:
+      cb(res)
+    f.callbacks = @[]
+
+# 完了時コールバックを登録
+proc onComplete*[T](f: Future[T], cb: proc(res: T)) =
+  if f.completed:
+    cb(f.result)
+  else:
+    f.callbacks.add(cb)
+
+# ----------------------------------------------------------------
+# コールバック関数を一意に管理するテーブル
+# ----------------------------------------------------------------
+type Callback = proc(data: seq[byte])
+var
+  callbackTable*: Table[int, Callback] = initTable[int, Callback]()
+  callbackCounter* = 0
+
+# 一意のIDを発行
+proc genCallbackId*(): int =
+  callbackCounter.inc
+  callbackCounter
+
+# コールバックを登録し、IDを返却
+proc registerCallback*(cb: Callback): int =
+  let id = genCallbackId()
+  callbackTable[id] = cb
+  id
+
+# ----------------------------------------------------------------
+# ic0 の reply/reject 用コールバック
+# ----------------------------------------------------------------
+proc icAsyncOnReply(callerId: uint32) {.exportc.} =
+  echo "=== icAsyncOnReply"
+  let id = int(callerId)
+  let size = ic0_msg_arg_data_size()
+  var buf = newSeq[byte]()
+  ic0_msg_arg_data_copy(cast[int](buf.addr), 0, size)
+  if callbackTable.hasKey(id):
+    callbackTable[id](buf)
+    callbackTable.del(id)
+  # 呼び出し元キャニスターへ最終返信
+  ic0_msg_reply_data_append(cast[int](buf.addr), size)
+  ic0_msg_reply()
+
+
+proc icAsyncOnReject(callerId: uint32) {.exportc.} =
+  echo "=== icAsyncOnReject"
+  let id = int(callerId)
+  let size = ic0_msg_arg_data_size()
+  var buf = newSeq[byte]()
+  ic0_msg_arg_data_copy(cast[int](buf.addr), 0, size)
+  if callbackTable.hasKey(id):
+    # エラー時には空データで完了（必要なら別途エラー処理）
+    callbackTable[id](@[])
+    callbackTable.del(id)
+  ic0_trap(cast[int](buf.addr), size)
+
+
+# ----------------------------------------------------------------
+# call: 非同期 inter-canister call
+# ----------------------------------------------------------------
+proc call*(methodName: string, payload: seq[byte]): seq[byte] =
+  echo "===== management_canister.nim call ====="
+  
+  let fut = newFuture[seq[byte]]()
+
+  # 管理キャニスター呼び出しを設定
+  # callee_src=0, callee_size=0 で Management Canister
+  ic0_call_new(
+    0, 0,
+    cast[int](methodName[0].addr), methodName.len,
+    cast[int](icAsyncOnReply), cbId,
+    cast[int](icAsyncOnReject), cbId
+  )
+  ic0_call_data_append(cast[int](payload.addr), payload.len)
+  echo "payload.len: ", payload.len
+  # cleanup コールバックも登録（呼び出しがキャンセルされた場合）
+  ic0_call_on_cleanup(cast[int](icAsyncOnReject), cbId)
+
+  # 実際に呼び出しを発行
+  let err = ic0_call_perform()
+  if err != 0:
+    let msg = "call_perform failed"
+    ic0_trap(cast[int](msg[0].addr), msg.len)
+
+  # レスポンスを受け取る
+  let n = ic0_msg_arg_data_size()
+  var data = newSeq[byte](n)
+  ic0_msg_arg_data_copy(cast[int](addr data[0]), 0, n)
+  return data
+
+
+# ----------------------------------------------------------------
+# await: Future が完了するまで同期的に待機（ポーリング）
+# ----------------------------------------------------------------
+proc await*[T](f: Future[T]): T =
+  while not f.completed:
+    discard
+  f.result
+
+# ----------------------------------------------------------------
+# spawn: 生成済 Future を返却
+# ----------------------------------------------------------------
+proc spawn*[T](f: Future[T]): Future[T] =
+  f
+
+
+# ===========================
+# 使い方例
+# ===========================
+
+# proc publicKey(caller: Principal) =
+#   let arg = EcdsaPublicKeyArgs(
+#     canisterId: @[],
+#     derivationPath: caller.bytes,
+#     keyCurve: secp256k1,
+#     keyName: dfxTestKey
+#   )
+#   let payload = serializeCandid(arg)
+#   # Motoko の await ic.ecdsa_public_key 相当
+#   let resultBlob = await call("ecdsa_public_key", payload)
+#   # Candid デコードが必要ならここで行い
+#   ic0_msg_reply_data_append(cast[int](resultBlob.addr), resultBlob.len)
+#   ic0_msg_reply()

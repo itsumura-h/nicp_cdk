@@ -24,3 +24,14 @@ proc serializeCandid*(value: string): seq[byte] =
   buf.add encodeULEB128(uint(utf8Bytes.len))
   for b in utf8Bytes: buf.add byte(b)
   buf
+
+
+proc writeText*(value: string; dst: var seq[byte]) =
+  ## Candid 文字列の「長さ＋UTF-8バイト列」部分を dst に追加
+  # 1) 一度 serializeCandid でフルシーケンスを得る
+  let full = serializeCandid(value)
+  # 2) ヘッダー (magicHeader.len バイト) + 型テーブル (1 バイト件数 + 1 バイト tagText) をスキップ
+  let start = magicHeader.len + 2
+  # 3) 残りが「長さ(ULEB128) + UTF-8 バイト列」
+  for b in full[start ..< full.len]:
+    dst.add b

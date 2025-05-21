@@ -1,0 +1,212 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+# Nim言語のWASM非同期処理
+
+このドキュメントでは、Nim言語をWebAssembly（WASM）環境で実行する際の非同期処理の実装方法について説明します。
+
+## 目次
+
+1. [Nimの非同期処理のインターフェース](mdc:#Nimの非同期処理のインターフェース)
+2. [WASM環境での非同期処理の課題](mdc:#WASM環境での非同期処理の課題)
+3. [独自ライブラリによる解決策](mdc:#独自ライブラリによる解決策)
+4. [実装のポイント](mdc:#実装のポイント)
+5. [参考資料](mdc:#参考資料)
+
+## Nimの非同期処理のインターフェース
+
+Nim言語では、標準ライブラリの`asyncdispatch`モジュールを使用して非同期処理を実装します。主な特徴は以下の通りです：
+
+### 基本コンポーネント
+
+- **Future\<T\>** - 非同期処理の結果を表すオブジェクト
+- **async** - 非同期関数を定義するためのプラグマ
+- **await** - 非同期処理の完了を待つための操作
+- **waitFor** - 非同期処理が完了するまで待機する（ブロッキング操作）
+
+### 基本的な使い方
+
+```nim
+import asyncdispatch
+
+proc fetchData(): Future[string] {.async.} =
+  # 何らかの非同期処理
+  await sleepAsync(1000)  # 1秒待機
+  return "データ"
+
+proc main() =
+  let data = waitFor fetchData()
+  echo data
+
+main()
+```
+
+### イベントループの仕組み
+
+Nimの非同期処理は、シングルスレッドのイベントループに基づいています。このモデルでは：
+
+1. I/O処理やタイマーなどの非同期操作をイベントとしてキューに登録
+2. イベントループがイベントを監視し、完了時にコールバックを実行
+3. `await`によって処理が中断された場所から再開される
+
+このモデルにより、ノンブロッキングI/Oを使用しながら、同期的なコードのように読みやすいコードを書くことができます。
+
+## WASM環境での非同期処理の課題
+
+WebAssemblyは本来、同期的な実行モデルを持つため、Nimの非同期処理モデルをそのまま適用することができません。主な課題は以下の通りです：
+
+### 1. WASMの実行モデル
+
+- WASMは基本的に同期実行のみをサポート
+- コールスタックの保存と復元の仕組みがない
+- 関数呼び出しが完了するまでブロックされる
+
+### 2. I/Oアクセスの制限
+
+- ブラウザ環境では、直接的なI/Oアクセスが制限されている
+- WASIでは標準I/Oはあるが、ネットワークI/Oなどは環境に依存
+
+### 3. スレッドサポートの制限
+
+- WASMのスレッドサポートは限定的（ブラウザでは実験的な段階）
+- Nimの非同期処理が依存するポーリングメカニズムの実装が困難
+
+### 4. コンテキスト切り替えの問題
+
+- 通常のNimの非同期処理では、コンテキスト切り替えに依存
+- WASMにはネイティブなコルーチンや中断・再開の仕組みがない
+
+## 独自ライブラリによる解決策
+
+これらの課題を解決するために、`async_wasm`モジュールを開発しました。このモジュールは、EmscriptenのAsyncify技術に着想を得て、WASMでの非同期処理を可能にします。
+
+### 主なアプローチ
+
+1. **Asyncifyパターンの採用**
+   - WASMのスタックを保存・復元する仕組みを実装
+   - 関数の実行を一時停止し、後で再開できるようにする
+
+2. **asyncdispatchと互換性のあるAPI**
+   - 既存のNimの非同期コードが最小限の変更で動作するようにする
+   - 同じFuture型、async/awaitパターンを提供
+
+3. **JavaScriptブリッジとの統合**
+   - JavaScript側の非同期APIと連携する仕組みを提供
+   - Promise、async/await、コールバックベースのAPIをサポート
+
+4. **純粋なWASIランタイムへの対応**
+   - ブラウザだけでなく、WASIベースのWASMランタイム（wasmer、wasmtimeなど）でも動作
+
+### コアコンポーネント
+
+- **Future\<T\>** - 非同期処理の結果を表すオブジェクト
+- **async/await** - 非同期プログラミングの構文
+- **PDispatcher** - コールバックのディスパッチを管理
+- **sleepAsync** - 非同期の遅延処理
+- **WASMブリッジ** - WASM/JavaScript間の通信を処理
+
+## 実装のポイント
+
+### 1. スタックの保存と復元
+
+Asyncifyの核心は、関数の実行状態（スタック）を保存し、後で復元する能力です：
+
+```nim
+proc asyncify_start_unwind(stackData: pointer) {.importc.}
+proc asyncify_stop_unwind() {.importc.}
+proc asyncify_start_rewind(stackData: pointer) {.importc.}
+proc asyncify_stop_rewind() {.importc.}
+```
+
+これらの関数を使用して：
+
+1. 実行状態を保存する（unwind）
+2. 保存した状態から再開する（rewind）
+
+### 2. 非同期プリミティブの実装
+
+基本的な非同期操作は、スタックの保存と復元を利用して実装されます：
+
+```nim
+proc sleepAsync*(ms: int): Future[void] =
+  var ret = newFuture[void](mdc:"sleepAsync")
+  
+  proc cb() =
+    complete(ret)
+  
+  # スタックを保存してJavaScriptに制御を戻す
+  when defined(js):
+    proc jsCb(resolve: proc()) =
+      setTimeout(proc() = resolve(), ms)
+    
+    discard Asyncify.handleSleep(jsCb)
+  else:
+    # 純粋なWASMランタイムでの実装
+    addTimer(ms, cb)
+  
+  return ret
+```
+
+### 3. イベントループの実装
+
+通常のNimのイベントループの代わりに、シンプルなコールバックベースのシステムを使用：
+
+```nim
+proc poll*() =
+  # 保留中のコールバックを実行
+  while pendingCallbacks.len > 0:
+    let cb = pendingCallbacks.popFirst()
+    cb()
+
+proc runForever*() =
+  while true:
+    poll()
+    # WASMランタイムに制御を戻す
+    yield()
+```
+
+### 4. Future型とコールバック
+
+`Future`型は、非同期操作の結果を表し、操作が完了したときに通知するためのコールバックを保持します：
+
+```nim
+proc complete*[T](mdc:future: Future[T], val: T) =
+  if not future.finished:
+    future.value = val
+    future.finished = true
+    
+    # 登録されたすべてのコールバックを呼び出す
+    for cb in future.callbacks:
+      callSoon(cb)
+```
+
+## 参考資料
+
+### Nim言語の非同期処理
+
+1. [Nim公式ドキュメント - asyncdispatch](mdc:https:/nim-lang.org/docs/asyncdispatch.html)
+2. [Nim by Example - Async/Await](mdc:https:/nim-by-example.github.io/asyncawait)
+3. [Understanding Nim's async](mdc:https:/gist.github.com/LucaWolf/70f48ad15c8aa0284bfdd2d083ea4128)
+
+### WebAssemblyと非同期処理
+
+1. [Emscripten Asyncify](mdc:https:/emscripten.org/docs/porting/asyncify.html)
+2. [WebAssembly/WASI](mdc:https:/github.com/WebAssembly/WASI)
+3. [WASI SDK](mdc:https:/github.com/WebAssembly/wasi-sdk)
+4. [Wasmer Runtime](mdc:https:/wasmer.io)
+5. [Wasmtime Runtime](mdc:https:/wasmtime.dev)
+
+### JavaScriptとの連携
+
+1. [JavaScript Promise API](mdc:https:/developer.mozilla.org/ja/docs/Web/JavaScript/Reference/Global_Objects/Promise)
+2. [WebAssembly JavaScript API](mdc:https:/developer.mozilla.org/ja/docs/Web/JavaScript/Reference/Global_Objects/WebAssembly)
+3. [Using WebAssembly from JavaScript](mdc:https:/developer.mozilla.org/ja/docs/WebAssembly/Using_the_JavaScript_API)
+
+### 実装参考コード
+
+1. [Nim's asyncdispatch Source Code](mdc:https:/github.com/nim-lang/Nim/blob/devel/lib/pure/asyncdispatch.nim)
+2. [Asyncify Examples](mdc:https:/github.com/emscripten-core/emscripten/tree/main/test/asyncify)
+3. [Nim's asynchttpserver](mdc:https:/github.com/nim-lang/Nim/blob/devel/lib/pure/asynchttpserver.nim)
+4. [Nim's asyncnet](mdc:https:/github.com/nim-lang/Nim/blob/devel/lib/pure/asyncnet.nim)

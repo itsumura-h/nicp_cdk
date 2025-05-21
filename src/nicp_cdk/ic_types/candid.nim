@@ -128,3 +128,77 @@ proc parseCandidArgs*(data: seq[byte]): seq[CandidValue] =
     results.add decodeValue(data, off, t)
 
   return results
+
+
+#------------------------------------------------------------
+# CandidType → タグバイト の逆変換
+#------------------------------------------------------------
+proc typeTag*(t: CandidType): byte =
+  case t
+  of ctNull:       tagNull
+  of ctBool:       tagBool
+  of ctNat:        tagNat
+  of ctNat8:       tagNat8
+  of ctNat16:      tagNat16
+  of ctNat32:      tagNat32
+  of ctNat64:      tagNat64
+  of ctInt:        tagInt
+  of ctInt8:       tagInt8
+  of ctInt16:      tagInt16
+  of ctInt32:      tagInt32
+  of ctInt64:      tagInt64
+  of ctFloat32:    tagFloat32
+  of ctFloat64:    tagFloat64
+  of ctText:       tagText
+  of ctPrincipal:  tagPrincipal
+  of ctReserved:   tagReserved
+  of ctEmpty:      tagEmpty
+  else:
+    quit("Unknown CandidType: " & $t)
+
+
+#------------------------------------------------------------
+# seq[CandidValue] → seq[byte] (Candid へエンコード)
+#------------------------------------------------------------
+proc encodeCandidArgs*(values: seq[CandidValue]): seq[byte] =
+  #―― ヘッダー ――――――――――――――――――――
+  result.add magicHeader
+  # for b in magicHeader:
+  #   result.add b
+
+  #―― 型テーブル ―――――――――――――――――――
+  result.add byte(values.len)              # 型数
+  for v in values:
+    result.add typeTag(v.kind)             # 各 CandidType をタグバイトに
+
+  #―― 値本体 ――――――――――――――――――――――――
+  for v in values:
+    case v.kind
+    of ctNull, ctReserved, ctEmpty:
+      discard                              # データなし
+    of ctBool:
+      result.add(if v.boolVal: 1'u8 else: 0'u8)
+    of ctNat, ctNat8, ctNat16, ctNat32, ctNat64:
+      let enc = encodeULEB128(v.natVal.uint)
+      for b in enc: result.add b
+    of ctInt, ctInt8, ctInt16, ctInt32, ctInt64:
+      let enc = encodeSLEB128(v.intVal.int32)
+      for b in enc: result.add b
+    of ctFloat32:
+      let x = cast[uint32](v.float32Val)
+      for i in 0..3:
+        result.add byte((x shr (8*i)) and 0xFF'u32)
+    of ctFloat64:
+      let x = cast[uint64](v.float64Val)
+      for i in 0..7:
+        result.add byte((x shr (8*i)) and 0xFF'u64)
+    of ctText:
+      # ic_text に定義された writeText(text, seq[byte]) を利用
+      writeText(v.textVal, result)
+    of ctPrincipal:
+      # ic_principal に定義された writePrincipal(principal, seq[byte]) を利用
+      writePrincipal(v.principalVal, result)
+    else:
+      quit("Encoding for this type not implemented")
+
+  return result

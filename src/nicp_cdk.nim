@@ -9,3 +9,5 @@ import ./nicp_cdk/ic_types/ic_text; export ic_text;
 import ./nicp_cdk/ic_types/ic_empty; export ic_empty;
 import ./nicp_cdk/ic_types/ic_principal; export ic_principal;
 import ./nicp_cdk/ic_api; export ic_api;
+# import ./nicp_cdk/management_canitster; export management_canitster;
+import ./nicp_cdk/ic_types/management_canister/ic_ecdsa; export ic_ecdsa;

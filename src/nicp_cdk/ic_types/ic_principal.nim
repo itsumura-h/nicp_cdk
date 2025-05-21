@@ -8,11 +8,11 @@ import ./consts
 
 # https://wiki.internetcomputer.org/wiki/Principal
 const
-  ManagementCanister = "aaaaa-aa"
-  GovernanceCanister = "rrkah-fqaaa-aaaaa-aaaaq-cai"
-  LedgerCanister = "ryjl3-tyaaa-aaaaa-aaaba-cai"
-  NetworkNervousSystemCanister = "tdb26-jop6k-aogll-7ltgs-eruif-6kk7m-qpktf-gdiqx-mxtrf-vb5e6-eqe"
-  AnonymousUser = "2vxsx-fae"
+  MANAGEMENT_CANISTER_PRINCIPAL* = "aaaaa-aa"
+  GOVERNANCE_CANISTER_PRINCIPAL* = "rrkah-fqaaa-aaaaa-aaaaq-cai"
+  LEDGER_CANISTER_PRINCIPAL* = "ryjl3-tyaaa-aaaaa-aaaba-cai"
+  NETWORK_NATURAL_SYSTEM_CANISTER_PRINCIPAL* = "tdb26-jop6k-aogll-7ltgs-eruif-6kk7m-qpktf-gdiqx-mxtrf-vb5e6-eqe"
+  ANONYMOUS_USER_PRINCIPAL* = "2vxsx-fae"
 
 
 type Principal* = object
@@ -107,3 +107,14 @@ proc serializeCandid*(value: Principal): seq[byte] =
   for b in value.bytes:
     buf.add b                                          # 生バイト列をそのまま追加
   buf
+
+
+proc writePrincipal*(value: Principal; dst: var seq[byte]) =
+  ## Candid Principal の「IDフォーム＋長さ(ULEB128)＋生バイト列」部分を dst に追加
+  # 1) 一度 serializeCandid でフルシーケンスを得る
+  let full = serializeCandid(value)
+  # 2) ヘッダー (magicHeader.len バイト) + 型テーブル (1 バイト件数 + 1 バイト tagPrincipal) をスキップ
+  let start = magicHeader.len + 2
+  # 3) 残りが「IDフォーム(1) + 長さ(ULEB128) + バイト列」
+  for b in full[start ..< full.len]:
+    dst.add b

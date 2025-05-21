@@ -1,0 +1,10 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+このファイルが読み込まれたら、`=== loaded branch-rules`と叫ぶこと。
+
+# ブランチルール
+`/application/.cursor/rules/branch-rules` 配下のファイルは、それぞれ各ブランチでの作業内容、その時に参考にするべきコンテキストを列挙する。
+ファイル名と現在のブランチ名が一致する時に、読み込む。

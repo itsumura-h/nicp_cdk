@@ -1,0 +1,187 @@
+---
+description: このファイルは作業ブランチがt-ecdsaの時に読み込まれる。
+globs: 
+alwaysApply: false
+---
+このファイルが読み込まれたら、`=== loaded t-ecdsa`と叫ぶこと。
+
+# t-ecdsa
+このファイルは作業ブランチがt-ecdsaの時だけ読み込まれる。
+
+
+## 実現したいこと
+ICPのキャニスターをNim言語で開発したい。
+Management Canitserのecdsa_public_key関数を呼び出す処理をRustを参考に、どうすればできるか考える。
+
+以下はRustでManagement Canisterを呼び出すコードの例です。
+https://github.com/dfinity/cdk-rs/blob/main/ic-cdk/src/management_canister.rs
+https://github.com/dfinity/cdk-rs/blob/main/ic-cdk/src/call.rs
+
+以下はMotokoでのサンプルです。ICPのECDSA関数は引数の型が決まっています
+canister_idは?Principal型で、nullを指定するとManagement Canisterを呼び出します。
+derivation_pathは[Blob]型で、ここには呼び出し元のPrincipalのバイナリデータを指定します。
+key_idは{ curve : { #secp256k1 }; name : Text }型で、curveはEnumであり、secp256k1を指定します。
+nameはText型で、ここにはキーの名前を指定します。ローカル環境では定数の dfx_test_key を指定します。
+
+```motoko
+import Cycles "mo:base/ExperimentalCycles";
+import Error "mo:base/Error";
+import Principal "mo:base/Principal";
+import Text "mo:base/Text";
+import Blob "mo:base/Blob";
+import Nat8 "mo:base/Nat8";
+import Hex "./Hex";
+import SHA256 "./SHA256";
+import Debug "mo:base/Debug";
+module {
+  // Only the ecdsa methods in the IC management canister is required here.
+  public type IC = actor {
+    ecdsa_public_key : ({
+      canister_id : ?Principal;
+      derivation_path : [Blob];
+      key_id : { curve : { #secp256k1 }; name : Text };
+    }) -> async ({ public_key : Blob; chain_code : Blob });
+    sign_with_ecdsa : ({
+      message_hash : Blob;
+      derivation_path : [Blob];
+      key_id : { curve : { #secp256k1 }; name : Text };
+    }) -> async ({ signature : Blob });
+  };
+
+  let ic : IC = actor("aaaaa-aa");
+
+  public func public_key(_caller : Principal) : async [Nat8] {
+    Debug.print("=== ecdsa public_key ===");
+    let caller = Principal.toBlob(_caller);
+    Debug.print("caller: " # debug_show (caller));
+    try {
+      let { public_key } = await ic.ecdsa_public_key({
+        canister_id = null;
+        derivation_path = [caller];
+        key_id = { curve = #secp256k1; name = "dfx_test_key" };
+      });
+      return Blob.toArray(public_key);
+    } catch (err) {
+      let msg = Error.message(err);
+      throw Error.reject(msg);
+    };
+  };
+
+  public func sign(_caller : Principal, message : Blob) : async [Nat8] {
+    let caller = Principal.toBlob(_caller);
+    try {
+      // Cycles.add(25_000_000_000);
+      let { signature } = await ic.sign_with_ecdsa({
+        message_hash = message;
+        derivation_path = [caller];
+        key_id = { curve = #secp256k1; name = "dfx_test_key" };
+      });
+      return Blob.toArray(signature);
+    } catch (err) {
+      let msg = Error.message(err);
+      throw Error.reject(msg);
+    };
+  };
+};
+```
+
+## 参考資料
+https://internetcomputer.org/docs/references/samples/motoko/threshold-ecdsa/
+https://github.com/dfinity/examples/blob/master/rust/threshold-ecdsa/src/ecdsa_example_rust/src/lib.rs#L27-L41
+https://github.com/dfinity/cdk-rs/blob/main/ic-cdk/src/management_canister.rs#L654C14-L661
+https://github.com/dfinity/cdk-rs/blob/main/ic-cdk/src/call.rs#L166-L177
+https://github.com/dfinity/cdk-rs/blob/main/ic-cdk/src/call.rs#L200-L205
+https://github.com/dfinity/cdk-rs/blob/main/ic-cdk/src/call.rs#L294-L302
+https://github.com/dfinity/cdk-rs/blob/main/ic-cdk/src/api/call.rs
+
+## キャニスター間呼び出しに関するICP公式仕様書
+https://internetcomputer.org/docs/references/ic-interface-spec#system-api-call
+
+### Inter-canister method calls {#system-api-call}
+
+When handling an update call (or a callback), a canister can do further calls to another canister. Calls are assembled in a builder-like fashion, starting with `ic0.call_new`, adding more attributes using the `ic0.call_*` functions, and eventually performing the call with `ic0.call_perform`.
+
+-   `ic0.call_new :
+    ( callee_src  : I,
+      callee_size : I,
+      name_src    : I,
+      name_size   : I,
+      reply_fun   : I,
+      reply_env   : I,
+      reject_fun  : I,
+      reject_env  : I,
+    ) → ()`; `I ∈ {i32, i64}`
+
+Begins assembling a call to the canister specified by `callee_src/_size` at method `name_src/_size`.
+
+The IC records two mandatory callback functions, represented by a table entry index `*_fun` and some additional value `*_env`. When the response comes back, the table is read at the corresponding index, expected to be a function of type `(env : I) -> ()`, and passed the corresponding `*_env` value.
+
+The reply callback is executed upon successful completion of the method call, which can query the reply using `ic0.msg_arg_data_*`.
+
+The reject callback is executed if the method call fails asynchronously or the other canister explicitly rejects the call. The reject code and message can be queried using `ic0.msg_reject_code` and `ic0.msg_reject_msg_*`.
+
+Subsequent calls to the following functions set further attributes of that call, until the call is concluded (with `ic0.call_perform`) or discarded (by returning without calling `ic0.call_perform` or by starting a new call with `ic0.call_new`.)
+
+-   `ic0.call_on_cleanup : (fun : I, env : I) → ()`; `I ∈ {i32, i64}`
+
+If a cleanup callback (of type `(env : I) -> ()`) is specified for this call, it is executed if and only if the `reply` or the `reject` callback was executed and trapped (for any reason).
+
+During the execution of the `cleanup` function, only a subset of the System API is available (namely `ic0.debug_print`, `ic0.trap` and the `ic0.stable_*` functions). The cleanup function is expected to run swiftly (within a fixed, yet to be specified cycle limit) and serves to free resources associated with the callback.
+
+If this traps (e.g. runs out of cycles), the state changes from the `cleanup` function are discarded, as usual, and no further actions are taken related to that call. Canisters likely want to avoid this from happening.
+
+There must be at most one call to `ic0.call_on_cleanup` between `ic0.call_new` and `ic0.call_perform`.
+
+-   `ic0.call_with_best_effort_response : (timeout_seconds : i32) -> ()`
+
+    Turns the call into a *bounded-wait call*, by relaxing the response delivery guarantee to be best effort, and asking the system to respond at the latest after `timeout_seconds` have elapsed. Best effort means the system may also respond with a `SYS_UNKNOWN` reject code, signifying that the call **may or may not** have been processed by the callee. Then, even if the callee produces a response, it will not be delivered to the caller.
+
+    Any value for `timeout_seconds` is permitted, but is silently bounded from above by the `MAX_CALL_TIMEOUT` system constant; i.e., larger timeouts are treated as equivalent to `MAX_CALL_TIMEOUT` and do not cause an error. The implementation may add a specific [error code](#error-codes) to a reject message to indicate the cause, in particular whether the timeout expired. Note that the reject callback may be executed (possibly significantly) later than the specified time (e.g., if the caller is under high load), or before timeout expiration (e.g., if the system is under load).
+
+    A caller that receives a `SYS_UNKNOWN` reject code, yet needs to learn the call outcome, must find an out-of-band way of doing so. For example, if the callee provides idempotent function calls, the caller can simply retry the call. Sample causes of `SYS_UNKNOWN` include the call not being delivered in time, call processing not completing in time, reply delivery taking too long, and the system shedding load.
+
+    This method can be called only in between `ic0.call_new` and `ic0.call_perform`, and at most once at that. Otherwise, it traps. A different timeout can be specified for each call.
+
+-   `ic0.call_data_append : (src : I, size : I) -> ()`; `I ∈ {i32, i64}`
+
+    Appends the specified bytes to the argument of the call. Initially, the argument is empty. Traps if the total appended data exceeds the [maximum inter-canister call payload](https://internetcomputer.org/docs/developer-docs/backend/resource-limits#resource-constraints-and-limits).
+
+    This may be called multiple times between `ic0.call_new` and `ic0.call_perform`.
+
+-   `ic0.call_cycles_add : (amount : i64) -> ()`
+
+    This system call moves cycles from the canister balance onto the call under construction, to be transferred with that call.
+
+    The cycles are deducted from the balance as shown by `ic0.canister_cycle_balance128` immediately, and moved back if the call cannot be performed (e.g. if `ic0.call_perform` signals an error, if the canister invokes `ic0.call_new`, or returns without calling `ic0.call_perform`).
+
+    This system call may be called multiple times between `ic0.call_new` and `ic0.call_perform`.
+
+    This system call traps if there is no call under construction, i.e., if not called between `ic0.call_new` and `ic0.call_perform`.
+
+    This system call traps if trying to transfer more cycles than returned by `ic0.canister_liquid_cycle_balance128`.
+
+-   `ic0.call_cycles_add128 : (amount_high : i64, amount_low : i64) -> ()`
+
+    This system call moves cycles from the canister balance onto the call under construction, to be transferred with that call.
+
+    The amount of cycles it moves is represented by a 128-bit value which can be obtained by combining the `amount_high` and `amount_low` parameters.
+
+    The cycles are deducted from the balance as shown by `ic0.canister_cycle_balance128` immediately, and moved back if the call cannot be performed (e.g. if `ic0.call_perform` signals an error, if the canister invokes `ic0.call_new`, or returns without calling `ic0.call_perform`).
+
+    This system call may be called multiple times between `ic0.call_new` and `ic0.call_perform`.
+
+    This system call traps if there is no call under construction, i.e., if not called between `ic0.call_new` and `ic0.call_perform`.
+
+    This system call traps if trying to transfer more cycles than returned by `ic0.canister_liquid_cycle_balance128`.
+
+-   `ic0.call_perform  : () -> ( err_code : i32 )`
+
+    This concludes assembling the call. It queues the call message to the given destination, but does not actually act on it until the current WebAssembly function returns without trapping.
+
+    This deducts `MAX_CYCLES_PER_RESPONSE` cycles from the canister balance and sets them aside for response processing.
+
+    The returned `err_code` is always one of `0` and `2`. An `err_code` of `0` means that no error occurred and that the IC could enqueue the call. In this case, the call will either be delivered, returned because the destination canister does not exist, returned due to a lack of resources within the IC, or returned because of an out of cycles condition. This also means that exactly one of the reply or reject callbacks will be executed.
+
+    A non-zero value of `err_code` (`2`) indicates that the call could not be performed and the semantics of that value are the same as for the corresponding `SYS_FATAL` [reject code](#reject-codes). The non-zero value of `err_code` (`2`) could arise due to a lack of resources within the IC, but also if the call would reduce the current cycle balance to a level below where the canister would be frozen. No callbacks are executed in this case.
+
+    After `ic0.call_perform` and before the next call to `ic0.call_new`, all other `ic0.call_*` function calls trap.
