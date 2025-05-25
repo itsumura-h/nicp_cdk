@@ -1,6 +1,7 @@
 import ../ic0/ic0
 import ../ic_types/ic_principal
 import ../ic_types/management_canister/ic_ecdsa
+import ../ic_types/candid
 # import ./ic_async
 
 # ecdsa_public_key の呼び出し結果を処理するコールバック
@@ -8,8 +9,9 @@ proc onPublicKeyReply(env: uint32) {.exportc.} =
   echo "=== onPublicKeyReply ==="
   let size = ic0_msg_arg_data_size()                       # 応答データのサイズ取得
   var buf = newSeq[uint8](size)                           
-  ic0_msg_arg_data_copy(cast[int](buf.addr), 0, size)                  # 応答データ（公開鍵とチェインコード）のコピー
-  ## ※ここでbufには EcdsaPublicKeyResult のCandidエンコードが格納される
+  # 応答データ（公開鍵とチェインコード）のコピー
+  ic0_msg_arg_data_copy(cast[int](buf.addr), 0, size)
+  # ※ここでbufには EcdsaPublicKeyResult のCandidエンコードが格納される
   # 必要に応じて buf から公開鍵bytesとチェインコードbytesをデコード
   # 例では単にそのまま呼び出し元に転送
   ic0_msg_reply_data_append(cast[int](buf.addr), size)                 # データを返信メッセージにセット
@@ -32,16 +34,17 @@ proc fetchECDSAPublicKey*(arg: EcdsaPublicKeyArgs) =
   let destLen   = mgmtPrincipalBytes.len    # 0
   let argBlob = serializeCandid(arg)
   echo "argBlob: ", argBlob
+  echo "argBlob.toString(): ", argBlob.toString()
   echo "reply_fun: ", cast[int](onPublicKeyReply)
   echo "reject_fun: ", cast[int](onPublicKeyReject)
 
   ## 3. 管理キャニスター呼び出しの設定
-  let methodName = "ecdsa_public_key"
+  let methodName = "ecdsa_public_key".cstring
   ic0_call_new(
     callee_src = cast[int](destPtr),
     callee_size = destLen,
-    name_src = cast[int](methodName[0].addr),
-    name_size = methodName.len,
+    name_src = cast[int](methodName),
+    name_size = methodName.len-1,
     reply_fun = cast[int](onPublicKeyReply),
     reply_env = 0,
     reject_fun = cast[int](onPublicKeyReject),
@@ -67,6 +70,6 @@ proc publicKey*(_:type ManagementCanister, arg: EcdsaPublicKeyArgs) =
   fetchECDSAPublicKey(arg)
   let n = ic0_msg_arg_data_size()
   var data = newSeq[byte](n)
-  ic0_msg_arg_data_copy(cast[int](addr data[0]), 0, n)
+  ic0_msg_arg_data_copy(cast[int](data[0].addr), 0, n)
   echo "data: ", data
   # echo "res: ", res

@@ -1,4 +1,5 @@
 import ../../algorithm/leb128
+import ../consts
 
 
 # 1) Variant のエンコード (index + payload)
@@ -56,7 +57,7 @@ type
 
 
 # テキストのエンコーダ (blob として使う場合)
-proc encodeStringBytes*(s: string): seq[byte] =
+proc encodeStringBytes*(s: cstring): seq[byte] =
   result = encodeULEB128(uint(s.len))
   for c in s:
     result.add byte(c)
@@ -66,7 +67,7 @@ proc encodeStringBytes*(s: string): seq[byte] =
 proc serializeCandid*(arg: EcdsaPublicKeyArgs): seq[byte] =
   # 5.1 key_id レコードのフィールドをエンコード
   let nameStr = $arg.keyName
-  let nameBytes = encodeStringBytes(nameStr)
+  let nameBytes = encodeStringBytes(nameStr.cstring)
   # variant: secp256k1 -> index 0, 他は ordinal
   let curveIndex = arg.keyCurve.uint
   let curveBytes = encodeCandidVariant(curveIndex, @[])
@@ -78,5 +79,6 @@ proc serializeCandid*(arg: EcdsaPublicKeyArgs): seq[byte] =
   # 5.3 derivation_path (単一 blob として vec nat8)
   let derivBytes = encodeCandidVec(arg.derivationPath, proc(b: byte): seq[byte] = @[b])
 
+  result.add magicHeader
   # 5.4 全フィールドをソート済み順に連結: [key_id, canister_id, derivation_path]
-  result = encodeCandidRecord(@[keyIdBytes, canBytes, derivBytes])
+  result.add encodeCandidRecord(@[keyIdBytes, canBytes, derivBytes])

@@ -21,6 +21,10 @@ T(reserved)  = sleb128(-16) = 0x70
 T(empty)     = sleb128(-17) = 0x6f
 T(principal) = sleb128(-24) = 0x68
 
+T(opt <datatype>) = sleb128(-18) I(<datatype>)              // 0x6e
+T(vec <datatype>) = sleb128(-19) I(<datatype>)              // 0x6d
+T(record {<fieldtype>^N}) = sleb128(-20) T*(<fieldtype>^N)  // 0x6c
+T(variant {<fieldtype>^N}) = sleb128(-21) T*(<fieldtype>^N) // 0x6b
 ]#
 
 const
@@ -42,4 +46,8 @@ const
   tagText*      = 0x71'u8  # text
   tagReserved*  = 0x70'u8  # reserved
   tagEmpty*     = 0x6f'u8  # empty
+  tagOptional*  = 0x6e'u8  # optional
+  tagVec*       = 0x6d'u8  # vec
+  tagRecord*    = 0x6c'u8  # record
+  tagVariant*   = 0x6b'u8  # variant
   tagPrincipal* = 0x68'u8  # principal

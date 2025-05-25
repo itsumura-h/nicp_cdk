@@ -20,7 +20,7 @@ wasi2icのツール
 https://github.com/wasm-forge/wasi2ic
 
 Candidのバイト列をデコードするツール  
-https://fxa77-fiaaa-aaaae-aaana-cai.raw.icp0.io/
+https://fxa77-fiaaa-aaaae-aaana-cai.raw.icp0.io/explain
 
 Candid型定義  
 https://github.com/dfinity/candid/blob/master/spec/Candid.md#types

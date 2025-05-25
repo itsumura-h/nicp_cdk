@@ -1,6 +1,7 @@
 import std/endians
 import std/sequtils
 import std/strutils
+import std/options
 import ../algorithm/leb128
 import ./consts
 import ./ic_principal
@@ -18,9 +19,10 @@ type
     ctNat8, ctNat16, ctNat32, ctNat64,
     ctInt8, ctInt16, ctInt32, ctInt64,
     ctFloat32, ctFloat64,
-    ctText, ctReserved, ctEmpty, ctPrincipal
+    ctText, ctReserved, ctEmpty, ctPrincipal,
+    ctRecord, ctVec, ctOptional, ctVariant
 
-  CandidValue* = object
+  CandidValue*[T] = object
     case kind*: CandidType
     of ctNull: discard
     of ctBool: boolVal*: bool
@@ -31,6 +33,10 @@ type
     of ctText: textVal*: string
     of ctPrincipal: principalVal*: Principal
     of ctReserved, ctEmpty: discard
+    of ctRecord: recordVal*: seq[CandidValue]
+    of ctVec: vecVal*: seq[CandidValue]
+    of ctOptional: optionalVal*: Option[T]
+    of ctVariant: variantVal*: seq[CandidValue]
     # 他の型は必要に応じて追加
 
 
@@ -63,6 +69,10 @@ proc parseTypeTag(b: byte): CandidType =
   of tagText:       ctText
   of tagReserved:   ctReserved
   of tagEmpty:      ctEmpty
+  of tagOptional:   ctOptional
+  of tagRecord:     ctRecord
+  of tagVec:        ctVec
+  of tagVariant:    ctVariant
   of tagPrincipal:  ctPrincipal
   else:
     quit("Unknown Candid tag: " & $b)
