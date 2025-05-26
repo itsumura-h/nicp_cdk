@@ -2,6 +2,7 @@ import std/endians
 import std/sequtils
 import std/strutils
 import std/options
+import std/tables
 import ../algorithm/leb128
 import ./consts
 import ./ic_principal
@@ -11,6 +12,8 @@ import ./ic_text
 proc toString*(data: seq[byte]): string =
   return data.mapIt(it.toHex()).join("")
 
+
+# https://internetcomputer.org/docs/references/candid-ref
 
 #---- Candid 型タグの定義 ----
 type
@@ -33,9 +36,9 @@ type
     of ctText: textVal*: string
     of ctPrincipal: principalVal*: Principal
     of ctReserved, ctEmpty: discard
-    of ctRecord: recordVal*: seq[CandidValue]
+    of ctRecord: recordVal*: Table[string, CandidValue]
     of ctVec: vecVal*: seq[CandidValue]
-    of ctOptional: optionalVal*: Option[T]
+    of ctOptional: optionalVal*: Option[bool or Natural or int or float32 or float64 or string or Principal]
     of ctVariant: variantVal*: seq[CandidValue]
     # 他の型は必要に応じて追加
 
