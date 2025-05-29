@@ -66,9 +66,17 @@ proc argText() {.query.} =
 
 proc msgPrincipal() {.query.} =
   let caller = Msg.caller()
-  icEcho caller
   reply(caller)
 
 
 proc responseEmpty() {.query.} =
   reply()
+
+
+proc responseRecord() {.query.} =
+  let record = {
+    "name": "John",
+    "age": 30,
+    "city": "New York"
+  }.toTable()
+  reply(record)

@@ -21,10 +21,34 @@ T(reserved)  = sleb128(-16) = 0x70
 T(empty)     = sleb128(-17) = 0x6f
 T(principal) = sleb128(-24) = 0x68
 
+T(opt <datatype>) = sleb128(-18) I(<datatype>)              // 0x6e
+T(vec <datatype>) = sleb128(-19) I(<datatype>)              // 0x6d
+T(record {<fieldtype>^N}) = sleb128(-20) T*(<fieldtype>^N)  // 0x6c
+T(variant {<fieldtype>^N}) = sleb128(-21) T*(<fieldtype>^N) // 0x6b
+
+T : <fieldtype> -> i8*
+T(<nat>:<datatype>) = leb128(<nat>) I(<datatype>)
+
+T : <reftype> -> i8*
+T(func (<datatype1>*) -> (<datatype2>*) <funcann>*) =
+  sleb128(-22) T*(<datatype1>*) T*(<datatype2>*) T*(<funcann>*) // 0x6a
+T(service {<methtype>*}) =
+  sleb128(-23) T*(<methtype>*)                                    // 0x69
+
+T : <methtype> -> i8*
+T(<name>:<datatype>) = leb128(|utf8(<name>)|) i8*(utf8(<name>)) I(<datatype>)
+
+T : <funcann> -> i8
+T(query)  = i8(1)
+T(oneway) = i8(2)
+T(composite_query) = i8(3)
+
+T* : <X>* -> i8*
+T*(<X>^N) = leb128(N) T(<X>)^N
 ]#
 
 const
-  magicHeader*  = @[0x44'u8, 0x49'u8, 0x44'u8, 0x4C'u8, 0x00'u8]  # "DIDL0"
+  magicHeader*  = @[0x44'u8, 0x49'u8, 0x44'u8, 0x4C'u8]  # "DIDL"
   tagNull*      = 0x7f'u8  # null
   tagBool*      = 0x7e'u8  # bool
   tagNat*       = 0x7d'u8  # nat
@@ -42,4 +66,13 @@ const
   tagText*      = 0x71'u8  # text
   tagReserved*  = 0x70'u8  # reserved
   tagEmpty*     = 0x6f'u8  # empty
+  tagOptional*  = 0x6e'u8  # optional
+  tagVec*       = 0x6d'u8  # vec
+  tagRecord*    = 0x6c'u8  # record
+  tagVariant*   = 0x6b'u8  # variant
   tagPrincipal* = 0x68'u8  # principal
+  tagFunc*      = 0x6a'u8  # func
+  tagService*   = 0x69'u8  # service
+  tagQuery*     = 0x01'u8  # query
+  tagOneway*    = 0x02'u8  # oneway
+  tagCompositeQuery* = 0x03'u8  # composite_query

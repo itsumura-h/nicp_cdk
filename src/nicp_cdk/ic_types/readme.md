@@ -12,3 +12,6 @@ ICPで扱う型を保持する。
   - `(value:T) -> string`
 
 **ic0はimportしない**
+
+
+https://github.com/dfinity/agent-js/blob/main/packages/candid/src/idl.ts

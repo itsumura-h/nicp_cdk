@@ -10,8 +10,9 @@ proc new*(_:type Request): Request =
   let n = ic0_msg_arg_data_size()
   var data = newSeq[byte](n)
   ic0_msg_arg_data_copy(ptrToInt(addr data[0]), 0, n)
-  let values = parseCandidArgs(data)
-  return Request(values: values)
+  # let values = parseCandidArgs(data)
+  let values = decodeCandidMessage(data)
+  return Request(values: values.values)
 
 # 指定されたインデックスの引数を bool として取得する
 proc getBool*(self:Request, index:int): bool =

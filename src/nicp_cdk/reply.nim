@@ -1,26 +1,25 @@
+import std/tables
 import ./ic0/ic0
 import ./ic_types/candid
-import ./ic_types/ic_empty
-import ./ic_types/ic_bool
-import ./ic_types/ic_int
-import ./ic_types/ic_float
-import ./ic_types/ic_text
 import ./ic_types/ic_principal
 
 
 proc reply*() =
-  let response = serializeCandid()
-  ic0_msg_reply_data_append(ptrToInt(addr response[0]), response.len)
+  let value = newCandidNull()
+  let encoded = encodeCandidMessage(@[value])
+  ic0_msg_reply_data_append(ptrToInt(addr encoded[0]), encoded.len)
   ic0_msg_reply()
 
 proc reply*(msg: bool) =
-  let response = serializeCandid(msg)
-  ic0_msg_reply_data_append(ptrToInt(addr response[0]), response.len)
+  let value = newCandidBool(msg)
+  let encoded = encodeCandidMessage(@[value])
+  ic0_msg_reply_data_append(ptrToInt(addr encoded[0]), encoded.len)
   ic0_msg_reply()
 
 proc reply*(msg: int32) =
-  let response = serializeCandid(msg)
-  ic0_msg_reply_data_append(ptrToInt(addr response[0]), response.len)
+  let value = newCandidInt(msg)
+  let encoded = encodeCandidMessage(@[value])
+  ic0_msg_reply_data_append(ptrToInt(addr encoded[0]), encoded.len)
   ic0_msg_reply()
 
 # proc reply*(msg: int64) =
@@ -30,20 +29,23 @@ proc reply*(msg: int32) =
 
 
 proc reply*(msg: int) =
-  let response = serializeCandid(msg)
-  ic0_msg_reply_data_append(ptrToInt(addr response[0]), response.len)
+  let value = newCandidInt(msg)
+  let encoded = encodeCandidMessage(@[value])
+  ic0_msg_reply_data_append(ptrToInt(addr encoded[0]), encoded.len)
   ic0_msg_reply()
 
 
 proc reply*(msg: Natural) =
-  let response = serializeCandid(msg)
-  ic0_msg_reply_data_append(ptrToInt(addr response[0]), response.len)
+  let value = newCandidNat(msg)
+  let encoded = encodeCandidMessage(@[value])
+  ic0_msg_reply_data_append(ptrToInt(addr encoded[0]), encoded.len)
   ic0_msg_reply()
 
 
 proc reply*(msg: float32) =
-  let response = serializeCandid(msg)
-  ic0_msg_reply_data_append(ptrToInt(addr response[0]), response.len)
+  let value = newCandidFloat(msg)
+  let encoded = encodeCandidMessage(@[value])
+  ic0_msg_reply_data_append(ptrToInt(addr encoded[0]), encoded.len)
   ic0_msg_reply()
 
 # proc reply*(msg: float64) =
@@ -52,12 +54,21 @@ proc reply*(msg: float32) =
 #   ic0_msg_reply()
 
 proc reply*(msg: string) =
-  let response = serializeCandid(msg)
-  ic0_msg_reply_data_append(ptrToInt(addr response[0]), response.len)
+  let value = newCandidText(msg)
+  let encoded = encodeCandidMessage(@[value])
+  ic0_msg_reply_data_append(ptrToInt(addr encoded[0]), encoded.len)
   ic0_msg_reply()
 
 
 proc reply*(msg: Principal) =
-  let response = serializeCandid(msg)
-  ic0_msg_reply_data_append(ptrToInt(addr response[0]), response.len)
+  let value = newCandidPrincipal(msg)
+  let encoded = encodeCandidMessage(@[value])
+  ic0_msg_reply_data_append(ptrToInt(addr encoded[0]), encoded.len)
+  ic0_msg_reply()
+
+
+proc reply*[T](msg: Table[string, T]) =
+  let value = newCandidRecord(msg)
+  let encoded = encodeCandidMessage(@[value])
+  ic0_msg_reply_data_append(ptrToInt(addr encoded[0]), encoded.len)
   ic0_msg_reply()
