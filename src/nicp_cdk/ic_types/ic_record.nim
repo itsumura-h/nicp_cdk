@@ -4,11 +4,17 @@ import std/strformat
 import std/base64
 import std/hashes
 import std/macros
+import ./ic_principal
 
 type
   CandidKind* = enum
     ckNull, ckBool, ckInt, ckFloat32, ckFloat64, ckText, ckBlob,
     ckRecord, ckVariant, ckOption, ckPrincipal, ckFunc, ckService, ckArray
+
+  CandidVariant* = object
+    ## Variant型の値を保持するオブジェクト
+    tag*: string         ## Variantのタグ名
+    value*: CandidValue  ## Variantの保持する値
 
   CandidValue* = ref object
     case kind*: CandidKind
@@ -233,6 +239,34 @@ proc delete*(cv: CandidValue, index: int) =
     raise newException(IndexDefect, &"Index {index} out of bounds")
   cv.elems.delete(index)
 
+# ===== Principal/Func関連のヘルパー =====
+
+proc getPrincipal*(cv: CandidValue): Principal =
+  ## Principal値をPrincipal型として取得
+  if cv.kind != ckPrincipal:
+    raise newException(ValueError, &"Expected Principal, got {cv.kind}")
+  let p = Principal.fromText(cv.principalId)
+  return p
+
+proc getFuncPrincipal*(cv: CandidValue): Principal =
+  ## Func値のprincipal部分を取得
+  if cv.kind != ckFunc:
+    raise newException(ValueError, &"Expected Func, got {cv.kind}")
+  let p = Principal.fromText(cv.funcRef.principal)
+  return p
+
+proc getFuncMethod*(cv: CandidValue): string =
+  ## Func値のmethod部分を取得
+  if cv.kind != ckFunc:
+    raise newException(ValueError, &"Expected Func, got {cv.kind}")
+  cv.funcRef.methodName
+
+proc getService*(cv: CandidValue): string =
+  ## Service値を文字列として取得
+  if cv.kind != ckService:
+    raise newException(ValueError, &"Expected Service, got {cv.kind}")
+  cv.serviceId
+
 # ===== Option/Variant専用ヘルパー =====
 
 proc isSome*(cv: CandidValue): bool =
@@ -251,37 +285,11 @@ proc getOpt*(cv: CandidValue): CandidValue =
     raise newException(ValueError, "Cannot get value from None option")
   cv.optVal
 
-proc variantTag*(cv: CandidValue): string =
-  ## Variantのタグ名を返す
+proc getVariant*(cv: CandidValue): CandidVariant =
+  ## Variantの内容をCandidVariant型として取得
   if cv.kind != ckVariant:
     raise newException(ValueError, &"Expected Variant, got {cv.kind}")
-  cv.variantTag
-
-proc variantVal*(cv: CandidValue): CandidValue =
-  ## Variantの保持する値を返す
-  if cv.kind != ckVariant:
-    raise newException(ValueError, &"Expected Variant, got {cv.kind}")
-  cv.variantVal
-
-# ===== Principal/Func関連のヘルパー =====
-
-proc asPrincipal*(cv: CandidValue): string =
-  ## Principal値を文字列として取得
-  if cv.kind != ckPrincipal:
-    raise newException(ValueError, &"Expected Principal, got {cv.kind}")
-  cv.principalId
-
-proc funcPrincipal*(cv: CandidValue): string =
-  ## Func値のprincipal部分を取得
-  if cv.kind != ckFunc:
-    raise newException(ValueError, &"Expected Func, got {cv.kind}")
-  cv.funcRef.principal
-
-proc funcMethod*(cv: CandidValue): string =
-  ## Func値のmethod部分を取得
-  if cv.kind != ckFunc:
-    raise newException(ValueError, &"Expected Func, got {cv.kind}")
-  cv.funcRef.methodName
+  CandidVariant(tag: cv.variantTag, value: cv.variantVal)
 
 # ===== フィールド名のハッシュ化関数 =====
 
@@ -419,6 +427,8 @@ macro candidLit*(x: untyped): CandidValue =
             newCBlob(`varName`)
           elif `varName` is CandidValue:
             `varName`
+          elif `varName` is Principal:
+            newCPrincipal(`varName`.value)
           elif `varName` is type(nil):
             newCNull()
           else:
@@ -575,6 +585,8 @@ macro candidLit*(x: untyped): CandidValue =
               newCBlob(val)
             elif val is CandidValue:
               val
+            elif val is Principal:
+              newCPrincipal(val.toText())
             else:
               {.error: "Unsupported type for candidLit macro".}
       else:
@@ -598,6 +610,8 @@ macro candidLit*(x: untyped): CandidValue =
           newCBlob(val)
         elif val is CandidValue:
           val
+        elif val is Principal:
+          newCPrincipal(val.toText())
         else:
           {.error: "Unsupported type for candidLit macro".}
   

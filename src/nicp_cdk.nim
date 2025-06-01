@@ -10,3 +10,4 @@ import ./nicp_cdk/reply; export reply;
 import ./nicp_cdk/ic_types/ic_principal; export ic_principal;
 import ./nicp_cdk/ic_types/candid; export candid;
 import ./nicp_cdk/ic_api; export ic_api;
+import ./nicp_cdk/ic_types/candid_record; export candid_record;

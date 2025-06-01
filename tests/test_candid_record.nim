@@ -3,6 +3,7 @@
 import std/unittest
 import std/sequtils
 import std/strutils  # for string contains
+import ../src/nicp_cdk/ic_types/ic_principal
 import ../src/nicp_cdk/ic_types/ic_record
 
 # テストスイート: CandidValue %*マクロのテスト
@@ -26,45 +27,47 @@ suite "CandidValue %*macro tests":
       basicExample["nullField"].isNull() == true
       basicExample["nilField"].isNull() == true
   
-  # test "Principal型のテスト":
-  #   let principalExample = %*{
-  #     "owner": cprincipal("aaaaa-aa"),
-  #     "canister": cprincipal("w7x7r-cok77-xa")
-  #   }
+  test "Principal型のテスト":
+    let owner = Principal.fromText("aaaaa-aa")
+    let canister = Principal.fromText("w7x7r-cok77-xa")
+    let principalExample = %*{
+      "owner": owner,
+      "canister": canister
+    }
     
-  #   check:
-  #     principalExample["owner"].asPrincipal() == "aaaaa-aa"
-  #     principalExample["canister"].asPrincipal() == "w7x7r-cok77-xa"
-  #     principalExample["owner"].isPrincipal() == true
+    check:
+      principalExample["owner"].getPrincipal() == owner
+      principalExample["canister"].getPrincipal() == canister
+      principalExample["owner"].isPrincipal() == true
   
-  # test "Blob型のテスト":
-  #   let blobExample = %*{
-  #     "data": cblob([1, 2, 3, 4, 5]),
-  #     "signature": cblob([0x41, 0x42, 0x43])
-  #   }
+  test "Blob型のテスト":
+    let blobExample = %*{
+      "data": cblob([1, 2, 3, 4, 5]),
+      "signature": cblob([0x41, 0x42, 0x43])
+    }
     
-  #   check:
-  #     blobExample["data"].getBytes() == @[1u8, 2u8, 3u8, 4u8, 5u8]
-  #     blobExample["signature"].getBytes() == @[0x41u8, 0x42u8, 0x43u8]
-  #     blobExample["data"].isBlob() == true
+    check:
+      blobExample["data"].getBytes() == @[1u8, 2u8, 3u8, 4u8, 5u8]
+      blobExample["signature"].getBytes() == @[0x41u8, 0x42u8, 0x43u8]
+      blobExample["data"].isBlob() == true
   
-  # test "配列のテスト":
-  #   let arrayExample = %*{
-  #     "numbers": [1, 2, 3, 4],
-  #     "names": ["Alice", "Bob", "Charlie"],
-  #     "mixed": [42, "text", true]
-  #   }
+  test "配列のテスト":
+    let arrayExample = %*{
+      "numbers": [1, 2, 3, 4],
+      "names": ["Alice", "Bob", "Charlie"],
+      "mixed": [42, "text", true]
+    }
     
-  #   check:
-  #     arrayExample["numbers"].len() == 4
-  #     arrayExample["numbers"][0].getInt() == 1
-  #     arrayExample["numbers"][3].getInt() == 4
-  #     arrayExample["names"].len() == 3
-  #     arrayExample["names"][0].getStr() == "Alice"
-  #     arrayExample["mixed"].len() == 3
-  #     arrayExample["mixed"][0].getInt() == 42
-  #     arrayExample["mixed"][1].getStr() == "text"
-  #     arrayExample["mixed"][2].getBool() == true
+    check:
+      arrayExample["numbers"].len() == 4
+      arrayExample["numbers"][0].getInt() == 1
+      arrayExample["numbers"][3].getInt() == 4
+      arrayExample["names"].len() == 3
+      arrayExample["names"][0].getStr() == "Alice"
+      arrayExample["mixed"].len() == 3
+      arrayExample["mixed"][0].getInt() == 42
+      arrayExample["mixed"][1].getStr() == "text"
+      arrayExample["mixed"][2].getBool() == true
   
   # test "Option型のテスト":
   #   let optionExample = %*{
