@@ -8,4 +8,10 @@ service : {
   argText: (text) -> (text) query;
   msgPrincipal: () -> (principal) query;
   responseEmpty: () -> () query;
+  responseRecord: () -> (record{
+    name : text;
+    age : int;
+    city : text;
+    p : principal;
+  }) query;
 }

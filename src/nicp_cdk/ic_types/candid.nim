@@ -6,7 +6,9 @@ import std/options
 import std/algorithm
 import ../algorithm/leb128
 import ./ic_principal
-import ./ic_text
+# import ./ic_text
+import ./candid_types
+import ./ic_record
 import ./consts
 
 
@@ -49,46 +51,6 @@ T(record {<fieldtype>^N}) = sleb128(-20) T*(<fieldtype>^N)  // 0x6c
 T(variant {<fieldtype>^N}) = sleb128(-21) T*(<fieldtype>^N) // 0x6b
 ]#
 
-
-#---- Candid 型タグの定義 ----
-type
-  CandidType* = enum
-    ctNull, ctBool, ctNat, ctInt,
-    ctNat8, ctNat16, ctNat32, ctNat64,
-    ctInt8, ctInt16, ctInt32, ctInt64,
-    ctFloat32, ctFloat64,
-    ctText, ctReserved, ctEmpty, ctPrincipal,
-    ctRecord, ctVariant, ctOpt, ctVec,
-    ctFunc, ctService, ctQuery, ctOneway, ctCompositeQuery
-
-  # 相互参照する型を同一typeブロック内で定義
-  CandidValue* = ref object
-    case kind*: CandidType
-    of ctNull: discard
-    of ctBool: boolVal*: bool
-    of ctNat,  ctNat8,  ctNat16,  ctNat32,  ctNat64: natVal*: Natural
-    of ctInt,  ctInt8,  ctInt16,  ctInt32,  ctInt64: intVal*: int
-    of ctFloat32: float32Val*: float32
-    of ctFloat64: float64Val*: float64
-    of ctText: textVal*: string
-    of ctPrincipal: principalVal*: Principal
-    of ctRecord: recordVal*: CandidRecord
-    of ctVariant: variantVal*: CandidVariant
-    of ctOpt: optVal*: Option[CandidValue]
-    of ctVec: vecVal*: seq[CandidValue]
-    of ctFunc: funcVal*: tuple[principal: Principal, methodName: string]
-    of ctService: serviceVal*: Principal
-    of ctReserved, ctEmpty: discard
-    of ctQuery: discard
-    of ctOneway: discard
-    of ctCompositeQuery: discard
-
-  CandidRecord* = ref object
-    values*: Table[uint32, CandidValue]
-
-  CandidVariant* = ref object
-    tag*: uint32
-    value*: CandidValue
 
 
 proc ptrToUint32*(p: pointer): uint32 =
@@ -134,18 +96,20 @@ proc parseTypeTag(b: byte): CandidType =
     quit("Unknown Candid tag: " & $b)
 
 
-# フィールド名から32bitハッシュを計算（Candidの仕様に従う）
-proc candidHash(name: string): uint32 =
-  ## Candid仕様のフィールドハッシュ計算
-  var h: uint32 = 0
-  for c in name:
-    h = h * 223 + uint32(ord(c))
-  return h
-
-
 # ================================================================================
 # Record Type
 # ================================================================================ 
+proc new*(_:type CandidRecord): CandidRecord =
+  CandidRecord(values: initTable[uint32, CandidValue]())
+
+
+proc new*[T](_:type CandidRecord, key:string, value: T): CandidRecord =
+  let hashedKey = candidHash(key)
+  var record = CandidRecord.new()
+  record.values[hashedKey] = newCandidValue(value)
+  return record
+
+
 proc `[]`*(r: CandidRecord, key: string): CandidValue =
   let hashedKey = candidHash(key)
   if hashedKey in r.values:
@@ -154,14 +118,14 @@ proc `[]`*(r: CandidRecord, key: string): CandidValue =
     raise newException(KeyError, "Key not found: " & key)
 
 
+proc `[]=`*[T](r: CandidRecord, key: string, value: T) =
+  r[key] = newCandidValue(value)
+
+
 proc `[]=`*(r: var CandidRecord, key: string, value: CandidValue) =
   let hashedKey = candidHash(key)
   r.values[hashedKey] = value
 
-# Record型のフィールド情報を保持する内部型
-type RecordFieldInfo = object
-  hash: uint32
-  fieldType: CandidType
 
 # ================================================================================
 # Candid Message Decoder
@@ -1009,55 +973,6 @@ proc encodeCandidMessage*(values: seq[CandidValue]): seq[byte] =
   for i, value in values:
     result.add(encodeValue(value, valueTypes[i], builder.typeTable))
 
-# ================================================================================
-# Convenience constructors for CandidValue
-# ================================================================================
-
-proc newCandidNull*(): CandidValue =
-  CandidValue(kind: ctNull)
-
-proc newCandidBool*(value: bool): CandidValue =
-  CandidValue(kind: ctBool, boolVal: value)
-
-proc newCandidNat*(value: Natural): CandidValue =
-  CandidValue(kind: ctNat, natVal: value)
-
-proc newCandidInt*(value: int): CandidValue =
-  CandidValue(kind: ctInt, intVal: value)
-
-proc newCandidFloat*(value: float32): CandidValue =
-  CandidValue(kind: ctFloat32, float32Val: value)
-
-proc newCandidFloat*(value: float): CandidValue =
-  newCandidFloat(value.float32)
-
-proc newCandidText*(value: string): CandidValue =
-  CandidValue(kind: ctText, textVal: value)
-
-proc newCandidPrincipal*(value: Principal): CandidValue =
-  CandidValue(kind: ctPrincipal, principalVal: value)
-
-proc newCandidRecord*(values: Table[string, CandidValue]): CandidValue =
-  var record = CandidRecord(values: initTable[uint32, CandidValue]())
-  for key, value in values:
-    record[key] = value
-  CandidValue(kind: ctRecord, recordVal: record)
-
-proc newCandidVariant*(tag: string, value: CandidValue): CandidValue =
-  let variant = CandidVariant(tag: candidHash(tag), value: value)
-  CandidValue(kind: ctVariant, variantVal: variant)
-
-proc newCandidOpt*(value: Option[CandidValue]): CandidValue =
-  CandidValue(kind: ctOpt, optVal: value)
-
-proc newCandidVec*(values: seq[CandidValue]): CandidValue =
-  CandidValue(kind: ctVec, vecVal: values)
-
-proc newCandidFunc*(principal: Principal, methodName: string): CandidValue =
-  CandidValue(kind: ctFunc, funcVal: (principal: principal, methodName: methodName))
-
-proc newCandidService*(principal: Principal): CandidValue =
-  CandidValue(kind: ctService, serviceVal: principal)
 
 # ================================================================================
 # String conversion for CandidValue
@@ -1158,4 +1073,3 @@ proc `$`*(decodeResult: CandidDecodeResult): string =
       result.add(", ")
     result.add($value)
   result.add("]\n)")
-

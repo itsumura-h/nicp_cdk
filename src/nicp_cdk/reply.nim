@@ -67,8 +67,19 @@ proc reply*(msg: Principal) =
   ic0_msg_reply()
 
 
-proc reply*[T](msg: Table[string, T]) =
-  let value = newCandidRecord(msg)
+# proc reply*[T](msg: Table[string, T]) =
+#   let value = newCandidRecord(msg)
+#   let encoded = encodeCandidMessage(@[value])
+#   ic0_msg_reply_data_append(ptrToInt(addr encoded[0]), encoded.len)
+#   ic0_msg_reply()
+
+
+proc reply*(msg: CandidRecord) =
+  echo "===== reply.nim reply() ====="
+  # let value = CandidValue(kind: ctRecord, recordVal: msg)
+  let value = newCandidValue(msg)
+  echo "value: ", value
   let encoded = encodeCandidMessage(@[value])
+  echo "encoded: ", encoded
   ic0_msg_reply_data_append(ptrToInt(addr encoded[0]), encoded.len)
   ic0_msg_reply()
