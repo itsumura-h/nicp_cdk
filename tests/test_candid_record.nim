@@ -3,6 +3,7 @@
 import std/unittest
 import std/sequtils
 import std/strutils  # for string contains
+import std/options
 import ../src/nicp_cdk/ic_types/ic_principal
 import ../src/nicp_cdk/ic_types/ic_record
 
@@ -58,6 +59,7 @@ suite "CandidValue %*macro tests":
       "mixed": [42, "text", true]
     }
     
+    # 基本的な配列操作のテスト
     check:
       arrayExample["numbers"].len() == 4
       arrayExample["numbers"][0].getInt() == 1
@@ -68,20 +70,51 @@ suite "CandidValue %*macro tests":
       arrayExample["mixed"][0].getInt() == 42
       arrayExample["mixed"][1].getStr() == "text"
       arrayExample["mixed"][2].getBool() == true
-  
-  # test "Option型のテスト":
-  #   let optionExample = %*{
-  #     "nickname": csome("Ali"),
-  #     "middleName": cnone(),
-  #     "rating": csome(5)
-  #   }
     
-  #   check:
-  #     optionExample["nickname"].isSome() == true
-  #     optionExample["nickname"].getOpt().getStr() == "Ali"
-  #     optionExample["middleName"].isNone() == true
-  #     optionExample["rating"].isSome() == true
-  #     optionExample["rating"].getOpt().getInt() == 5
+    # getArray関数のテスト
+    let numbersArray = arrayExample["numbers"].getArray()
+    let namesArray = arrayExample["names"].getArray()
+    let mixedArray = arrayExample["mixed"].getArray()
+    
+    check:
+      numbersArray.len == 4
+      numbersArray[0].getInt() == 1
+      numbersArray[3].getInt() == 4
+      namesArray.len == 3
+      namesArray[0].getStr() == "Alice"
+      namesArray[2].getStr() == "Charlie"
+      mixedArray.len == 3
+      mixedArray[0].getInt() == 42
+      mixedArray[1].getStr() == "text"
+      mixedArray[2].getBool() == true
+  
+  test "Option型のテスト":
+    let optionExample = %*{
+      "nickname": some("Ali"),
+      "middleName": none(string),
+      "rating": some(5)
+    }
+    
+    check:
+      optionExample["nickname"].isSome() == true
+      optionExample["nickname"].getOpt().getStr() == "Ali"
+      optionExample["middleName"].isNone() == true
+      optionExample["rating"].isSome() == true
+      optionExample["rating"].getOpt().getInt() == 5
+  
+  test "Option型のテスト（標準ライブラリ構文）":
+    let standardOptionExample = %*{
+      "name": some("Bob"),
+      "score": none(int),
+      "flag": some(true)
+    }
+    
+    check:
+      standardOptionExample["name"].isSome() == true
+      standardOptionExample["name"].getOpt().getStr() == "Bob"
+      standardOptionExample["score"].isNone() == true
+      standardOptionExample["flag"].isSome() == true
+      standardOptionExample["flag"].getOpt().getBool() == true
   
   # test "Variant型のテスト":
   #   let variantExample = %*{

@@ -1,6 +1,7 @@
 import std/tables
 import std/strutils
 import std/strformat
+import std/options
 import std/base64
 import std/hashes
 import std/macros
@@ -35,11 +36,9 @@ type
     of ckRecord:
       fields*: OrderedTable[string, CandidValue]
     of ckVariant:
-      variantTag*: string
-      variantVal*: CandidValue
+      variantVal*: CandidVariant
     of ckOption:
-      hasValue*: bool
-      optVal*: CandidValue
+      optVal*: Option[CandidValue]
     of ckPrincipal:
       principalId*: string
     of ckFunc:
@@ -93,19 +92,19 @@ proc newCArray*(): CandidValue =
 
 proc newCVariant*(tag: string, val: CandidValue): CandidValue =
   ## 指定タグ・値のVariantを生成
-  CandidValue(kind: ckVariant, variantTag: tag, variantVal: val)
+  CandidValue(kind: ckVariant, variantVal: CandidVariant(tag: tag, value: val))
 
 proc newCVariant*(tag: string): CandidValue =
   ## 値を持たないVariantケースを生成
-  CandidValue(kind: ckVariant, variantTag: tag, variantVal: newCNull())
+  CandidValue(kind: ckVariant, variantVal: CandidVariant(tag: tag, value: newCNull()))
 
 proc newCOption*(val: CandidValue): CandidValue =
   ## Some値を持つOptionを生成
-  CandidValue(kind: ckOption, hasValue: true, optVal: val)
+  CandidValue(kind: ckOption, optVal: some(val))
 
 proc newCOptionNone*(): CandidValue =
   ## Noneを生成
-  CandidValue(kind: ckOption, hasValue: false, optVal: newCNull())
+  CandidValue(kind: ckOption, optVal: none(CandidValue))
 
 proc newCPrincipal*(text: string): CandidValue =
   ## Principal ID文字列からCandidValueを生成
@@ -156,6 +155,12 @@ proc getBytes*(cv: CandidValue): seq[uint8] =
   if cv.kind != ckBlob:
     raise newException(ValueError, &"Expected Blob, got {cv.kind}")
   cv.bytesVal
+
+proc getArray*(cv: CandidValue): seq[CandidValue] =
+  ## 配列の要素を取得
+  if cv.kind != ckArray:
+    raise newException(ValueError, &"Expected Array, got {cv.kind}")
+  cv.elems
 
 # ===== インデックス演算子（レコード用） =====
 
@@ -271,25 +276,25 @@ proc getService*(cv: CandidValue): string =
 
 proc isSome*(cv: CandidValue): bool =
   ## Optionが値を持つかチェック
-  cv.kind == ckOption and cv.hasValue
+  cv.kind == ckOption and cv.optVal.isSome()
 
 proc isNone*(cv: CandidValue): bool =
   ## OptionがNoneかチェック
-  cv.kind == ckOption and not cv.hasValue
+  cv.kind == ckOption and cv.optVal.isNone()
 
 proc getOpt*(cv: CandidValue): CandidValue =
   ## Optionの中身の値を取得（Noneの場合は例外）
   if cv.kind != ckOption:
     raise newException(ValueError, &"Expected Option, got {cv.kind}")
-  if not cv.hasValue:
+  if cv.optVal.isNone():
     raise newException(ValueError, "Cannot get value from None option")
-  cv.optVal
+  cv.optVal.get()
 
 proc getVariant*(cv: CandidValue): CandidVariant =
   ## Variantの内容をCandidVariant型として取得
   if cv.kind != ckVariant:
     raise newException(ValueError, &"Expected Variant, got {cv.kind}")
-  CandidVariant(tag: cv.variantTag, value: cv.variantVal)
+  cv.variantVal
 
 # ===== フィールド名のハッシュ化関数 =====
 
@@ -352,11 +357,11 @@ proc candidValueToJsonString(cv: CandidValue, indent: int = 0): string =
       lines.join("\n")
   of ckVariant:
     # Variantは単一キーのオブジェクトとして表現
-    "{\"" & cv.variantTag & "\": " & candidValueToJsonString(cv.variantVal, indent) & "}"
+    "{\"" & cv.variantVal.tag & "\": " & candidValueToJsonString(cv.variantVal.value, indent) & "}"
   of ckOption:
     # Optionも単一キーのオブジェクトとして表現
-    if cv.hasValue:
-      "{\"some\": " & candidValueToJsonString(cv.optVal, indent) & "}"
+    if cv.optVal.isSome():
+      "{\"some\": " & candidValueToJsonString(cv.optVal.get(), indent) & "}"
     else:
       "{\"none\": null}"
   of ckPrincipal:
@@ -429,6 +434,11 @@ macro candidLit*(x: untyped): CandidValue =
             `varName`
           elif `varName` is Principal:
             newCPrincipal(`varName`.value)
+          elif `varName` is Option:
+            if `varName`.isSome():
+              newCOption(candidLit(`varName`.get()))
+            else:
+              newCOptionNone()
           elif `varName` is type(nil):
             newCNull()
           else:
@@ -568,6 +578,18 @@ macro candidLit*(x: untyped): CandidValue =
             error("cservice() requires exactly one argument", node)
             newCall(bindSym"newCNull")
         
+        # 標準ライブラリのOption型サポート
+        of "some":
+          if node.len == 2:
+            newCall(bindSym"newCOption", buildCandidValue(node[1]))
+          else:
+            error("some() requires exactly one argument", node)
+            newCall(bindSym"newCNull")
+        
+        of "none":
+          # none(Type) または none() の両方に対応
+          newCall(bindSym"newCOptionNone")
+        
         else:
           # 通常の関数呼び出しまたは式
           # 実行時に型判定
@@ -587,11 +609,102 @@ macro candidLit*(x: untyped): CandidValue =
               val
             elif val is Principal:
               newCPrincipal(val.toText())
+            elif val is Option:
+              if val.isSome():
+                newCOption(candidLit(val.get()))
+              else:
+                newCOptionNone()
             else:
               {.error: "Unsupported type for candidLit macro".}
       else:
         error("Function name must be identifier", funcName)
         newCall(bindSym"newCNull")
+    
+    # ドット記法による関数呼び出し ("Ali".some のような構文)
+    of nnkDotExpr:
+      if node.len == 2:
+        let obj = node[0]
+        let methodName = node[1]
+        if methodName.kind == nnkIdent:
+          case methodName.strVal:
+          of "some":
+            # obj.some => csome(obj)
+            newCall(bindSym"newCOption", buildCandidValue(obj))
+          else:
+            # その他のドット記法は実行時に評価
+            quote do:
+              let val = `node`
+              when val is bool:
+                newCBool(val)
+              elif val is SomeInteger:
+                newCInt(val.int64)
+              elif val is SomeFloat:
+                newCFloat64(val.float)
+              elif val is string:
+                newCText(val)
+              elif val is seq[uint8]:
+                newCBlob(val)
+              elif val is CandidValue:
+                val
+              elif val is Principal:
+                newCPrincipal(val.toText())
+              elif val is Option:
+                if val.isSome():
+                  newCOption(candidLit(val.get()))
+                else:
+                  newCOptionNone()
+              else:
+                {.error: "Unsupported type for candidLit macro".}
+        else:
+          # メソッド名が識別子でない場合は実行時評価
+          quote do:
+            let val = `node`
+            when val is bool:
+              newCBool(val)
+            elif val is SomeInteger:
+              newCInt(val.int64)
+            elif val is SomeFloat:
+              newCFloat64(val.float)
+            elif val is string:
+              newCText(val)
+            elif val is seq[uint8]:
+              newCBlob(val)
+            elif val is CandidValue:
+              val
+            elif val is Principal:
+              newCPrincipal(val.toText())
+            elif val is Option:
+              if val.isSome():
+                newCOption(candidLit(val.get()))
+              else:
+                newCOptionNone()
+            else:
+              {.error: "Unsupported type for candidLit macro".}
+      else:
+        # 不正なドット記法は実行時評価
+        quote do:
+          let val = `node`
+          when val is bool:
+            newCBool(val)
+          elif val is SomeInteger:
+            newCInt(val.int64)
+          elif val is SomeFloat:
+            newCFloat64(val.float)
+          elif val is string:
+            newCText(val)
+          elif val is seq[uint8]:
+            newCBlob(val)
+          elif val is CandidValue:
+            val
+          elif val is Principal:
+            newCPrincipal(val.toText())
+          elif val is Option:
+            if val.isSome():
+              newCOption(candidLit(val.get()))
+            else:
+              newCOptionNone()
+          else:
+            {.error: "Unsupported type for candidLit macro".}
     
     # その他の式（変数参照、複雑な式など）
     else:
@@ -612,6 +725,11 @@ macro candidLit*(x: untyped): CandidValue =
           val
         elif val is Principal:
           newCPrincipal(val.toText())
+        elif val is Option:
+          if val.isSome():
+            newCOption(candidLit(val.get()))
+          else:
+            newCOptionNone()
         else:
           {.error: "Unsupported type for candidLit macro".}
   
