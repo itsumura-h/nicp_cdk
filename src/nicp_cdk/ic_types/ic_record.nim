@@ -266,11 +266,12 @@ proc getFuncMethod*(cv: CandidValue): string =
     raise newException(ValueError, &"Expected Func, got {cv.kind}")
   cv.funcRef.methodName
 
-proc getService*(cv: CandidValue): string =
-  ## Service値を文字列として取得
+proc getService*(cv: CandidValue): Principal =
+  ## Service値をPrincipal型として取得
   if cv.kind != ckService:
     raise newException(ValueError, &"Expected Service, got {cv.kind}")
-  cv.serviceId
+  let p = Principal.fromText(cv.serviceId)
+  return p
 
 # ===== Option/Variant専用ヘルパー =====
 

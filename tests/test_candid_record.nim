@@ -1,8 +1,6 @@
 # nim c -r --skipUserCfg tests/test_candid_record.nim
 
 import std/unittest
-import std/sequtils
-import std/strutils  # for string contains
 import std/options
 import ../src/nicp_cdk/ic_types/ic_principal
 import ../src/nicp_cdk/ic_types/ic_record
@@ -109,3 +107,109 @@ suite "CandidValue %*macro tests":
       optionExample["score"].isNone() == true
       optionExample["flag"].isSome() == true
       optionExample["flag"].getOpt().getBool() == true
+
+  test "Float32/Float64型のテスト":
+    let floatExample = %*{
+      "float32": newCFloat32(3.14),
+      "float64": 3.14159265359,
+      "negative32": newCFloat32(-1.5),
+      "negative64": -2.71828182846
+    }
+    
+    check:
+      floatExample["float32"].getFloat32() == 3.14'f32
+      floatExample["float64"].getFloat64() == 3.14159265359
+      floatExample["negative32"].getFloat32() == -1.5'f32
+      floatExample["negative64"].getFloat64() == -2.71828182846
+      floatExample["float32"].isFloat32() == true
+      floatExample["float64"].isFloat64() == true
+
+  test "Variant型のテスト":
+    let variantExample = %*{
+      "success": newCVariant("success", newCText("Operation completed")),
+      "error": newCVariant("error", newCText("Something went wrong")),
+      "empty": newCVariant("empty")
+    }
+    
+    let successVariant = variantExample["success"].getVariant()
+    let errorVariant = variantExample["error"].getVariant()
+    let emptyVariant = variantExample["empty"].getVariant()
+    
+    check:
+      successVariant.tag == "success"
+      successVariant.value.getStr() == "Operation completed"
+      errorVariant.tag == "error"
+      errorVariant.value.getStr() == "Something went wrong"
+      emptyVariant.tag == "empty"
+      emptyVariant.value.isNull() == true
+      variantExample["success"].isVariant() == true
+
+  test "Func型のテスト":
+    let funcExample = %*{
+      "callback": newCFunc("aaaaa-aa", "onComplete"),
+      "handler": newCFunc("w7x7r-cok77-xa", "processData")
+    }
+    
+    check:
+      $funcExample["callback"].getFuncPrincipal() == "aaaaa-aa"
+      funcExample["callback"].getFuncMethod() == "onComplete"
+      $funcExample["handler"].getFuncPrincipal() == "w7x7r-cok77-xa"
+      funcExample["handler"].getFuncMethod() == "processData"
+      funcExample["callback"].isFunc() == true
+
+  test "Service型のテスト":
+    let serviceExample = %*{
+      "ledger": newCService("ryjl3-tyaaa-aaaaa-aaaba-cai"),
+      "registry": newCService("rrkah-fqaaa-aaaaa-aaaaq-cai")
+    }
+    
+    check:
+      serviceExample["ledger"].getService() == Principal.fromText("ryjl3-tyaaa-aaaaa-aaaba-cai")
+      serviceExample["registry"].getService() == Principal.fromText("rrkah-fqaaa-aaaaa-aaaaq-cai")
+      serviceExample["ledger"].isService() == true
+
+  test "複合型のテスト":
+    let complexExample = %*{
+      "user": {
+        "name": "Alice",
+        "age": 30,
+        "scores": [95.5, 88.0, 92.5],
+        "active": true,
+        "metadata": {
+          "lastLogin": "2024-03-20",
+          "permissions": ["read", "write"],
+          "settings": {
+            "theme": "dark",
+            "notifications": true
+          }
+        }
+      },
+      "status": newCVariant("success", newCText("User data retrieved")),
+      "timestamp": 1710936000,
+      "services": [
+        newCService("ryjl3-tyaaa-aaaaa-aaaba-cai"),
+        newCService("rrkah-fqaaa-aaaaa-aaaaq-cai")
+      ],
+      "callbacks": {
+        "onSuccess": newCFunc("aaaaa-aa", "handleSuccess"),
+        "onError": newCFunc("aaaaa-aa", "handleError")
+      }
+    }
+    
+    check:
+      complexExample["user"]["name"].getStr() == "Alice"
+      complexExample["user"]["age"].getInt() == 30
+      complexExample["user"]["scores"].len() == 3
+      complexExample["user"]["scores"][0].getFloat64() == 95.5
+      complexExample["user"]["active"].getBool() == true
+      complexExample["user"]["metadata"]["lastLogin"].getStr() == "2024-03-20"
+      complexExample["user"]["metadata"]["permissions"].len() == 2
+      complexExample["user"]["metadata"]["permissions"][0].getStr() == "read"
+      complexExample["user"]["metadata"]["settings"]["theme"].getStr() == "dark"
+      complexExample["status"].getVariant().tag == "success"
+      complexExample["status"].getVariant().value.getStr() == "User data retrieved"
+      complexExample["timestamp"].getInt() == 1710936000
+      complexExample["services"].len() == 2
+      complexExample["services"][0].getService() == Principal.fromText("ryjl3-tyaaa-aaaaa-aaaba-cai")
+      complexExample["callbacks"]["onSuccess"].getFuncMethod() == "handleSuccess"
+      complexExample["callbacks"]["onError"].getFuncMethod() == "handleError"
