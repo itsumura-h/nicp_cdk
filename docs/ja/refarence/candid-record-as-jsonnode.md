@@ -388,42 +388,87 @@ Nimの`JsonNode`では `$jsonNode` や `echo jsonNode` でJSON文字列が得ら
 
 # ===== 使用例とテスト =====
 
-## %C マクロ（candidLit）の使用方法
+## 命名規則と設計方針
 
-`%C`マクロ（内部的には`candidLit`マクロ）は、JsonNodeの`%*`マクロと同様に、リテラル構文からCandidValueを簡潔に構築するための機能です。このマクロを使用することで、複雑なCandidデータ構造を直感的に定義できます。
+### CandidValue構築の命名規則
+
+本実装では、CandidValueを明示的に構築する際の関数命名を**`newC*`パターンに統一**しています。これにより、以下の利点があります：
+
+1. **一貫性**: すべてのコンストラクタが`newC`で始まる統一された命名
+2. **明確性**: 新しいCandidValueインスタンスを生成することが名前から明確
+3. **Nim慣例との整合**: Nimでは`new*`パターンがオブジェクト生成の標準的な命名規則
+
+#### サポートされる構築関数
+
+**基本型:**
+- `newCNull()` - Null値
+- `newCBool(value: bool)` - ブール値
+- `newCInt(value: int|BigInt)` - 整数値
+- `newCFloat32(value: float32)` - 単精度浮動小数点
+- `newCFloat64(value: float)` - 倍精度浮動小数点
+- `newCText(value: string)` - テキスト文字列
+- `newCBlob(value: seq[uint8])` - バイナリデータ
+
+**構造型:**
+- `newCRecord()` - 空のレコード
+- `newCArray()` - 空の配列
+- `newCVariant(tag: string, value: CandidValue)` - 値ありVariant
+- `newCVariant(tag: string)` - 値なしVariant
+
+**Option型:**
+- `newCOption(value: CandidValue)` - Some値
+- `newCOptionNone()` - None値
+- 標準ライブラリの`some(value)`、`none(Type)`も使用可能
+
+**参照型:**
+- `newCPrincipal(id: string)` - Principal参照
+- `newCFunc(principal: string, method: string)` - 関数参照
+- `newCService(principal: string)` - サービス参照
+
+### 廃止された関数
+
+以前のバージョンで提供されていた短縮形の関数は**廃止**されました：
+
+~~`cprincipal()`, `cblob()`, `csome()`, `cnone()`, `cvariant()`, `cfunc()`, `cservice()`, `cnull()`~~
+
+これらは`newC*`関数または標準ライブラリ関数に置き換えられています。
+
+## %* マクロ（candidLit）の使用方法
+
+`%*`マクロ（内部的には`candidLit`マクロ）は、JsonNodeの`%*`マクロと同様に、リテラル構文からCandidValueを簡潔に構築するための機能です。このマクロを使用することで、複雑なCandidデータ構造を直感的に定義できます。
 
 ### サポートする構文
 
 #### 基本型
 ```nim
-let data = candidLit {
-  "name": "Alice",      # Text型
-  "age": 30,           # Int型
-  "isActive": true,    # Bool型
-  "score": 95.5,       # Float64型
-  "nothing": cnull()   # Null型
+let data = %* {  # %* マクロを使用
+  "name": "Alice",          # Text型
+  "age": 30,               # Int型
+  "isActive": true,        # Bool型
+  "score": 95.5,           # Float64型
+  "nothing": newCNull()    # Null型
 }
 ```
 
 #### Principal型
 ```nim
-let user = candidLit {
-  "owner": cprincipal("aaaaa-aa"),
-  "canister": cprincipal("w7x7r-cok77-xa")
+let user = %* {
+  "owner": newCPrincipal("aaaaa-aa"),
+  "canister": newCPrincipal("w7x7r-cok77-xa")
 }
 ```
 
 #### Blob型（バイナリデータ）
 ```nim
-let binary = candidLit {
-  "data": cblob([1, 2, 3, 4, 5]),
-  "signature": cblob([0x41, 0x42, 0x43])
+let binary = %* {
+  "data": newCBlob(@[1u8, 2u8, 3u8, 4u8, 5u8]),
+  "signature": newCBlob(@[0x41u8, 0x42u8, 0x43u8])
 }
 ```
 
 #### 配列
 ```nim
-let collections = candidLit {
+let collections = %* {
   "numbers": [1, 2, 3, 4],
   "names": ["Alice", "Bob", "Charlie"],
   "mixed": [42, "text", true]  # 異なる型の混在も可能
@@ -432,56 +477,56 @@ let collections = candidLit {
 
 #### Option型（オプション値）
 ```nim
-let optional = candidLit {
-  "nickname": csome("Ali"),        # Some値
-  "middleName": cnone(),          # None値
-  "rating": csome(5)
+let optional = %* {
+  "nickname": some("Ali"),        # Some値（標準ライブラリ）
+  "middleName": none(string),     # None値（標準ライブラリ）
+  "rating": some(5)
 }
 ```
 
 #### Variant型（バリアント・列挙型）
 ```nim
-let variants = candidLit {
-  "status": cvariant("Active"),                    # 値なしのケース
-  "error": cvariant("Error", "Connection failed"), # 値ありのケース
-  "result": cvariant("Success", 42)
+let variants = %* {
+  "status": newCVariant("Active"),                        # 値なしのケース
+  "error": newCVariant("Error", newCText("Connection failed")), # 値ありのケース
+  "result": newCVariant("Success", newCInt(42))
 }
 ```
 
 #### Func型とService型
 ```nim
-let references = candidLit {
-  "callback": cfunc("w7x7r-cok77-xa", "handleRequest"),  # Func参照
-  "target": cservice("aaaaa-aa")                          # Service参照
+let references = %* {
+  "callback": newCFunc("w7x7r-cok77-xa", "handleRequest"),  # Func参照
+  "target": newCService("aaaaa-aa")                          # Service参照
 }
 ```
 
 ### 複雑なネストした構造の例
 
 ```nim
-let complexData = candidLit {
+let complexData = %* {
   "user": {
-    "id": cprincipal("user-123"),
+    "id": newCPrincipal("user-123"),
     "profile": {
       "name": "Alice",
       "age": 30,
       "preferences": {
-        "theme": cvariant("Dark"),
-        "notifications": csome(true)
+        "theme": newCVariant("Dark"),
+        "notifications": some(true)
       }
     },
     "permissions": ["read", "write", "admin"],
-    "metadata": cblob([0x01, 0x02, 0x03])
+    "metadata": newCBlob(@[0x01u8, 0x02u8, 0x03u8])
   },
   "system": {
     "version": "1.0.0",
     "services": [
-      cservice("auth-service"),
-      cservice("data-service")
+      newCService("auth-service"),
+      newCService("data-service")
     ],
     "callbacks": [
-      cfunc("handler-1", "process"),
-      cfunc("handler-2", "validate")
+      newCFunc("handler-1", "process"),
+      newCFunc("handler-2", "validate")
     ]
   }
 }
@@ -495,7 +540,7 @@ let userAge = 25
 let isAdmin = true
 let userData = @[1u8, 2u8, 3u8]
 
-let dynamicData = candidLit {
+let dynamicData = %* {
   "name": userName,     # 変数参照
   "age": userAge,
   "isAdmin": isAdmin,
@@ -535,14 +580,14 @@ echo complexData["system"]["callbacks"][0].funcMethod()    # "process"
 ### 動的な変更
 
 ```nim
-var mutableData = candidLit {"initial": "value"}
+var mutableData = %* {"initial": "value"}
 
 # フィールドの追加・更新
-mutableData["newField"] = candidLit "new value"
-mutableData["array"] = candidLit [1, 2, 3]
+mutableData["newField"] = %* "new value"
+mutableData["array"] = %* [1, 2, 3]
 
 # 配列への要素追加
-mutableData["array"].add(candidLit 4)
+mutableData["array"].add(%* 4)
 
 # フィールドの削除
 mutableData.delete("initial")
@@ -553,11 +598,11 @@ mutableData.delete("initial")
 CandidValueは`$`演算子でJSON風の文字列に変換できます：
 
 ```nim
-let data = candidLit {
+let data = %* {
   "text": "Hello",
-  "option": csome("value"),
-  "variant": cvariant("Tag", "content"),
-  "principal": cprincipal("aaaaa-aa")
+  "option": some("value"),
+  "variant": newCVariant("Tag", newCText("content")),
+  "principal": newCPrincipal("aaaaa-aa")
 }
 
 echo $data
@@ -576,34 +621,34 @@ echo $data
 
 ```nim
 # これはコンパイルエラーになる
-# let invalid = candidLit {"unsupported": someUnsupportedType}
+# let invalid = %* {"unsupported": someUnsupportedType}
 ```
 
 実行時の型変換では、不正な型へのアクセス時に例外が発生します：
 
 ```nim
-let data = candidLit {"number": 42}
+let data = %* {"number": 42}
 try:
   echo data["number"].getStr()  # IntをStringとして取得しようとする
 except ValueError as e:
   echo "Type error: ", e.msg   # "Expected Text, got ckInt"
 ```
 
-### %C エイリアスについて
+### %* エイリアスについて
 
-`candidLit`マクロは`%C`という短縮形でも使用できます（JSONの`%*`に相当）：
+`candidLit`マクロは`%*`演算子で使用できます（JSONの`%*`と同じ構文）：
 
 ```nim
 # 以下は同等
 let data1 = candidLit {"key": "value"}
-let data2 = %C {"key": "value"}  
+let data2 = %* {"key": "value"}  
 ```
 
-ただし、Nimコンパイラのバージョンや設定によって`%C`が利用できない場合は、明示的に`candidLit`を使用してください。
+これにより、JSONの`%*`マクロと同じ感覚でCandidValueを構築できます。実際の使用では、簡潔さのため`%*`を使用することを推奨します。
 
 ## まとめ
 
-`%C`マクロ（candidLit）により、以下が実現されました：
+`%*`マクロ（candidLit）により、以下が実現されました：
 
 1. **直感的な構文**: JsonNode風のリテラル記法
 2. **型安全性**: コンパイル時の型チェック
@@ -611,6 +656,19 @@ let data2 = %C {"key": "value"}
 4. **ネスト対応**: 任意の深さの構造を構築可能
 5. **変数サポート**: 実行時の値も組み込み可能
 6. **エラーハンドリング**: 適切な例外処理
+7. **統一された命名規則**: `newC*`パターンによる一貫性のあるAPI
+8. **JSON互換構文**: `%*`演算子によるJSONと同じ書き心地
+
+### 設計上の利点
+
+新しい命名規則（`newC*`）により、以下の利点が得られています：
+
+- **Nim慣例との整合性**: `newSeq()`, `newTable()`等と一貫した命名
+- **明確な意図**: 新しいインスタンスの生成が一目で分かる
+- **IntelliSense/補完の改善**: `newC`で始まる関数が一括で見つかる
+- **メンテナンス性**: 将来的な拡張時も規則に従いやすい
+
+また、標準ライブラリのOption型（`some()`, `none()`）との併用により、既存のNimコードとの統合もスムーズに行えます。
 
 これにより、Candidデータを扱うNimコードが大幅に簡潔かつ可読性の高いものになります。
 

@@ -378,19 +378,17 @@ proc `$`*(cv: CandidValue): string =
 # ===== 便利マクロ（JsonNodeの %* に相当） =====
 
 macro candidLit*(x: untyped): CandidValue =
-  ## CandidValueリテラル構築マクロ（拡張版）
+  ## CandidValueリテラル構築マクロ
   ## 
   ## サポートする構文:
   ## - 基本型: bool, 整数, 浮動小数点, string
-  ## - Principal: cprincipal("aaaaa-aa")
-  ## - Blob: cblob([1, 2, 3]) または cblob(@[1u8, 2u8, 3u8])
+  ## - Principal: Principal型の変数
+  ## - Blob: seq[uint8]型の変数
   ## - Array: [elem1, elem2, ...]
   ## - Record: {key1: value1, key2: value2, ...}
-  ## - Option: csome(value) または cnone()
-  ## - Variant: cvariant("tag", value) または cvariant("tag")
-  ## - Func: cfunc("principal", "method")
-  ## - Service: cservice("principal")
-  ## - Null: cnull()
+  ## - Option: some(value) または none(Type)
+  ## - 明示的構築: newCNull(), newCArray(), newCRecord(), newCBlob(), newCPrincipal(), newCVariant(), newCFunc(), newCService()
+  ## - Null: nil または newCNull()
   
   proc buildCandidValue(node: NimNode): NimNode =
     case node.kind:
@@ -489,95 +487,6 @@ macro candidLit*(x: untyped): CandidValue =
       let funcName = node[0]
       if funcName.kind == nnkIdent:
         case funcName.strVal:
-        of "cprincipal":
-          if node.len == 2:
-            let arg = node[1]
-            if arg.kind == nnkStrLit:
-              newCall(bindSym"newCPrincipal", arg)
-            else:
-              newCall(bindSym"newCPrincipal", arg)
-          else:
-            error("cprincipal() requires exactly one argument", node)
-            newCall(bindSym"newCNull")
-        
-        of "cblob":
-          if node.len == 2:
-            # cblob([1, 2, 3]) または cblob(someSeq)
-            let arg = node[1]
-            if arg.kind == nnkBracket:
-              # リテラル配列をseq[uint8]に変換
-              var elements = newNimNode(nnkBracket)
-              for elem in arg:
-                elements.add(newCall(bindSym"uint8", elem))
-              newCall(bindSym"newCBlob", newNimNode(nnkPrefix).add(newIdentNode("@"), elements))
-            else:
-              # 変数の場合はそのまま渡す
-              newCall(bindSym"newCBlob", arg)
-          else:
-            error("cblob() requires exactly one argument", node)
-            newCall(bindSym"newCNull")
-        
-        of "csome":
-          if node.len == 2:
-            newCall(bindSym"newCOption", buildCandidValue(node[1]))
-          else:
-            error("csome() requires exactly one argument", node)
-            newCall(bindSym"newCNull")
-        
-        of "cnone":
-          if node.len == 1:
-            newCall(bindSym"newCOptionNone")
-          else:
-            error("cnone() takes no arguments", node)
-            newCall(bindSym"newCNull")
-        
-        of "cnull":
-          if node.len == 1:
-            newCall(bindSym"newCNull")
-          else:
-            error("cnull() takes no arguments", node)
-            newCall(bindSym"newCNull")
-        
-        of "cvariant":
-          if node.len == 2:
-            # cvariant("tag") - 値なし
-            let tagArg = node[1]
-            if tagArg.kind == nnkStrLit:
-              newCall(bindSym"newCVariant", tagArg)
-            else:
-              newCall(bindSym"newCVariant", tagArg)
-          elif node.len == 3:
-            # cvariant("tag", value)
-            let tagArg = node[1]
-            let valueArg = node[2]
-            let tag = if tagArg.kind == nnkStrLit: tagArg else: tagArg
-            newCall(bindSym"newCVariant", tag, buildCandidValue(valueArg))
-          else:
-            error("cvariant() requires 1 or 2 arguments", node)
-            newCall(bindSym"newCNull")
-        
-        of "cfunc":
-          if node.len == 3:
-            let principalArg = node[1]
-            let methodArg = node[2]
-            let principal = if principalArg.kind == nnkStrLit: principalArg else: principalArg
-            let methodName = if methodArg.kind == nnkStrLit: methodArg else: methodArg
-            newCall(bindSym"newCFunc", principal, methodName)
-          else:
-            error("cfunc() requires exactly 2 arguments (principal, method)", node)
-            newCall(bindSym"newCNull")
-        
-        of "cservice":
-          if node.len == 2:
-            let arg = node[1]
-            if arg.kind == nnkStrLit:
-              newCall(bindSym"newCService", arg)
-            else:
-              newCall(bindSym"newCService", arg)
-          else:
-            error("cservice() requires exactly one argument", node)
-            newCall(bindSym"newCNull")
-        
         # 標準ライブラリのOption型サポート
         of "some":
           if node.len == 2:
@@ -622,89 +531,30 @@ macro candidLit*(x: untyped): CandidValue =
     
     # ドット記法による関数呼び出し ("Ali".some のような構文)
     of nnkDotExpr:
-      if node.len == 2:
-        let obj = node[0]
-        let methodName = node[1]
-        if methodName.kind == nnkIdent:
-          case methodName.strVal:
-          of "some":
-            # obj.some => csome(obj)
-            newCall(bindSym"newCOption", buildCandidValue(obj))
+      # ドット記法は実行時に評価
+      quote do:
+        let val = `node`
+        when val is bool:
+          newCBool(val)
+        elif val is SomeInteger:
+          newCInt(val.int64)
+        elif val is SomeFloat:
+          newCFloat64(val.float)
+        elif val is string:
+          newCText(val)
+        elif val is seq[uint8]:
+          newCBlob(val)
+        elif val is CandidValue:
+          val
+        elif val is Principal:
+          newCPrincipal(val.toText())
+        elif val is Option:
+          if val.isSome():
+            newCOption(candidLit(val.get()))
           else:
-            # その他のドット記法は実行時に評価
-            quote do:
-              let val = `node`
-              when val is bool:
-                newCBool(val)
-              elif val is SomeInteger:
-                newCInt(val.int64)
-              elif val is SomeFloat:
-                newCFloat64(val.float)
-              elif val is string:
-                newCText(val)
-              elif val is seq[uint8]:
-                newCBlob(val)
-              elif val is CandidValue:
-                val
-              elif val is Principal:
-                newCPrincipal(val.toText())
-              elif val is Option:
-                if val.isSome():
-                  newCOption(candidLit(val.get()))
-                else:
-                  newCOptionNone()
-              else:
-                {.error: "Unsupported type for candidLit macro".}
+            newCOptionNone()
         else:
-          # メソッド名が識別子でない場合は実行時評価
-          quote do:
-            let val = `node`
-            when val is bool:
-              newCBool(val)
-            elif val is SomeInteger:
-              newCInt(val.int64)
-            elif val is SomeFloat:
-              newCFloat64(val.float)
-            elif val is string:
-              newCText(val)
-            elif val is seq[uint8]:
-              newCBlob(val)
-            elif val is CandidValue:
-              val
-            elif val is Principal:
-              newCPrincipal(val.toText())
-            elif val is Option:
-              if val.isSome():
-                newCOption(candidLit(val.get()))
-              else:
-                newCOptionNone()
-            else:
-              {.error: "Unsupported type for candidLit macro".}
-      else:
-        # 不正なドット記法は実行時評価
-        quote do:
-          let val = `node`
-          when val is bool:
-            newCBool(val)
-          elif val is SomeInteger:
-            newCInt(val.int64)
-          elif val is SomeFloat:
-            newCFloat64(val.float)
-          elif val is string:
-            newCText(val)
-          elif val is seq[uint8]:
-            newCBlob(val)
-          elif val is CandidValue:
-            val
-          elif val is Principal:
-            newCPrincipal(val.toText())
-          elif val is Option:
-            if val.isSome():
-              newCOption(candidLit(val.get()))
-            else:
-              newCOptionNone()
-          else:
-            {.error: "Unsupported type for candidLit macro".}
+          {.error: "Unsupported type for candidLit macro".}
     
     # その他の式（変数参照、複雑な式など）
     else:
