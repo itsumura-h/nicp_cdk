@@ -7,7 +7,8 @@ import unittest
 import options
 import tables
 include ../src/nicp_cdk/ic_types/candid
-
+include ../src/nicp_cdk/ic_types/ic_record
+include ../src/nicp_cdk/ic_types/ic_principal
 
 proc toBytes*(data: seq[int]): seq[byte] =
   result = newSeq[byte](data.len)
@@ -129,11 +130,10 @@ suite("Candid encoding tests"):
     echo "Encoded vec: ", encoded.mapIt(it.int)
 
   test("record with string fields"):
-    let recordFields = {
-      "name": newCandidText("Alice"),
-      "age": newCandidNat(30)
-    }.toTable()
-    let recordValue = newCandidRecord(recordFields)
+    let recordValue = %*{
+      "name": "Alice",
+      "age": 30.Natural
+    }
     let encoded = encodeCandidMessage(@[recordValue])
     echo "Encoded record: ", encoded.mapIt(it.int)
 

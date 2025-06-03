@@ -36,9 +36,6 @@ type
     of ctOneway: discard
     of ctCompositeQuery: discard
 
-  CandidRecord* = ref object
-    values*: Table[uint32, CandidValue]
-
   CandidVariant* = ref object
     tag*: uint32
     value*: CandidValue
