@@ -123,7 +123,7 @@ proc toCandidValue*(cr: CandidRecord): CandidValue =
   of ckBool:
     result = newCandidBool(cr.boolVal)
   of ckInt:
-    result = newCandidInt(cr.intVal)
+    result = newCandidInt(cr.intVal.int)
   of ckFloat32:
     result = newCandidFloat(cr.f32Val)
   of ckFloat64:

@@ -1018,23 +1018,6 @@ proc `$`*(value: CandidValue): string =
     result = "composite_query"
 
 
-proc `$`*(record: CandidRecord): string =
-  ## CandidRecord を文字列に変換する
-  result = "{"
-  var first = true
-  for fieldName, value in record.fields:
-    if not first:
-      result.add("; ")
-    result.add(fieldName & " = " & $value)
-    first = false
-  result.add("}")
-
-
-proc `$`*(variant: CandidVariant): string =
-  ## CandidVariant を文字列に変換する
-  result = "{" & $variant.tag & " = " & $variant.value & "}"
-
-
 proc `$`*(entry: TypeTableEntry): string =
   ## TypeTableEntry を文字列に変換する
   result = $entry.kind

@@ -75,10 +75,11 @@ proc responseEmpty() {.query.} =
 
 proc responseRecord() {.query.} =
   echo "===== main.nim responseRecord() ====="
-  var record = CandidRecord.new()
-  record["name"] = "John"
-  record["age"] = 30
-  record["city"] = "New York"
-  record["p"] = Principal.fromText("aaaaa-aa")
-  echo "record: ", record
+  var record = %*{
+    "name": "John",
+    "age": 30,
+    "city": "New York",
+    "p": Principal.fromText("aaaaa-aa")
+  }
+  echo "record: ", $record
   reply(record)
