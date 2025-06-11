@@ -13,5 +13,9 @@ ICPで扱う型を保持する。
 
 **ic0はimportしない**
 
-
 https://github.com/dfinity/agent-js/blob/main/packages/candid/src/idl.ts
+
+## importの流れ
+
+- candid_types
+  - 

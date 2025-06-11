@@ -97,37 +97,6 @@ proc parseTypeTag(b: byte): CandidType =
 
 
 # ================================================================================
-# Record Type
-# ================================================================================ 
-proc new*(_:type CandidRecord): CandidRecord =
-  CandidRecord(values: initTable[uint32, CandidValue]())
-
-
-proc new*[T](_:type CandidRecord, key:string, value: T): CandidRecord =
-  let hashedKey = candidHash(key)
-  var record = CandidRecord.new()
-  record.values[hashedKey] = newCandidValue(value)
-  return record
-
-
-proc `[]`*(r: CandidRecord, key: string): CandidValue =
-  let hashedKey = candidHash(key)
-  if hashedKey in r.values:
-    return r.values[hashedKey]
-  else:
-    raise newException(KeyError, "Key not found: " & key)
-
-
-proc `[]=`*[T](r: CandidRecord, key: string, value: T) =
-  r[key] = newCandidValue(value)
-
-
-proc `[]=`*(r: var CandidRecord, key: string, value: CandidValue) =
-  let hashedKey = candidHash(key)
-  r.values[hashedKey] = value
-
-
-# ================================================================================
 # Candid Message Decoder
 # ================================================================================
 
@@ -203,8 +172,8 @@ proc decodeTypeTableEntry(data: seq[byte], offset: var int): TypeTableEntry =
   case candidType:
   of ctRecord:
     let fieldCount = decodeULEB128(data, offset)
-    result.recordFields = newSeq[tuple[hash: uint32, fieldType: int]](fieldCount)
-    for i in 0..<fieldCount:
+    result.recordFields = newSeq[tuple[hash: uint32, fieldType: int]](int(fieldCount))
+    for i in 0..<int(fieldCount):
       let hash = uint32(decodeULEB128(data, offset))
       let fieldType = decodeSLEB128(data, offset)
       result.recordFields[i] = (hash: hash, fieldType: fieldType)
@@ -214,8 +183,8 @@ proc decodeTypeTableEntry(data: seq[byte], offset: var int): TypeTableEntry =
   
   of ctVariant:
     let fieldCount = decodeULEB128(data, offset)
-    result.variantFields = newSeq[tuple[hash: uint32, fieldType: int]](fieldCount)
-    for i in 0..<fieldCount:
+    result.variantFields = newSeq[tuple[hash: uint32, fieldType: int]](int(fieldCount))
+    for i in 0..<int(fieldCount):
       let hash = uint32(decodeULEB128(data, offset))
       let fieldType = decodeSLEB128(data, offset)
       result.variantFields[i] = (hash: hash, fieldType: fieldType)
@@ -231,25 +200,25 @@ proc decodeTypeTableEntry(data: seq[byte], offset: var int): TypeTableEntry =
   
   of ctFunc:
     let argCount = decodeULEB128(data, offset)
-    result.funcArgs = newSeq[int](argCount)
-    for i in 0..<argCount:
+    result.funcArgs = newSeq[int](int(argCount))
+    for i in 0..<int(argCount):
       result.funcArgs[i] = decodeSLEB128(data, offset)
     
     let returnCount = decodeULEB128(data, offset)
-    result.funcReturns = newSeq[int](returnCount)
-    for i in 0..<returnCount:
+    result.funcReturns = newSeq[int](int(returnCount))
+    for i in 0..<int(returnCount):
       result.funcReturns[i] = decodeSLEB128(data, offset)
     
     let annotationLength = decodeULEB128(data, offset)
-    result.funcAnnotations = newSeq[byte](annotationLength)
-    for i in 0..<annotationLength:
+    result.funcAnnotations = newSeq[byte](int(annotationLength))
+    for i in 0..<int(annotationLength):
       result.funcAnnotations[i] = data[offset]
       inc offset
   
   of ctService:
     let methodCount = decodeULEB128(data, offset)
-    result.serviceMethods = newSeq[tuple[hash: uint32, methodType: int]](methodCount)
-    for i in 0..<methodCount:
+    result.serviceMethods = newSeq[tuple[hash: uint32, methodType: int]](int(methodCount))
+    for i in 0..<int(methodCount):
       let hash = uint32(decodeULEB128(data, offset))
       let methodType = decodeSLEB128(data, offset)
       result.serviceMethods[i] = (hash: hash, methodType: methodType)
@@ -276,7 +245,7 @@ proc decodePrimitiveValue(data: seq[byte], offset: var int, candidType: CandidTy
     inc offset
   
   of ctNat:
-    result.natVal = Natural(decodeULEB128(data, offset))
+    result.natVal = uint(decodeULEB128(data, offset))
   
   of ctInt:
     result.intVal = decodeSLEB128(data, offset)
@@ -284,7 +253,7 @@ proc decodePrimitiveValue(data: seq[byte], offset: var int, candidType: CandidTy
   of ctNat8:
     if offset >= data.len:
       raise newException(CandidDecodeError, "Unexpected end of data")
-    result.natVal = Natural(data[offset])
+    result.natVal = uint(data[offset])
     inc offset
   
   of ctNat16:
@@ -292,7 +261,7 @@ proc decodePrimitiveValue(data: seq[byte], offset: var int, candidType: CandidTy
       raise newException(CandidDecodeError, "Unexpected end of data")
     var val: uint16
     littleEndian16(addr val, unsafeAddr data[offset])
-    result.natVal = Natural(val)
+    result.natVal = uint(val)
     offset += 2
   
   of ctNat32:
@@ -300,7 +269,7 @@ proc decodePrimitiveValue(data: seq[byte], offset: var int, candidType: CandidTy
       raise newException(CandidDecodeError, "Unexpected end of data")
     var val: uint32
     littleEndian32(addr val, unsafeAddr data[offset])
-    result.natVal = Natural(val)
+    result.natVal = uint(val)
     offset += 4
   
   of ctNat64:
@@ -308,7 +277,7 @@ proc decodePrimitiveValue(data: seq[byte], offset: var int, candidType: CandidTy
       raise newException(CandidDecodeError, "Unexpected end of data")
     var val: uint64
     littleEndian64(addr val, unsafeAddr data[offset])
-    result.natVal = Natural(val)
+    result.natVal = uint(val)
     offset += 8
   
   of ctInt8:
@@ -361,8 +330,8 @@ proc decodePrimitiveValue(data: seq[byte], offset: var int, candidType: CandidTy
     let textLength = decodeULEB128(data, offset)
     if offset + int(textLength) > data.len:
       raise newException(CandidDecodeError, "Unexpected end of data")
-    result.textVal = newString(textLength)
-    for i in 0..<textLength:
+    result.textVal = newString(int(textLength))
+    for i in 0..<int(textLength):
       result.textVal[i] = char(data[offset + i])
     offset += int(textLength)
   
@@ -398,11 +367,12 @@ proc decodeValue(data: seq[byte], offset: var int, typeRef: int, typeTable: seq[
     result = CandidValue(kind: typeEntry.kind)
     case typeEntry.kind:
     of ctRecord:
-      result.recordVal = CandidRecord(values: initTable[uint32, CandidValue]())
+      result.recordVal = CandidRecord(kind: ckRecord, fields: initOrderedTable[string, CandidValue]())
       # フィールドは型テーブルで定義された順序で値が並んでいる
       for fieldInfo in typeEntry.recordFields:
         let fieldValue = decodeValue(data, offset, fieldInfo.fieldType, typeTable)
-        result.recordVal.values[fieldInfo.hash] = fieldValue
+        # ハッシュ値をフィールド名として使用（実際の実装では名前の逆引きが必要）
+        result.recordVal.fields[$fieldInfo.hash] = fieldValue
     of ctVariant:
       let tagIndex = decodeULEB128(data, offset)
       if int(tagIndex) >= typeEntry.variantFields.len:
@@ -424,8 +394,8 @@ proc decodeValue(data: seq[byte], offset: var int, typeRef: int, typeTable: seq[
         raise newException(CandidDecodeError, "Invalid optional tag: " & $hasValue)
     of ctVec:
       let elementCount = decodeULEB128(data, offset)
-      result.vecVal = newSeq[CandidValue](elementCount)
-      for i in 0..<elementCount:
+      result.vecVal = newSeq[CandidValue](int(elementCount))
+      for i in 0..<int(elementCount):
         result.vecVal[i] = decodeValue(data, offset, typeEntry.vecElementType, typeTable)
     of ctFunc:
       # 関数参照: principal + method name
@@ -439,8 +409,8 @@ proc decodeValue(data: seq[byte], offset: var int, typeRef: int, typeTable: seq[
       let methodNameLength = decodeULEB128(data, offset)
       if offset + int(methodNameLength) > data.len:
         raise newException(CandidDecodeError, "Unexpected end of data")
-      var methodName = newString(methodNameLength)
-      for i in 0..<methodNameLength:
+      var methodName = newString(int(methodNameLength))
+      for i in 0..<int(methodNameLength):
         methodName[i] = char(data[offset + i])
       offset += int(methodNameLength)
       
@@ -485,21 +455,21 @@ proc decodeCandidMessage*(data: seq[byte]): CandidDecodeResult =
   
   # 2. 型テーブルのデコード
   let typeTableSize = decodeULEB128(data, offset)
-  var typeTable = newSeq[TypeTableEntry](typeTableSize)
+  var typeTable = newSeq[TypeTableEntry](int(typeTableSize))
   
-  for i in 0..<typeTableSize:
+  for i in 0..<int(typeTableSize):
     typeTable[i] = decodeTypeTableEntry(data, offset)
   
   # 3. 型シーケンスのデコード
   let valueCount = decodeULEB128(data, offset)
-  var valueTypes = newSeq[int](valueCount)
+  var valueTypes = newSeq[int](int(valueCount))
   
-  for i in 0..<valueCount:
+  for i in 0..<int(valueCount):
     valueTypes[i] = decodeSLEB128(data, offset)
   
   # 4. 値シーケンスのデコード
-  var values = newSeq[CandidValue](valueCount)
-  for i in 0..<valueCount:
+  var values = newSeq[CandidValue](int(valueCount))
+  for i in 0..<int(valueCount):
     values[i] = decodeValue(data, offset, valueTypes[i], typeTable)
   
   # 5. 全データが消費されたかチェック
@@ -592,9 +562,10 @@ proc inferTypeDescriptor(value: CandidValue): TypeDescriptor =
   case value.kind:
   of ctRecord:
     result.recordFields = @[]
-    for hash, fieldValue in value.recordVal.values:
-      # ハッシュ値を直接使用（二重計算を避ける）
-      result.recordFields.add((hash: hash, fieldType: inferTypeDescriptor(fieldValue)))
+    for fieldName, fieldValue in value.recordVal.fields:
+      # フィールド名からハッシュ値を計算
+      let fieldHash = candidHash(fieldName)
+      result.recordFields.add((hash: fieldHash, fieldType: inferTypeDescriptor(fieldValue)))
   of ctVariant:
     # バリアントの場合、選択されたタグのみから型を推論
     result.variantFields = @[(hash: value.variantVal.tag, fieldType: inferTypeDescriptor(value.variantVal.value))]
@@ -884,8 +855,17 @@ proc encodeValue(value: CandidValue, typeRef: int, typeTable: seq[TypeTableEntry
     of ctRecord:
       # レコードの各フィールドを型テーブルの順序でエンコード
       for fieldInfo in typeEntry.recordFields:
-        if fieldInfo.hash in value.recordVal.values:
-          let fieldValue = value.recordVal.values[fieldInfo.hash]
+        var foundField: bool = false
+        var fieldValue: CandidValue
+        
+        # レコード内のフィールドを検索（フィールド名のハッシュ値で比較）
+        for fieldName, fieldVal in value.recordVal.fields:
+          if candidHash(fieldName) == fieldInfo.hash:
+            foundField = true
+            fieldValue = fieldVal
+            break
+        
+        if foundField:
           result.add(encodeValue(fieldValue, fieldInfo.fieldType, typeTable))
         else:
           raise newException(ValueError, "Missing field in record: " & $fieldInfo.hash)
@@ -997,13 +977,15 @@ proc `$`*(value: CandidValue): string =
     result = "\"" & value.textVal & "\""
   of ctPrincipal:
     result = "principal \"" & $value.principalVal & "\""
+  of ctBlob:
+    result = "blob \"" & value.blobVal.mapIt(it.toHex()).join("") & "\""
   of ctRecord:
     result = "record {"
     var first = true
-    for hash, fieldValue in value.recordVal.values:
+    for fieldName, fieldValue in value.recordVal.fields:
       if not first:
         result.add("; ")
-      result.add($hash & " = " & $fieldValue)
+      result.add(fieldName & " = " & $fieldValue)
       first = false
     result.add("}")
   of ctVariant:
@@ -1040,10 +1022,10 @@ proc `$`*(record: CandidRecord): string =
   ## CandidRecord を文字列に変換する
   result = "{"
   var first = true
-  for hash, value in record.values:
+  for fieldName, value in record.fields:
     if not first:
       result.add("; ")
-    result.add($hash & " = " & $value)
+    result.add(fieldName & " = " & $value)
     first = false
   result.add("}")
 

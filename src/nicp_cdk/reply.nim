@@ -35,7 +35,7 @@ proc reply*(msg: int) =
   ic0_msg_reply()
 
 
-proc reply*(msg: Natural) =
+proc reply*(msg: uint) =
   let value = newCandidNat(msg)
   let encoded = encodeCandidMessage(@[value])
   ic0_msg_reply_data_append(ptrToInt(addr encoded[0]), encoded.len)

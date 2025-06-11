@@ -3,12 +3,14 @@ discard """
 """
 # nim c -r --skipUserCfg -d:nimOldCaseObjects tests/test_candid_encode.nim
 
-import unittest
-import options
-import tables
-include ../src/nicp_cdk/ic_types/candid
-include ../src/nicp_cdk/ic_types/ic_record
-include ../src/nicp_cdk/ic_types/ic_principal
+import std/unittest
+import std/options
+import std/tables
+import std/sequtils
+import ../src/nicp_cdk/ic_types/candid
+import ../src/nicp_cdk/ic_types/ic_record
+import ../src/nicp_cdk/ic_types/ic_principal
+import ../src/nicp_cdk/ic_types/candid_types
 
 proc toBytes*(data: seq[int]): seq[byte] =
   result = newSeq[byte](data.len)
@@ -30,13 +32,13 @@ suite("Candid encoding tests"):
     check encoded == expected
 
   test("nat 1"):
-    let value = newCandidNat(1)
+    let value = newCandidNat(1.uint)
     let encoded = encodeCandidMessage(@[value])
     let expected = @[68, 73, 68, 76, 0, 1, 125, 1].toBytes()
     check encoded == expected
 
   test("nat 1000000000000000000"):
-    let value = newCandidNat(1000000000000000000)
+    let value = newCandidNat(1000000000000000000.uint)
     let encoded = encodeCandidMessage(@[value])
     let expected = @[68, 73, 68, 76, 0, 1, 125, 128, 128, 144, 187, 186, 214, 173, 240, 13].toBytes()
     check encoded == expected
@@ -93,7 +95,7 @@ suite("Candid encoding tests"):
   test("multiple args {bool:true, nat:10, int:20, float32:1.2345, text:abcdef}"):
     let values = @[
       newCandidBool(true),
-      newCandidNat(10),
+      newCandidNat(10.uint),
       newCandidInt(20),
       newCandidFloat(1.2345),
       newCandidText("abcdef")
@@ -110,7 +112,7 @@ suite("Candid encoding tests"):
     check encoded == expected
 
   test("opt some value"):
-    let innerValue = newCandidNat(42)
+    let innerValue = newCandidNat(42.uint)
     let optValue = newCandidOpt(some(innerValue))
     let encoded = encodeCandidMessage(@[optValue])
     echo "Encoded opt some: ", encoded.mapIt(it.int)
@@ -122,18 +124,19 @@ suite("Candid encoding tests"):
 
   test("vec with nat values"):
     let vecValue = newCandidVec(@[
-      newCandidNat(1),
-      newCandidNat(2),
-      newCandidNat(3)
+      newCandidNat(1.uint),
+      newCandidNat(2.uint),
+      newCandidNat(3.uint)
     ])
     let encoded = encodeCandidMessage(@[vecValue])
     echo "Encoded vec: ", encoded.mapIt(it.int)
 
   test("record with string fields"):
-    let recordValue = %*{
-      "name": "Alice",
-      "age": 30.Natural
-    }
+    # レコード用のテーブルを作成
+    var recordFields = initTable[string, CandidValue]()
+    recordFields["name"] = newCandidText("Alice")
+    recordFields["age"] = newCandidInt(30)
+    let recordValue = newCandidRecord(recordFields)
     let encoded = encodeCandidMessage(@[recordValue])
     echo "Encoded record: ", encoded.mapIt(it.int)
 
@@ -152,12 +155,12 @@ suite("Candid round-trip tests"):
     check decoded.values[0].boolVal == true
 
   test("encode-decode round trip nat"):
-    let original = newCandidNat(12345)
+    let original = newCandidNat(12345.uint)
     let encoded = encodeCandidMessage(@[original])
     let decoded = decodeCandidMessage(encoded)
     check decoded.values.len == 1
     check decoded.values[0].kind == ctNat
-    check decoded.values[0].natVal == 12345
+    check decoded.values[0].natVal == 12345.uint
 
   test("encode-decode round trip text"):
     let original = newCandidText("Hello, World!")
@@ -190,7 +193,7 @@ suite("Candid round-trip tests"):
   test("encode-decode round trip multiple values"):
     let originals = @[
       newCandidBool(false),
-      newCandidNat(999),
+      newCandidNat(999.uint),
       newCandidInt(-456),
       newCandidText("test")
     ]
@@ -200,7 +203,7 @@ suite("Candid round-trip tests"):
     check decoded.values[0].kind == ctBool
     check decoded.values[0].boolVal == false
     check decoded.values[1].kind == ctNat
-    check decoded.values[1].natVal == 999
+    check decoded.values[1].natVal == 999.uint
     check decoded.values[2].kind == ctInt
     check decoded.values[2].intVal == -456
     check decoded.values[3].kind == ctText

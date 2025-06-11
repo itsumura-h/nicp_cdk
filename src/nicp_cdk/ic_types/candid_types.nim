@@ -11,7 +11,7 @@ type
     ctInt8, ctInt16, ctInt32, ctInt64,
     ctFloat32, ctFloat64,
     ctText, ctReserved, ctEmpty, ctPrincipal,
-    ctRecord, ctVariant, ctOpt, ctVec,
+    ctRecord, ctVariant, ctOpt, ctVec, ctBlob,
     ctFunc, ctService, ctQuery, ctOneway, ctCompositeQuery
 
   # 相互参照する型を同一typeブロック内で定義
@@ -19,7 +19,7 @@ type
     case kind*: CandidType
     of ctNull: discard
     of ctBool: boolVal*: bool
-    of ctNat,  ctNat8,  ctNat16,  ctNat32,  ctNat64: natVal*: Natural
+    of ctNat,  ctNat8,  ctNat16,  ctNat32,  ctNat64: natVal*: uint
     of ctInt,  ctInt8,  ctInt16,  ctInt32,  ctInt64: intVal*: int
     of ctFloat32: float32Val*: float32
     of ctFloat64: float64Val*: float64
@@ -29,6 +29,7 @@ type
     of ctVariant: variantVal*: CandidVariant
     of ctOpt: optVal*: Option[CandidValue]
     of ctVec: vecVal*: seq[CandidValue]
+    of ctBlob: blobVal*: seq[uint8]
     of ctFunc: funcVal*: tuple[principal: Principal, methodName: string]
     of ctService: serviceVal*: Principal
     of ctReserved, ctEmpty: discard
@@ -36,9 +37,50 @@ type
     of ctOneway: discard
     of ctCompositeQuery: discard
 
+  # ==================================================
+  # CandidVariant
+  # ==================================================
   CandidVariant* = ref object
     tag*: uint32
     value*: CandidValue
+
+  # ==================================================
+  # CandidRecord
+  # ==================================================
+  CandidRecordKind* = enum
+    ckNull, ckBool, ckInt, ckFloat32, ckFloat64, ckText, ckBlob,
+    ckRecord, ckVariant, ckOption, ckPrincipal, ckFunc, ckService, ckArray
+
+  CandidRecord* = ref object
+    case kind*: CandidRecordKind
+    of ckNull:
+      discard  # 値を持たない
+    of ckBool:
+      boolVal*: bool
+    of ckInt:
+      intVal*: int64  # TODO: BigIntサポート時は BigInt に変更
+    of ckFloat32:
+      f32Val*: float32
+    of ckFloat64:
+      f64Val*: float
+    of ckText:
+      strVal*: string
+    of ckBlob:
+      bytesVal*: seq[uint8]
+    of ckRecord:
+      fields*: OrderedTable[string, CandidValue]
+    of ckVariant:
+      variantVal*: CandidVariant
+    of ckOption:
+      optVal*: Option[CandidRecord]
+    of ckPrincipal:
+      principalId*: string
+    of ckFunc:
+      funcRef*: tuple[principal: string, methodName: string]
+    of ckService:
+      serviceId*: string
+    of ckArray:
+      elems*: seq[CandidRecord]
 
 
 proc newCandidValue*[T](value: T): CandidValue =
@@ -47,8 +89,8 @@ proc newCandidValue*[T](value: T): CandidValue =
   elif T is int:
     CandidValue(kind: ctInt, intVal: value)
   elif T is byte:
-    CandidValue(kind: ctNat8, natVal: Natural(value))
-  elif T is Natural:
+    CandidValue(kind: ctNat8, natVal: uint(value))
+  elif T is uint:
     CandidValue(kind: ctNat, natVal: value)
   elif T is float or T is float32:
     CandidValue(kind: ctFloat32, float32Val: value.float32)
@@ -93,7 +135,7 @@ proc newCandidNull*(): CandidValue =
 proc newCandidBool*(value: bool): CandidValue =
   CandidValue(kind: ctBool, boolVal: value)
 
-proc newCandidNat*(value: Natural): CandidValue =
+proc newCandidNat*(value: uint): CandidValue =
   CandidValue(kind: ctNat, natVal: value)
 
 proc newCandidInt*(value: int): CandidValue =
@@ -108,13 +150,16 @@ proc newCandidFloat*(value: float): CandidValue =
 proc newCandidText*(value: string): CandidValue =
   CandidValue(kind: ctText, textVal: value)
 
+proc newCandidBlob*(value: seq[uint8]): CandidValue =
+  CandidValue(kind: ctBlob, blobVal: value)
+
 proc newCandidPrincipal*(value: Principal): CandidValue =
   CandidValue(kind: ctPrincipal, principalVal: value)
 
 proc newCandidRecord*(values: Table[string, CandidValue]): CandidValue =
-  var record = CandidRecord(values: initTable[uint32, CandidValue]())
+  var record = CandidRecord(kind: ckRecord, fields: initOrderedTable[string, CandidValue]())
   for key, value in values:
-    record.values[candidHash(key)] = newCandidValue(value)
+    record.fields[key] = value
   CandidValue(kind: ctRecord, recordVal: record)
 
 proc newCandidVariant*(tag: string, value: CandidValue): CandidValue =

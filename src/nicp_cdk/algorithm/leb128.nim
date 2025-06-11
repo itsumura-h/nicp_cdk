@@ -1,11 +1,11 @@
 #---- ULEB128 デコード ----
-proc decodeULEB128*(data: seq[byte]; offset: var int): Natural =
+proc decodeULEB128*(data: seq[byte]; offset: var int): uint =
   ## Decode an unsigned LEB128 encoded integer
   var shift = 0
   while true:
     let b = data[offset]
     inc offset
-    result = result or (Natural(b and 0x7Fu) shl shift)
+    result = result or (uint(b and 0x7Fu) shl shift)
     if (b and 0x80u) == 0u: break
     shift += 7
   return result

@@ -6,9 +6,12 @@ discard """
 
 import std/unittest
 import std/options
+import ../src/nicp_cdk/ic_types/candid_types
+import ../src/nicp_cdk/ic_types/ic_record
 import ../src/nicp_cdk/ic_types/ic_principal
-import ../src/nicp_cdk/ic_types/ic_record/ic_record_type
-import ../src/nicp_cdk/ic_types/ic_record/ic_record
+import ../src/nicp_cdk/ic_types/ic_variant
+import ../src/nicp_cdk/ic_types/ic_service
+
 
 # テストスイート: CandidValue %*マクロのテスト
 suite "CandidValue %*macro tests":
@@ -19,7 +22,6 @@ suite "CandidValue %*macro tests":
       "age": 30,
       "isActive": true,
       "score": 95.5,
-      "nullField": newCNull(),
       "nilField": nil
     }
     
@@ -28,7 +30,6 @@ suite "CandidValue %*macro tests":
       basicExample["age"].getInt() == 30
       basicExample["isActive"].getBool() == true
       basicExample["score"].getFloat64() == 95.5
-      basicExample["nullField"].isNull() == true
       basicExample["nilField"].isNull() == true
   
   test "Principal型のテスト":
@@ -46,8 +47,8 @@ suite "CandidValue %*macro tests":
   
   test "Blob型のテスト":
     let blobExample = %*{
-      "data": newCBlob(@[1u8, 2u8, 3u8, 4u8, 5u8]),
-      "signature": newCBlob(@[0x41u8, 0x42u8, 0x43u8])
+      "data": @[1u8, 2u8, 3u8, 4u8, 5u8].asBlob,
+      "signature": @[0x41u8, 0x42u8, 0x43u8].asBlob
     }
     
     check:
@@ -218,3 +219,62 @@ suite "CandidValue %*macro tests":
       complexExample["services"][0].getService() == Principal.fromText("ryjl3-tyaaa-aaaaa-aaaba-cai")
       complexExample["callbacks"]["onSuccess"].getFuncMethod() == "handleSuccess"
       complexExample["callbacks"]["onError"].getFuncMethod() == "handleError"
+
+  test "asBlob拡張メソッドのテスト":
+    # asBlobメソッドがseq[uint8]をBlob型として明示的に変換することを確認
+    let asBlobExample = %*{
+      "blobValue": @[0x01u8, 0x02u8, 0x03u8].asBlob,
+      "arrayValue": [1, 2, 3]  # 通常の配列として扱われる
+    }
+    
+    check:
+      asBlobExample["blobValue"].getBytes() == @[0x01u8, 0x02u8, 0x03u8]
+      asBlobExample["blobValue"].isBlob() == true
+      asBlobExample["arrayValue"].len() == 3
+      asBlobExample["arrayValue"].isArray() == true
+      asBlobExample["arrayValue"][0].getInt() == 1
+      asBlobExample["arrayValue"][1].getInt() == 2
+      asBlobExample["arrayValue"][2].getInt() == 3
+
+  test "Variant.new()構文のテスト":
+    # 新しいVariant.new()構文が正しく動作することを確認
+    let successVariant = Variant.new("success", newCText("Operation completed"))
+    let errorVariant = Variant.new("error", newCText("Something went wrong"))
+    let emptyVariant = Variant.new("empty")
+    
+    let variantNewExample = %*{
+      "success": successVariant,
+      "error": errorVariant,
+      "empty": emptyVariant
+    }
+    
+    let successVariantResult = variantNewExample["success"].getVariant()
+    let errorVariantResult = variantNewExample["error"].getVariant()
+    let emptyVariantResult = variantNewExample["empty"].getVariant()
+    
+    check:
+      successVariantResult.tag == "success"
+      successVariantResult.value.getStr() == "Operation completed"
+      errorVariantResult.tag == "error"
+      errorVariantResult.value.getStr() == "Something went wrong"
+      emptyVariantResult.tag == "empty"
+      emptyVariantResult.value.isNull() == true
+      variantNewExample["success"].isVariant() == true
+      variantNewExample["error"].isVariant() == true
+      variantNewExample["empty"].isVariant() == true
+
+  test "Service.new()構文のテスト":
+    # 新しいService.new()構文が正しく動作することを確認
+    let ledgerService = Service.new("ryjl3-tyaaa-aaaaa-aaaba-cai")
+    let registryService = Service.new("rrkah-fqaaa-aaaaa-aaaaq-cai")
+    
+    let serviceNewExample = %*{
+      "ledger": ledgerService,
+      "registry": registryService
+    }
+    
+    check:
+      serviceNewExample["ledger"].getService() == Principal.fromText("ryjl3-tyaaa-aaaaa-aaaba-cai")
+      serviceNewExample["registry"].getService() == Principal.fromText("rrkah-fqaaa-aaaaa-aaaaq-cai")
+      serviceNewExample["ledger"].isService() == true
+      serviceNewExample["registry"].isService() == true

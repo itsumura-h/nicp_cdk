@@ -20,7 +20,7 @@ proc getBool*(self:Request, index:int): bool =
   assert self.values[index].kind == ctBool
   return self.values[index].boolVal
 
-proc getNat*(self:Request, index:int): Natural =
+proc getNat*(self:Request, index:int): uint =
   ## Get the argument at the specified index as a nat
   assert self.values[index].kind == ctNat
   return self.values[index].natVal
