@@ -1,5 +1,6 @@
 import std/options
 import std/tables
+import std/macros
 import ./ic_principal
 
 
@@ -13,6 +14,7 @@ type
     ctText, ctReserved, ctEmpty, ctPrincipal,
     ctRecord, ctVariant, ctOpt, ctVec, ctBlob,
     ctFunc, ctService, ctQuery, ctOneway, ctCompositeQuery
+
 
   # 相互参照する型を同一typeブロック内で定義
   CandidValue* = ref object
@@ -43,6 +45,22 @@ type
   CandidVariant* = ref object
     tag*: uint32
     value*: CandidValue
+
+  # Generic Result type variant
+  ResultVariant*[T, E] = object
+    case isSuccess*: bool
+    of true:
+      successValue*: T
+    of false:
+      errorValue*: E
+
+  # Option-like variant
+  OptionVariant*[T] = object
+    case hasValue*: bool
+    of true:
+      value*: T
+    of false:
+      discard
 
   # ==================================================
   # CandidRecord
@@ -112,6 +130,9 @@ proc newCandidValue*[T](value: T): CandidValue =
     CandidValue(kind: ctVec, vecVal: value)
   elif T is tuple[principal: Principal, methodName: string]:
     CandidValue(kind: ctFunc, funcVal: value)
+  elif T is enum:
+    # 任意のenum型を文字列として扱う
+    CandidValue(kind: ctText, textVal: $value)
   else:
     raise newException(ValueError, "Unsupported type: " & $typeof(value))
 
@@ -177,3 +198,65 @@ proc newCandidFunc*(principal: Principal, methodName: string): CandidValue =
 
 proc newCandidService*(principal: Principal): CandidValue =
   CandidValue(kind: ctService, serviceVal: principal)
+
+# ================================================================================
+# Generic enum-based variant constructors
+# ================================================================================
+
+proc newCandidVariant*[T: enum](enumValue: T): CandidValue =
+  ## 任意のenum型からvariantを作成
+  newCandidVariant($enumValue, newCandidNull())
+
+proc newCandidVariant*[T, E](resultVariant: ResultVariant[T, E]): CandidValue =
+  ## ResultVariantからCandidVariantを作成
+  if resultVariant.isSuccess:
+    when T is CandidValue:
+      newCandidVariant("success", resultVariant.successValue)
+    else:
+      newCandidVariant("success", newCandidValue(resultVariant.successValue))
+  else:
+    when E is CandidValue:
+      newCandidVariant("error", resultVariant.errorValue)
+    else:
+      newCandidVariant("error", newCandidValue(resultVariant.errorValue))
+
+proc newCandidVariant*[T](option: OptionVariant[T]): CandidValue =
+  ## OptionVariantからCandidVariantを作成
+  if option.hasValue:
+    when T is CandidValue:
+      newCandidVariant("some", option.value)
+    else:
+      newCandidVariant("some", newCandidValue(option.value))
+  else:
+    newCandidVariant("none", newCandidNull())
+
+# ================================================================================
+# Enum-based variant helper constructors
+# ================================================================================
+
+# proc success*[T](value: T): ResultVariant[T, string] =
+#   ## Successな結果を作成
+#   ResultVariant[T, string](isSuccess: true, successValue: value)
+
+# proc error*[T](err: string): ResultVariant[T, string] =
+#   ## Errorな結果を作成
+#   ResultVariant[T, string](isSuccess: false, errorValue: err)
+
+# proc some*[T](value: T): OptionVariant[T] =
+#   ## Some値を作成
+#   OptionVariant[T](hasValue: true, value: value)
+
+# proc none*[T](_: type T): OptionVariant[T] =
+#   ## None値を作成
+#   OptionVariant[T](hasValue: false)
+
+# ================================================================================
+# Generic enum parsing helpers
+# ================================================================================
+
+proc parseEnum*[T: enum](s: string, _: type T): T =
+  ## 文字列から任意のenum型を解析
+  for enumValue in T:
+    if $enumValue == s:
+      return enumValue
+  raise newException(ValueError, "Unknown enum value: " & s & " for type " & $typeof(T))

@@ -165,6 +165,49 @@ proc newCVariant*(tag: string): CandidRecord =
   let tagHash = candidHash(tag)
   CandidRecord(kind: ckVariant, variantVal: CandidVariant(tag: tagHash, value: newCandidNull()))
 
+# ===== Generic enum-based variant constructors =====
+
+proc newCVariant*[T: enum](enumValue: T): CandidRecord =
+  ## 任意のenum型からVariantを生成
+  newCVariant($enumValue)
+
+proc newCVariant*[T, E](resultVariant: ResultVariant[T, E]): CandidRecord =
+  ## ResultVariantからVariantを生成
+  if resultVariant.isSuccess:
+    when T is CandidRecord:
+      newCVariant("success", resultVariant.successValue)
+    elif T is string:
+      newCVariant("success", newCText(resultVariant.successValue))
+    elif T is int:
+      newCVariant("success", newCInt(resultVariant.successValue))
+    elif T is bool:
+      newCVariant("success", newCBool(resultVariant.successValue))
+    else:
+      newCVariant("success", newCText($resultVariant.successValue))
+  else:
+    when E is CandidRecord:
+      newCVariant("error", resultVariant.errorValue)
+    elif E is string:
+      newCVariant("error", newCText(resultVariant.errorValue))
+    else:
+      newCVariant("error", newCText($resultVariant.errorValue))
+
+proc newCVariant*[T](option: OptionVariant[T]): CandidRecord =
+  ## OptionVariantからVariantを生成
+  if option.hasValue:
+    when T is CandidRecord:
+      newCVariant("some", option.value)
+    elif T is string:
+      newCVariant("some", newCText(option.value))
+    elif T is int:
+      newCVariant("some", newCInt(option.value))
+    elif T is bool:
+      newCVariant("some", newCBool(option.value))
+    else:
+      newCVariant("some", newCText($option.value))
+  else:
+    newCVariant("none")
+
 proc newCOption*(val: CandidValue): CandidRecord =
   ## Some値を持つOptionを生成
   # CandidValueからCandidRecordに変換する必要がある
@@ -225,6 +268,20 @@ proc asVariant*(tag: string, val: CandidRecord): CandidRecord =
 proc asVariant*(tag: string): CandidRecord =
   ## 値を持たないVariant型のCandidValueを生成
   newCVariant(tag)
+
+# ===== Generic enum-based variant as~ methods =====
+
+proc asVariant*[T: enum](enumValue: T): CandidRecord =
+  ## 任意のenum型をVariant型として変換
+  newCVariant(enumValue)
+
+proc asVariant*[T, E](resultVariant: ResultVariant[T, E]): CandidRecord =
+  ## ResultVariantをVariant型として変換
+  newCVariant(resultVariant)
+
+proc asVariant*[T](option: OptionVariant[T]): CandidRecord =
+  ## OptionVariantをVariant型として変換
+  newCVariant(option)
 
 proc asSome*(val: CandidRecord): CandidRecord =
   ## Some値を持つOption型のCandidValueを生成
@@ -422,12 +479,61 @@ proc getVariant*(cv: CandidRecord): VariantResult =
     of candidHash("success"): "success"
     of candidHash("error"): "error"
     of candidHash("empty"): "empty"
+    of candidHash("secp256k1"): "secp256k1"
+    of candidHash("secp256r1"): "secp256r1"
+    of candidHash("some"): "some"
+    of candidHash("none"): "none"
     else: $hashVal  # 見つからない場合はハッシュ値を文字列化
   
   VariantResult(
     tag: tagStr,
     value: fromCandidValue(cv.variantVal.value)
   )
+
+# ===== Generic enum-based variant getters =====
+
+proc getEnum*[T: enum](cv: CandidRecord, _: type T): T =
+  ## Variantから任意のenum型を取得
+  if cv.kind != ckVariant:
+    raise newException(ValueError, &"Expected Variant, got {cv.kind}")
+  
+  let tagHash = cv.variantVal.tag
+  # ハッシュ値から文字列を逆引きするのは困難なので、
+  # 全てのenum値を試してハッシュが一致するものを探す
+  for enumValue in T:
+    if candidHash($enumValue) == tagHash:
+      return enumValue
+  raise newException(ValueError, "Unknown enum variant for type " & $typeof(T))
+
+proc getResultVariant*[T, E](cv: CandidRecord, _: type ResultVariant[T, E]): ResultVariant[T, E] =
+  ## VariantからResultVariantを取得
+  if cv.kind != ckVariant:
+    raise newException(ValueError, &"Expected Variant, got {cv.kind}")
+  
+  let tagHash = cv.variantVal.tag
+  case tagHash:
+  of candidHash("success"):
+    let value = fromCandidValue(cv.variantVal.value)
+    when T is CandidRecord:
+      return ResultVariant[T, E](isSuccess: true, successValue: value)
+    elif T is string:
+      return ResultVariant[T, E](isSuccess: true, successValue: value.getStr())
+    elif T is int:
+      return ResultVariant[T, E](isSuccess: true, successValue: value.getInt())
+    elif T is bool:
+      return ResultVariant[T, E](isSuccess: true, successValue: value.getBool())
+    else:
+      return ResultVariant[T, E](isSuccess: true, successValue: T(value))
+  of candidHash("error"):
+    let errValue = fromCandidValue(cv.variantVal.value)
+    when E is CandidRecord:
+      return ResultVariant[T, E](isSuccess: false, errorValue: errValue)
+    elif E is string:
+      return ResultVariant[T, E](isSuccess: false, errorValue: errValue.getStr())
+    else:
+      return ResultVariant[T, E](isSuccess: false, errorValue: E(errValue))
+  else:
+    raise newException(ValueError, "Unknown Result variant tag")
 
 # ===== フィールド名のハッシュ化関数 =====
 
@@ -563,6 +669,8 @@ macro candidLit*(x: untyped): CandidRecord =
             newCBlob(`varName`)
           elif `varName` is Principal:
             newCPrincipal(`varName`.value)
+          elif `varName` is enum:
+            newCVariant(`varName`)
           elif `varName` is Option:
             if `varName`.isSome():
               asSome(candidLit(`varName`.get()))
@@ -627,8 +735,8 @@ macro candidLit*(x: untyped): CandidRecord =
           newCText(val)
         elif val is seq[uint8]:
           newCBlob(val)
-        elif val is Variant:
-          newCVariant(val.tag, candidLit(val.value))
+        elif val is enum:
+          newCVariant(val)
         elif val is Service:
           newCService(val.value)
         elif val is Principal:
@@ -660,6 +768,8 @@ macro candidLit*(x: untyped): CandidRecord =
           newCBlob(val)
         elif val is Principal:
           newCPrincipal(val.value)
+        elif val is enum:
+          newCVariant(val)
         elif val is Option:
           if val.isSome():
             asSome(candidLit(val.get()))
@@ -689,3 +799,29 @@ proc isOption*(cv: CandidRecord): bool = cv.kind == ckOption
 proc isPrincipal*(cv: CandidRecord): bool = cv.kind == ckPrincipal
 proc isFunc*(cv: CandidRecord): bool = cv.kind == ckFunc
 proc isService*(cv: CandidRecord): bool = cv.kind == ckService
+
+# ===== Generic enum-based variant type checks =====
+
+proc isEnum*[T: enum](cv: CandidRecord, _: type T): bool =
+  ## Variantが指定されたenum型かどうか判定
+  if cv.kind != ckVariant:
+    return false
+  let tagHash = cv.variantVal.tag
+  for enumValue in T:
+    if candidHash($enumValue) == tagHash:
+      return true
+  return false
+
+proc isResultVariant*(cv: CandidRecord): bool =
+  ## VariantがResult型かどうか判定
+  if cv.kind != ckVariant:
+    return false
+  let tagHash = cv.variantVal.tag
+  tagHash == candidHash("success") or tagHash == candidHash("error")
+
+proc isOptionVariant*(cv: CandidRecord): bool =
+  ## VariantがOption型かどうか判定
+  if cv.kind != ckVariant:
+    return false
+  let tagHash = cv.variantVal.tag
+  tagHash == candidHash("some") or tagHash == candidHash("none")

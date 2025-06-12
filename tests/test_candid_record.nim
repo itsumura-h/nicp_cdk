@@ -278,3 +278,24 @@ suite "CandidValue %*macro tests":
       serviceNewExample["registry"].getService() == Principal.fromText("rrkah-fqaaa-aaaaa-aaaaq-cai")
       serviceNewExample["ledger"].isService() == true
       serviceNewExample["registry"].isService() == true
+
+  test("t-ecdsa public key args"):
+    type Curve = enum
+      secp256k1
+    
+    let caller = Principal.fromText("aaaaa-aa")
+    let derivationPath = caller.bytes
+    let arg = %*{
+      "canister_id": none(Principal),
+      "derivation_path": derivationPath.asBlob(),
+      "key_id": {
+        "curve": Curve.secp256k1,
+        "name": "dfx_test_key"
+      }
+    }
+    echo "arg: ", $arg
+    check:
+      arg["canister_id"].isNull() == true
+      arg["derivation_path"].getBytes() == derivationPath
+      arg["key_id"]["curve"].getEnum(Curve) == Curve.secp256k1
+      arg["key_id"]["name"].getStr() == "dfx_test_key"
