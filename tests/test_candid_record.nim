@@ -11,6 +11,7 @@ import ../src/nicp_cdk/ic_types/ic_record
 import ../src/nicp_cdk/ic_types/ic_principal
 import ../src/nicp_cdk/ic_types/ic_variant
 import ../src/nicp_cdk/ic_types/ic_service
+import ../src/nicp_cdk/ic_types/candid_funcs
 
 
 # テストスイート: CandidValue %*マクロのテスト

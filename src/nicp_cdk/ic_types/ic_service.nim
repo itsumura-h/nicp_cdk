@@ -1,5 +1,5 @@
 import ./candid_types
-import ./ic_record
+import ./candid_funcs
 
 # Service型の定義
 type Service* = object

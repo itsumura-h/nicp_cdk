@@ -5,291 +5,13 @@ import std/options
 import std/base64
 import std/hashes
 import std/macros
-import std/sequtils
+
 import ./candid_types
 import ./ic_principal
+import ./candid_funcs
 
-
-# ===== 前方宣言 =====
-proc fromCandidValue*(cv: CandidValue): CandidRecord
-proc toCandidValue*(cr: CandidRecord): CandidValue
-
-# ===== コンストラクタ関数 =====
-
-proc newCNull*(): CandidRecord =
-  ## Null値を表すCandidValueを生成
-  CandidRecord(kind: ckNull)
-
-proc newCBool*(b: bool): CandidRecord =
-  ## ブール値からCandidValueを生成
-  CandidRecord(kind: ckBool, boolVal: b)
-
-proc newCInt*(i: int64): CandidRecord =
-  ## 整数からCandidValueを生成
-  CandidRecord(kind: ckInt, intVal: i)
-
-proc newCInt*(i: int): CandidRecord =
-  ## 整数からCandidValueを生成
-  CandidRecord(kind: ckInt, intVal: i.int64)
-
-proc newCFloat32*(f: float32): CandidRecord =
-  ## 単精度浮動小数点からCandidValueを生成
-  CandidRecord(kind: ckFloat32, f32Val: f)
-
-proc newCFloat64*(f: float): CandidRecord =
-  ## 倍精度浮動小数点からCandidValueを生成
-  CandidRecord(kind: ckFloat64, f64Val: f)
-
-proc newCText*(s: string): CandidRecord =
-  ## テキストからCandidValueを生成
-  CandidRecord(kind: ckText, strVal: s)
-
-proc newCBlob*(bytes: seq[uint8]): CandidRecord =
-  ## バイト列からCandidValueを生成
-  CandidRecord(kind: ckBlob, bytesVal: bytes)
-
-proc newCRecord*(): CandidRecord =
-  ## 空のレコードを生成
-  CandidRecord(kind: ckRecord, fields: initOrderedTable[string, CandidValue]())
-
-proc newCArray*(): CandidRecord =
-  ## 空の配列を生成
-  CandidRecord(kind: ckArray, elems: @[])
-
-proc newCPrincipal*(text: string): CandidRecord =
-  ## Principal ID文字列からCandidValueを生成
-  CandidRecord(kind: ckPrincipal, principalId: text)
-
-proc newCFunc*(principal: string, methodName: string): CandidRecord =
-  ## Func参照を生成
-  CandidRecord(kind: ckFunc, funcRef: (principal: principal, methodName: methodName))
-
-proc newCService*(principal: string): CandidRecord =
-  ## Service参照を生成
-  CandidRecord(kind: ckService, serviceId: principal)
-
-proc newCOptionNone*(): CandidRecord =
-  ## Noneを生成
-  CandidRecord(kind: ckOption, optVal: none(CandidRecord))
-
-# CandidValueからCandidRecordに変換するヘルパー関数
-proc fromCandidValue*(cv: CandidValue): CandidRecord =
-  ## CandidValueをCandidRecordに変換
-  case cv.kind:
-  of ctNull:
-    result = newCNull()
-  of ctBool:
-    result = newCBool(cv.boolVal)
-  of ctInt:
-    result = newCInt(cv.intVal)
-  of ctFloat32:
-    result = newCFloat32(cv.float32Val)
-  of ctFloat64:
-    result = newCFloat64(cv.float64Val)
-  of ctText:
-    result = newCText(cv.textVal)
-  of ctBlob:
-    result = newCBlob(cv.blobVal)
-  of ctPrincipal:
-    result = newCPrincipal(cv.principalVal.value)
-  of ctRecord:
-    result = newCRecord()
-    for key, value in cv.recordVal.fields:
-      result.fields[key] = value
-  of ctVariant:
-    result = CandidRecord(kind: ckVariant, variantVal: cv.variantVal)
-  of ctOpt:
-    if cv.optVal.isSome():
-      result = CandidRecord(kind: ckOption, optVal: some(fromCandidValue(cv.optVal.get())))
-    else:
-      result = newCOptionNone()
-  of ctVec:
-    result = newCArray()
-    for item in cv.vecVal:
-      result.elems.add(fromCandidValue(item))
-  of ctFunc:
-    result = newCFunc(cv.funcVal.principal.value, cv.funcVal.methodName)
-  of ctService:
-    result = newCService(cv.serviceVal.value)
-  else:
-    result = newCNull()  # その他の場合はnullとして扱う
-
-# CandidRecordをCandidValueに変換するヘルパー関数
-proc toCandidValue*(cr: CandidRecord): CandidValue =
-  ## CandidRecordをCandidValueに変換
-  case cr.kind:
-  of ckNull:
-    result = newCandidNull()
-  of ckBool:
-    result = newCandidBool(cr.boolVal)
-  of ckInt:
-    result = newCandidInt(cr.intVal.int)
-  of ckFloat32:
-    result = newCandidFloat(cr.f32Val)
-  of ckFloat64:
-    result = CandidValue(kind: ctFloat64, float64Val: cr.f64Val)
-  of ckText:
-    result = newCandidText(cr.strVal)
-  of ckBlob:
-    result = newCandidBlob(cr.bytesVal)
-  of ckRecord:
-    # OrderedTableを普通のTableに変換
-    var tableData = initTable[string, CandidValue]()
-    for key, value in cr.fields:
-      tableData[key] = value
-    result = newCandidRecord(tableData)
-  of ckVariant:
-    result = CandidValue(kind: ctVariant, variantVal: cr.variantVal)
-  of ckOption:
-    if cr.optVal.isSome():
-      result = newCandidOpt(some(cr.optVal.get().toCandidValue()))
-    else:
-      result = newCandidOpt(none(CandidValue))
-  of ckPrincipal:
-    result = newCandidPrincipal(Principal.fromText(cr.principalId))
-  of ckFunc:
-    result = newCandidFunc(Principal.fromText(cr.funcRef.principal), cr.funcRef.methodName)
-  of ckService:
-    result = newCandidService(Principal.fromText(cr.serviceId))
-  of ckArray:
-    let candidValues = cr.elems.map(proc(item: CandidRecord): CandidValue = item.toCandidValue())
-    result = newCandidVec(candidValues)
-
-proc newCVariant*(tag: string, val: CandidRecord): CandidRecord =
-  ## 指定タグ・値のVariant（CandidRecord版）を生成
-  let tagHash = candidHash(tag)
-  CandidRecord(kind: ckVariant, variantVal: CandidVariant(tag: tagHash, value: val.toCandidValue()))
-
-proc newCVariant*(tag: string): CandidRecord =
-  ## 値を持たないVariantケースを生成
-  let tagHash = candidHash(tag)
-  CandidRecord(kind: ckVariant, variantVal: CandidVariant(tag: tagHash, value: newCandidNull()))
-
-# ===== Generic enum-based variant constructors =====
-
-proc newCVariant*[T: enum](enumValue: T): CandidRecord =
-  ## 任意のenum型からVariantを生成
-  newCVariant($enumValue)
-
-proc newCVariant*[T, E](resultVariant: ResultVariant[T, E]): CandidRecord =
-  ## ResultVariantからVariantを生成
-  if resultVariant.isSuccess:
-    when T is CandidRecord:
-      newCVariant("success", resultVariant.successValue)
-    elif T is string:
-      newCVariant("success", newCText(resultVariant.successValue))
-    elif T is int:
-      newCVariant("success", newCInt(resultVariant.successValue))
-    elif T is bool:
-      newCVariant("success", newCBool(resultVariant.successValue))
-    else:
-      newCVariant("success", newCText($resultVariant.successValue))
-  else:
-    when E is CandidRecord:
-      newCVariant("error", resultVariant.errorValue)
-    elif E is string:
-      newCVariant("error", newCText(resultVariant.errorValue))
-    else:
-      newCVariant("error", newCText($resultVariant.errorValue))
-
-proc newCVariant*[T](option: OptionVariant[T]): CandidRecord =
-  ## OptionVariantからVariantを生成
-  if option.hasValue:
-    when T is CandidRecord:
-      newCVariant("some", option.value)
-    elif T is string:
-      newCVariant("some", newCText(option.value))
-    elif T is int:
-      newCVariant("some", newCInt(option.value))
-    elif T is bool:
-      newCVariant("some", newCBool(option.value))
-    else:
-      newCVariant("some", newCText($option.value))
-  else:
-    newCVariant("none")
-
-proc newCOption*(val: CandidValue): CandidRecord =
-  ## Some値を持つOptionを生成
-  # CandidValueからCandidRecordに変換する必要がある
-  let cr = fromCandidValue(val)
-  CandidRecord(kind: ckOption, optVal: some(cr))
-
-# ===== as~ 拡張メソッド =====
-
-proc asBlob*(bytes: seq[uint8]): CandidRecord =
-  ## seq[uint8]をBlob型のCandidValueに変換
-  ## 配列とBlobの区別を明示するために使用
-  newCBlob(bytes)
-
-proc asText*(s: string): CandidRecord =
-  ## stringをText型のCandidValueに変換
-  newCText(s)
-
-proc asBool*(b: bool): CandidRecord =
-  ## boolをBool型のCandidValueに変換
-  newCBool(b)
-
-proc asInt*(i: int): CandidRecord =
-  ## intをInt型のCandidValueに変換
-  newCInt(i)
-
-proc asInt*(i: int64): CandidRecord =
-  ## int64をInt型のCandidValueに変換
-  newCInt(i)
-
-proc asFloat32*(f: float32): CandidRecord =
-  ## float32をFloat32型のCandidValueに変換
-  newCFloat32(f)
-
-proc asFloat64*(f: float): CandidRecord =
-  ## floatをFloat64型のCandidValueに変換
-  newCFloat64(f)
-
-proc asPrincipal*(text: string): CandidRecord =
-  ## 文字列をPrincipal型のCandidValueに変換
-  newCPrincipal(text)
-
-proc asPrincipal*(p: Principal): CandidRecord =
-  ## PrincipalをPrincipal型のCandidValueに変換
-  newCPrincipal(p.value)
-
-proc asFunc*(principal: string, methodName: string): CandidRecord =
-  ## Func参照を生成
-  newCFunc(principal, methodName)
-
-proc asService*(principal: string): CandidRecord =
-  ## Service参照を生成
-  newCService(principal)
-
-proc asVariant*(tag: string, val: CandidRecord): CandidRecord =
-  ## Variant型のCandidValueを生成
-  newCVariant(tag, val)
-
-proc asVariant*(tag: string): CandidRecord =
-  ## 値を持たないVariant型のCandidValueを生成
-  newCVariant(tag)
-
-# ===== Generic enum-based variant as~ methods =====
-
-proc asVariant*[T: enum](enumValue: T): CandidRecord =
-  ## 任意のenum型をVariant型として変換
-  newCVariant(enumValue)
-
-proc asVariant*[T, E](resultVariant: ResultVariant[T, E]): CandidRecord =
-  ## ResultVariantをVariant型として変換
-  newCVariant(resultVariant)
-
-proc asVariant*[T](option: OptionVariant[T]): CandidRecord =
-  ## OptionVariantをVariant型として変換
-  newCVariant(option)
-
-proc asSome*(val: CandidRecord): CandidRecord =
-  ## Some値を持つOption型のCandidValueを生成
-  CandidRecord(kind: ckOption, optVal: some(val))
-
-proc asNone*(): CandidRecord =
-  ## None値を持つOption型のCandidValueを生成
-  newCOptionNone()
+# CandidRecordの操作に特化したモジュール
+# 型変換ロジックはcandid_funcs.nimに移動済み
 
 # ===== アクセサ関数 =====
 
@@ -490,51 +212,6 @@ proc getVariant*(cv: CandidRecord): VariantResult =
     value: fromCandidValue(cv.variantVal.value)
   )
 
-# ===== Generic enum-based variant getters =====
-
-proc getEnum*[T: enum](cv: CandidRecord, _: type T): T =
-  ## Variantから任意のenum型を取得
-  if cv.kind != ckVariant:
-    raise newException(ValueError, &"Expected Variant, got {cv.kind}")
-  
-  let tagHash = cv.variantVal.tag
-  # ハッシュ値から文字列を逆引きするのは困難なので、
-  # 全てのenum値を試してハッシュが一致するものを探す
-  for enumValue in T:
-    if candidHash($enumValue) == tagHash:
-      return enumValue
-  raise newException(ValueError, "Unknown enum variant for type " & $typeof(T))
-
-proc getResultVariant*[T, E](cv: CandidRecord, _: type ResultVariant[T, E]): ResultVariant[T, E] =
-  ## VariantからResultVariantを取得
-  if cv.kind != ckVariant:
-    raise newException(ValueError, &"Expected Variant, got {cv.kind}")
-  
-  let tagHash = cv.variantVal.tag
-  case tagHash:
-  of candidHash("success"):
-    let value = fromCandidValue(cv.variantVal.value)
-    when T is CandidRecord:
-      return ResultVariant[T, E](isSuccess: true, successValue: value)
-    elif T is string:
-      return ResultVariant[T, E](isSuccess: true, successValue: value.getStr())
-    elif T is int:
-      return ResultVariant[T, E](isSuccess: true, successValue: value.getInt())
-    elif T is bool:
-      return ResultVariant[T, E](isSuccess: true, successValue: value.getBool())
-    else:
-      return ResultVariant[T, E](isSuccess: true, successValue: T(value))
-  of candidHash("error"):
-    let errValue = fromCandidValue(cv.variantVal.value)
-    when E is CandidRecord:
-      return ResultVariant[T, E](isSuccess: false, errorValue: errValue)
-    elif E is string:
-      return ResultVariant[T, E](isSuccess: false, errorValue: errValue.getStr())
-    else:
-      return ResultVariant[T, E](isSuccess: false, errorValue: E(errValue))
-  else:
-    raise newException(ValueError, "Unknown Result variant tag")
-
 # ===== フィールド名のハッシュ化関数 =====
 
 proc candidFieldHash*(name: string): uint32 =
@@ -609,13 +286,13 @@ proc candidValueToJsonString(cv: CandidRecord, indent: int = 0): string =
     "\"" & cv.serviceId & "\""
 
 proc `$`*(cv: CandidRecord): string =
-  ## CandidValueをJSON風文字列に変換
+  ## CandidRecordをJSON風文字列に変換
   candidValueToJsonString(cv)
 
 # ===== 便利マクロ（JsonNodeの %* に相当） =====
 
 macro candidLit*(x: untyped): CandidRecord =
-  ## CandidValueリテラル構築マクロ
+  ## CandidRecordリテラル構築マクロ
   ## 
   ## サポートする構文:
   ## - 基本型: bool, 整数, 浮動小数点, string
@@ -670,7 +347,7 @@ macro candidLit*(x: untyped): CandidRecord =
           elif `varName` is Principal:
             newCPrincipal(`varName`.value)
           elif `varName` is enum:
-            newCVariant(`varName`)
+            newCVariant($`varName`)
           elif `varName` is Option:
             if `varName`.isSome():
               asSome(candidLit(`varName`.get()))
@@ -717,38 +394,6 @@ macro candidLit*(x: untyped): CandidRecord =
       result.add(recordVar)
       return result
 
-    # ドット記法による関数呼び出し ("Ali".some のような構文)
-    of nnkDotExpr:
-      # ドット記法は実行時に評価
-      # asBlobなどのメソッド呼び出しの結果はCandidRecordなので、そのまま返す
-      quote do:
-        let val = `node`
-        when val is CandidRecord:
-          val
-        elif val is bool:
-          newCBool(val)
-        elif val is SomeInteger:
-          newCInt(val.int64)
-        elif val is SomeFloat:
-          newCFloat64(val.float)
-        elif val is string:
-          newCText(val)
-        elif val is seq[uint8]:
-          newCBlob(val)
-        elif val is enum:
-          newCVariant(val)
-        elif val is Service:
-          newCService(val.value)
-        elif val is Principal:
-          newCPrincipal(val.value)
-        elif val is Option:
-          if val.isSome():
-            asSome(candidLit(val.get()))
-          else:
-            newCOptionNone()
-        else:
-          {.error: "Unsupported type for candidLit macro".}
-    
     # その他の式（変数参照、複雑な式など）
     else:
       # 実行時に型判定
@@ -769,7 +414,7 @@ macro candidLit*(x: untyped): CandidRecord =
         elif val is Principal:
           newCPrincipal(val.value)
         elif val is enum:
-          newCVariant(val)
+          newCVariant($val)
         elif val is Option:
           if val.isSome():
             asSome(candidLit(val.get()))
@@ -782,46 +427,3 @@ macro candidLit*(x: untyped): CandidRecord =
 
 # %C エイリアス（Nim 1.6+ では %演算子の定義にはspecial文字の組み合わせが必要）
 template `%*`*(x: untyped): CandidRecord = candidLit(x)
-
-# ===== 型判定ヘルパー =====
-
-proc isNull*(cv: CandidRecord): bool = cv.kind == ckNull
-proc isBool*(cv: CandidRecord): bool = cv.kind == ckBool
-proc isInt*(cv: CandidRecord): bool = cv.kind == ckInt
-proc isFloat32*(cv: CandidRecord): bool = cv.kind == ckFloat32
-proc isFloat64*(cv: CandidRecord): bool = cv.kind == ckFloat64
-proc isText*(cv: CandidRecord): bool = cv.kind == ckText
-proc isBlob*(cv: CandidRecord): bool = cv.kind == ckBlob
-proc isRecord*(cv: CandidRecord): bool = cv.kind == ckRecord
-proc isArray*(cv: CandidRecord): bool = cv.kind == ckArray
-proc isVariant*(cv: CandidRecord): bool = cv.kind == ckVariant
-proc isOption*(cv: CandidRecord): bool = cv.kind == ckOption
-proc isPrincipal*(cv: CandidRecord): bool = cv.kind == ckPrincipal
-proc isFunc*(cv: CandidRecord): bool = cv.kind == ckFunc
-proc isService*(cv: CandidRecord): bool = cv.kind == ckService
-
-# ===== Generic enum-based variant type checks =====
-
-proc isEnum*[T: enum](cv: CandidRecord, _: type T): bool =
-  ## Variantが指定されたenum型かどうか判定
-  if cv.kind != ckVariant:
-    return false
-  let tagHash = cv.variantVal.tag
-  for enumValue in T:
-    if candidHash($enumValue) == tagHash:
-      return true
-  return false
-
-proc isResultVariant*(cv: CandidRecord): bool =
-  ## VariantがResult型かどうか判定
-  if cv.kind != ckVariant:
-    return false
-  let tagHash = cv.variantVal.tag
-  tagHash == candidHash("success") or tagHash == candidHash("error")
-
-proc isOptionVariant*(cv: CandidRecord): bool =
-  ## VariantがOption型かどうか判定
-  if cv.kind != ckVariant:
-    return false
-  let tagHash = cv.variantVal.tag
-  tagHash == candidHash("some") or tagHash == candidHash("none")
