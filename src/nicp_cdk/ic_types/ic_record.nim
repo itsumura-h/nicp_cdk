@@ -394,6 +394,70 @@ macro candidLit*(x: untyped): CandidRecord =
       result.add(recordVar)
       return result
 
+    # 関数呼び出し（none(Type), some(value)など）
+    of nnkCall:
+      if node.len >= 1 and node[0].kind == nnkIdent:
+        if node[0].strVal == "none":
+          # none(Type)の場合
+          newCall(bindSym"newCOptionNone")
+        elif node[0].strVal == "some" and node.len == 2:
+          # some(value)の場合
+          newCall(bindSym"asSome", buildCandidValue(node[1]))
+        else:
+          # その他の関数呼び出しは実行時処理
+          quote do:
+            let val = `node`
+            when val is CandidRecord:
+              val
+            elif val is bool:
+              newCBool(val)
+            elif val is SomeInteger:
+              newCInt(val.int64)
+            elif val is SomeFloat:
+              newCFloat64(val.float)
+            elif val is string:
+              newCText(val)
+            elif val is seq[uint8]:
+              newCBlob(val)
+            elif val is Principal:
+              newCPrincipal(val.value)
+            elif val is enum:
+              newCVariant($val)
+            elif val is Option:
+              if val.isSome():
+                asSome(candidLit(val.get()))
+              else:
+                newCOptionNone()
+            else:
+              {.error: "Unsupported type for candidLit macro".}
+      else:
+        # その他の複雑な式は実行時処理
+        quote do:
+          let val = `node`
+          when val is CandidRecord:
+            val
+          elif val is bool:
+            newCBool(val)
+          elif val is SomeInteger:
+            newCInt(val.int64)
+          elif val is SomeFloat:
+            newCFloat64(val.float)
+          elif val is string:
+            newCText(val)
+          elif val is seq[uint8]:
+            newCBlob(val)
+          elif val is Principal:
+            newCPrincipal(val.value)
+          elif val is enum:
+            newCVariant($val)
+          elif val is Option:
+            if val.isSome():
+              asSome(candidLit(val.get()))
+            else:
+              newCOptionNone()
+          else:
+            {.error: "Unsupported type for candidLit macro".}
+
     # その他の式（変数参照、複雑な式など）
     else:
       # 実行時に型判定

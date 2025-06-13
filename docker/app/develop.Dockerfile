@@ -81,12 +81,10 @@ RUN apt install -y wabt
 
 # nim
 WORKDIR /root
-ARG NIM_VERSION="2.2.2"
 RUN curl https://nim-lang.org/choosenim/init.sh -o init.sh
 RUN sh init.sh -y
 RUN rm -f init.sh
 ENV PATH $PATH:/root/.nimble/bin
-RUN choosenim ${NIM_VERSION}
 
 # nimlangserver
 # https://github.com/nim-lang/langserver/releases/latest

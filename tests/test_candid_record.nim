@@ -296,7 +296,7 @@ suite "CandidValue %*macro tests":
     }
     echo "arg: ", $arg
     check:
-      arg["canister_id"].isNull() == true
+      arg["canister_id"].isNone() == true
       arg["derivation_path"].getBytes() == derivationPath
       arg["key_id"]["curve"].getEnum(Curve) == Curve.secp256k1
       arg["key_id"]["name"].getStr() == "dfx_test_key"
