@@ -1,5 +1,7 @@
 import std/strutils
+import std/options
 import ../../../../src/nicp_cdk
+
 
 proc greet() {.query.} =
   let caller = Msg.caller()
@@ -66,9 +68,35 @@ proc argText() {.query.} =
 
 proc msgPrincipal() {.query.} =
   let caller = Msg.caller()
-  icEcho caller
   reply(caller)
 
 
 proc responseEmpty() {.query.} =
   reply()
+
+
+proc responseRecord() {.query.} =
+  echo "===== main.nim responseRecord() ====="
+  var record = %*{
+    "name": "John",
+    "age": 30,
+    "principal": Principal.fromText("aaaaa-aa")
+  }
+  echo "record: ", $record
+  reply(record)
+
+
+proc responseTEcdsaPublicKeyArgs() {.query.} =
+  let request = Request.new()
+  let caller = request.getPrincipal(0)
+  icEcho "caller: ", caller
+  let arg = %*{
+    "canister_id": none(Principal),
+    "derivation_path": caller.bytes.asBlob(),
+    "key_id": {
+      "curve": "secp256k1",
+      "name": "dfx_test_key"
+    }
+  }
+  icEcho "arg: ", $arg
+  reply(arg)

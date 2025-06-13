@@ -8,4 +8,21 @@ service : {
   argText: (text) -> (text) query;
   msgPrincipal: () -> (principal) query;
   responseEmpty: () -> () query;
+  responseRecord: () -> (
+    record{
+      name : text;
+      age : int;
+      "principal" : principal;
+    }
+  ) query;
+  responseTEcdsaPublicKeyArgs: () -> (
+    record {
+      canister_id : opt principal;
+      derivation_path : vec blob;
+      key_id : record { 
+        curve : variant { secp256k1; secp256r1 }; 
+        name : text 
+      };
+    }
+  ) query;
 }

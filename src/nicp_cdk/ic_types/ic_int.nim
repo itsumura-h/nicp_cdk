@@ -26,10 +26,10 @@ proc serializeCandid*(value: int): seq[byte] =
   buf.add encodeSLEB128(int32(value))
   buf
 
-proc serializeCandid*(value: Natural): seq[byte] =
-  ## --- Natural 用 serializeCandid ---
+proc serializeCandid*(value: uint): seq[byte] =
+  ## --- uint 用 serializeCandid ---
   var buf = newSeq[byte]()
   buf.add magicHeader
   buf.add byte(1); buf.add tagNat
-  buf.add encodeULEB128(uint(value))
+  buf.add encodeULEB128(value)
   buf

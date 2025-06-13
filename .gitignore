@@ -3,6 +3,7 @@
 !*/
 
 testresults
+nimcache
 
 *.wasm
 *.wat

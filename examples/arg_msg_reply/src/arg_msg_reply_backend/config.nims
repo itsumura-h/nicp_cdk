@@ -14,10 +14,16 @@ switch("passL", "-target wasm32-wasi")
 switch("passL", "-static") # Statically link necessary libraries
 switch("passL", "-nostartfiles") # Do not link standard startup files
 switch("passL", "-Wl,--no-entry") # Do not enforce an entry point
-switch("passC", "-fno-exceptions")
+switch("passC", "-fno-exceptions") # Do not use exceptions
+
+# optimize
+when defined(release):
+  switch("passC", "-Os") # optimize for size
+  switch("passC", "-flto") # link time optimization for compiler
+  switch("passL", "-flto") # link time optimization for linker
 
 # ic0.h path
-let cHeadersPath = "/application/examples/arg_msg_reply/c_headers"
+let cHeadersPath = "/root/.ic-c-headers"
 switch("passC", "-I" & cHeadersPath)
 switch("passL", "-L" & cHeadersPath)
 
