@@ -358,6 +358,23 @@ proc decodeValue(data: seq[byte], offset: var int, typeRef: int, typeTable: seq[
 # ================================================================================
 # Public Procedures
 # ================================================================================
+proc `$`*(decodeResult: CandidDecodeResult): string =
+  ## CandidDecodeResult を文字列に変換する
+  result = "CandidDecodeResult(\n"
+  result.add("  typeTable: [")
+  for i, typeEntry in decodeResult.typeTable:
+    if i > 0:
+      result.add(", ")
+    result.add($typeEntry)
+  result.add("],\n")
+  result.add("  values: [")
+  for i, value in decodeResult.values:
+    if i > 0:
+      result.add(", ")
+    result.add($value)
+  result.add("]\n)")
+
+
 proc decodeCandidMessage*(data: seq[byte]): CandidDecodeResult =
   ## Candidメッセージをデコードする
   var offset = 0

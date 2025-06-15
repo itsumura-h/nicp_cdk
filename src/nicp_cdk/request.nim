@@ -1,5 +1,5 @@
 import ./ic_types/candid_types
-import ./ic_types/candid
+import ./ic_types/candid_message/candid_decode
 import ./ic_types/ic_principal
 import ./ic0/ic0
 

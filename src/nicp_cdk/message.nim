@@ -1,7 +1,7 @@
 # Message inspection
 # https://internetcomputer.org/docs/motoko/main/writing-motoko/message-inspection
 
-import ./ic_types/candid
+import ./ic_types/candid_types
 import ./ic_types/ic_principal
 import ./ic0/ic0
 

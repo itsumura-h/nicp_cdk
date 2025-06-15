@@ -1,6 +1,6 @@
 import ./ic0/ic0
-import ./ic_types/candid
 import ./ic_types/candid_types
+import ./ic_types/candid_message/candid_encode
 import ./ic_types/ic_principal
 
 

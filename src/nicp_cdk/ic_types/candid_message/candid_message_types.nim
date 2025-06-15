@@ -65,3 +65,7 @@ type
 # デコードエラー
 type CandidDecodeError* = object of CatchableError
 
+
+proc `$`*(entry: TypeTableEntry): string =
+  ## TypeTableEntry を文字列に変換する
+  result = $entry.kind
