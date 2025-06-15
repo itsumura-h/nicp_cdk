@@ -1,3 +1,4 @@
+import std/options
 import ./ic0/ic0
 import ./ic_types/candid_types
 import ./ic_types/candid_message/candid_encode
@@ -130,6 +131,33 @@ proc reply*(msg: CandidRecord) =
 
 proc reply*(msg: uint64) =
   let value = newCandidValue(msg)
+  let encoded = encodeCandidMessage(@[value])
+  ic0_msg_reply_data_append(ptrToInt(addr encoded[0]), encoded.len)
+  ic0_msg_reply()
+
+
+proc reply*(msg: seq[uint8]) =
+  let value = newCandidBlob(msg)
+  let encoded = encodeCandidMessage(@[value])
+  ic0_msg_reply_data_append(ptrToInt(addr encoded[0]), encoded.len)
+  ic0_msg_reply()
+
+
+proc reply*[T](msg: Option[T]) =
+  ## Reply with an optional value
+  let optValue = if msg.isSome():
+    some(newCandidValue(msg.get()))
+  else:
+    none(CandidValue)
+  let value = newCandidOpt(optValue)
+  let encoded = encodeCandidMessage(@[value])
+  ic0_msg_reply_data_append(ptrToInt(addr encoded[0]), encoded.len)
+  ic0_msg_reply()
+
+
+proc reply*(msg: seq[CandidValue]) =
+  ## Reply with a vector of CandidValue
+  let value = newCandidVec(msg)
   let encoded = encodeCandidMessage(@[value])
   ic0_msg_reply_data_append(ptrToInt(addr encoded[0]), encoded.len)
   ic0_msg_reply()

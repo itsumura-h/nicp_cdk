@@ -521,4 +521,146 @@ suite "Principal Type Tests":
     let callResult = callCanisterFunction("argPrincipal", "(principal \"w7x7r-cok77-xa\")")
     echo "Call output: ", callResult
     # custom principal値が返されることを確認
-    check callResult.contains("(principal \"w7x7r-cok77-xa\")") 
+    check callResult.contains("(principal \"w7x7r-cok77-xa\")")
+
+suite "Blob Type Tests":
+  setup:
+    echo "Starting blob type test setup..."
+
+  teardown:
+    echo "Blob type test teardown complete"
+
+  test "Test argBlob function with ASCII string":
+    echo "Testing argBlob function with ASCII string..."
+    let callResult = callCanisterFunction("argBlob", "blob \"Hello\"")
+    echo "Call output: ", callResult
+    # ASCII文字列のblob値が返されることを確認
+    check callResult.contains("blob \"Hello\"")
+
+  test "Test argBlob function with empty blob":
+    echo "Testing argBlob function with empty blob..."
+    let callResult = callCanisterFunction("argBlob", "blob \"\"")
+    echo "Call output: ", callResult
+    # 空のblob値が返されることを確認
+    check callResult.contains("blob \"\"")
+
+  test "Test argBlob function with binary data":
+    echo "Testing argBlob function with binary data..."
+    let callResult = callCanisterFunction("argBlob", "blob \"\\00\\01\\02\\FF\"")
+    echo "Call output: ", callResult
+    # バイナリデータのblob値が返されることを確認
+    check callResult.contains("blob \"\\00\\01\\02\\ff\"")
+
+  test "Test argBlob function with UTF-8 string":
+    echo "Testing argBlob function with UTF-8 string..."
+    let callResult = callCanisterFunction("argBlob", "blob \"こんにちは\"")
+    echo "Call output: ", callResult
+    # UTF-8文字列のblob値が返されることを確認（バイト表現）
+    check callResult.contains("blob \"\\e3\\81\\93\\e3\\82\\93\\e3\\81\\ab\\e3\\81\\a1\\e3\\81\\af\"")
+
+  test "Test argBlob function with longer text":
+    echo "Testing argBlob function with longer text..."
+    let callResult = callCanisterFunction("argBlob", "blob \"This is a longer text for blob testing\"")
+    echo "Call output: ", callResult
+    # 長いテキストのblob値が返されることを確認
+    check callResult.contains("blob \"This is a longer text for blob testing\"")
+
+  test "Test responseBlob function":
+    echo "Testing responseBlob function..."
+    let callResult = callCanisterFunction("responseBlob", "()")
+    echo "Call output: ", callResult
+    # "Hello World"のblob値が返されることを確認
+    check callResult.contains("blob \"Hello World\"")
+
+
+suite "Option Type Tests":
+  setup:
+    echo "Starting option type test setup..."
+
+  teardown:
+    echo "Option type test teardown complete"
+
+  test "Test argOpt function with some value":
+    echo "Testing argOpt function with Some value..."
+    let callResult = callCanisterFunction("argOpt", "opt (123 : nat8)")
+    echo "Call output: ", callResult
+    # Some値のoption値が返されることを確認
+    check callResult.contains("(opt (123 : nat8))")
+
+  test "Test argOpt function with none value":
+    echo "Testing argOpt function with None value..."
+    let callResult = callCanisterFunction("argOpt", "null")
+    echo "Call output: ", callResult
+    # None値（null）が返されることを確認
+    check callResult.contains("(null)")
+
+  test "Test argOpt function with small some value":
+    echo "Testing argOpt function with small Some value..."
+    let callResult = callCanisterFunction("argOpt", "opt (1 : nat8)")
+    echo "Call output: ", callResult
+    # 小さなSome値のoption値が返されることを確認
+    check callResult.contains("(opt (1 : nat8))")
+
+  test "Test argOpt function with maximum nat8 value":
+    echo "Testing argOpt function with maximum nat8 value..."
+    let callResult = callCanisterFunction("argOpt", "opt (255 : nat8)")
+    echo "Call output: ", callResult
+    # 最大nat8値のSome値が返されることを確認
+    check callResult.contains("(opt (255 : nat8))")
+
+  test "Test argOpt function with zero value":
+    echo "Testing argOpt function with zero value..."
+    let callResult = callCanisterFunction("argOpt", "opt (0 : nat8)")
+    echo "Call output: ", callResult
+    # 0のSome値が返されることを確認
+    check callResult.contains("(opt (0 : nat8))")
+
+  test "Test responseOpt function":
+    echo "Testing responseOpt function..."
+    let callResult = callCanisterFunction("responseOpt", "()")
+    echo "Call output: ", callResult
+    # Some(42)値が返されることを確認
+    check callResult.contains("(opt (42 : nat8))")
+
+
+suite "Vector Type Tests":
+  setup:
+    echo "Starting vector type test setup..."
+
+  teardown:
+    echo "Vector type test teardown complete"
+
+  test "Test argVec function with nat16 vector":
+    echo "Testing argVec function with nat16 vector..."
+    let callResult = callCanisterFunction("argVec", "vec { 100 : nat16; 200 : nat16; 300 : nat16 }")
+    echo "Call output: ", callResult
+    # nat16のvector値が返されることを確認
+    check callResult.contains("vec { 100 : nat16; 200 : nat16; 300 : nat16 }")
+
+  test "Test argVec function with single element":
+    echo "Testing argVec function with single element..."
+    let callResult = callCanisterFunction("argVec", "vec { 1000 : nat16 }")
+    echo "Call output: ", callResult
+    # 単一要素のvector値が返されることを確認
+    check callResult.contains("vec { 1_000 : nat16 }")
+
+  test "Test argVec function with large vector":
+    echo "Testing argVec function with large vector..."
+    let callResult = callCanisterFunction("argVec", "vec { 10 : nat16; 20 : nat16; 30 : nat16; 40 : nat16; 50 : nat16 }")
+    echo "Call output: ", callResult
+    # 大きなvector値が返されることを確認
+    check callResult.contains("vec { 10 : nat16; 20 : nat16; 30 : nat16; 40 : nat16; 50 : nat16 }")
+
+  test "Test argVec function with boundary values":
+    echo "Testing argVec function with boundary values..."
+    let callResult = callCanisterFunction("argVec", "vec { 0 : nat16; 65535 : nat16 }")
+    echo "Call output: ", callResult
+    # 境界値のvector値が返されることを確認
+    check callResult.contains("vec { 0 : nat16; 65_535 : nat16 }")
+
+  test "Test responseVec function":
+    echo "Testing responseVec function..."
+    let callResult = callCanisterFunction("responseVec")
+    echo "Call output: ", callResult
+    # [100, 200, 300]のvector値が返されることを確認
+    check callResult.contains("vec { 100 : nat16; 200 : nat16; 300 : nat16 }") 

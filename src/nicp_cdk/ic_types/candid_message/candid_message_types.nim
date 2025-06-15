@@ -23,6 +23,8 @@ type
       optInnerType*: int
     of ctVec:
       vecElementType*: int
+    of ctBlob:
+      discard  # BlobはVecと同じ処理だが、型情報は異なる
     of ctFunc:
       funcArgs*: seq[int]
       funcReturns*: seq[int]
@@ -48,6 +50,8 @@ type
       optInnerType*: TypeDescriptor
     of ctVec:
       vecElementType*: TypeDescriptor
+    of ctBlob:
+      discard  # BlobはVecと同じ処理だが、型情報は異なる
     of ctFunc:
       funcArgs*: seq[TypeDescriptor]
       funcReturns*: seq[TypeDescriptor]

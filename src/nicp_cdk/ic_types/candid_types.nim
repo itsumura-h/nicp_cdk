@@ -203,6 +203,7 @@ proc typeCodeFromCandidType*(candidType: CandidType): int =
   of ctEmpty: -17
   of ctOpt: -18
   of ctVec: -19
+  of ctBlob: -19  # BlobはVecと同じ型コード
   of ctRecord: -20
   of ctVariant: -21
   of ctFunc: -22
@@ -265,6 +266,8 @@ proc newCandidValue*[T](value: T): CandidValue =
     CandidValue(kind: ctText, textVal: value)
   elif T is Principal:
     CandidValue(kind: ctPrincipal, principalVal: value)
+  elif T is seq[uint8]:
+    CandidValue(kind: ctBlob, blobVal: value)
   elif T is seq[byte]:
     CandidValue(kind: ctVec, vecVal: value.mapIt(newCandidValue(it)))
   elif T is CandidRecord:

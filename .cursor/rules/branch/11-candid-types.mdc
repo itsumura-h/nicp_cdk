@@ -102,20 +102,20 @@ alwaysApply: true
   - [x] dfx call テスト
 
 ### 複合型（Composite Types）
-- [ ] **ctBlob** - バイナリデータ型のテスト
-  - [ ] 単体テスト作成 (`tests/types/test_blob.nim`)
-  - [ ] canister関数作成 (`argBlob`)
-  - [ ] dfx call テスト
+- [x] **ctBlob** - バイナリデータ型のテスト
+  - [x] 単体テスト作成 (`tests/types/test_blob.nim`)
+  - [x] canister関数作成 (`argBlob`)
+  - [x] dfx call テスト
 
-- [ ] **ctOpt** - Option型のテスト
-  - [ ] 単体テスト作成 (`tests/types/test_opt.nim`)
-  - [ ] canister関数作成 (`argOpt`)
-  - [ ] dfx call テスト（Some/Noneの両方）
+- [x] **ctOpt** - Option型のテスト
+  - [x] 単体テスト作成 (`tests/types/test_opt.nim`)
+  - [x] canister関数作成 (`argOpt`)
+  - [x] dfx call テスト（Some/Noneの両方）
 
-- [ ] **ctVec** - Vector/Array型のテスト
-  - [ ] 単体テスト作成 (`tests/types/test_vec.nim`)
-  - [ ] canister関数作成 (`argVec`)
-  - [ ] dfx call テスト
+- [x] **ctVec** - Vector/Array型のテスト
+  - [x] 単体テスト作成 (`tests/types/test_vec.nim`)
+  - [x] canister関数作成 (`argVec`, `responseVec`)
+  - [x] dfx call テスト（nat16ベクターで実装完了）
 
 - [ ] **ctRecord** - Record型のテスト
   - [ ] 単体テスト作成 (`tests/types/test_record.nim`)
@@ -265,4 +265,211 @@ alwaysApply: true
 - **nat64型の制約**: CandidValueのnatValフィールドがuint型のため、64bit値の一部でキャストによる情報損失が発生する。小さな値（42、100など）は正常動作するが、大きな値（10000000000以上）では不正確な結果となる場合がある。
 - **int32型の重大な問題**: 全てのint32値でSubtyping error（wire_type: int, expect_type: int32）が発生。candidの型変換処理に根本的な問題がある可能性。
 - **int64型の大きな値問題**: 1_000_000_000_000以上の値でCanisterエラー（IC0506）が発生。canister内部でのオーバーフローまたは処理限界の可能性。
+
+## Blob型の特別な実装方針
+
+### ICPでのBlob型表現
+- **重要**: ICPのCandidメッセージでは、`blob`型は実際には`vec nat8`として表現される
+- **デコード方針**: Candidメッセージからのデコード時、`vec nat8`を検出した場合は`candid types`の`ctBlob`としてデコードする
+- **相互変換性**: `blob`と`vec nat8`は完全に相互変換可能
+- **参考**: https://internetcomputer.org/docs/references/candid-ref#type-blob
+
+### Blob型の実装要件
+
+#### 1. candid_types.nimの修正
+- `newCandidValue`関数でblob型（`seq[uint8]`またはバイト配列）のサポート追加
+- `CandidValue`の`blobVal`フィールドを使用
+- **実装方針**: 内部的には配列として扱い、エンコード時は`vec nat8`として処理
+- blob専用の関数名を提供（`newCandidBlob`, `getCandidBlob`等）しつつ、実態は配列操作
+
+#### 2. デコード処理の特別対応
+- `vec nat8`パターンを検出した場合、`ctBlob`として分類
+- `CandidValue(kind: ctBlob, blobVal: data)`を生成
+- 他のvector型と区別するための判定ロジック実装
+- **重要**: Candidメッセージ内では完全に配列として扱われ、blob特有の処理は存在しない
+
+#### 3. テキスト表現の対応
+- DIDファイルでの`blob`型の宣言: `argBlob : (blob) -> (blob);`
+- dfx callでの引数指定: `blob "テストデータ"`
+- UTF-8エンコーディングを使用: `blob "\CA\FF\FE"`
+- ASCII文字列: `blob "Hello World"`
+
+#### 4. エンコード・デコードのテストパターン
+- 空のblob: `blob ""`
+- ASCII文字列: `blob "Hello"`
+- バイナリデータ: `blob "\00\01\02\03"`
+- UTF-8文字列: `blob "こんにちは"`
+- 大きなデータ: 1KB以上のバイナリデータ
+
+#### 5. 単体テストの実装詳細（test_nat.nimパターンを参考）
+```nim
+suite "ic_blob tests":
+  test "serializeCandid with small blob":
+    let blobData = @[0x48u8, 0x65u8, 0x6Cu8, 0x6Cu8, 0x6Fu8] # "Hello"
+    let blobValue = newCandidBlob(blobData)
+    let encoded = encodeCandidMessage(@[blobValue])
+    # DIDL0ヘッダー(4バイト) + 型テーブル(3バイト) + LEB128長さ(1バイト) + データ(5バイト) = 13バイト
+    check encoded.len == 13
+
+  test "serializeCandid with empty blob":
+    let blobValue = newCandidBlob(@[])
+    let encoded = encodeCandidMessage(@[blobValue])
+    # 空のblob: DIDL0ヘッダー(4バイト) + 型テーブル(3バイト) + 長さ0(1バイト) = 8バイト
+    check encoded.len == 8
+
+  test "serializeCandid with binary data":
+    let blobData = @[0x00u8, 0x01u8, 0x02u8, 0xFFu8]
+    let blobValue = newCandidBlob(blobData)
+    let encoded = encodeCandidMessage(@[blobValue])
+    # バイナリデータのエンコードサイズを検証
+    check encoded.len > 8
+
+  test "encode and decode with ASCII blob":
+    let blobData = @[0x48u8, 0x65u8, 0x6Cu8, 0x6Cu8, 0x6Fu8] # "Hello"
+    let blobValue = newCandidBlob(blobData)
+    let encoded = encodeCandidMessage(@[blobValue])
+    let decoded = decodeCandidMessage(encoded)
+    check decoded.values[0].kind == ctBlob
+    check decoded.values[0].blobVal == blobData
+
+  test "encode and decode with empty blob":
+    let blobValue = newCandidBlob(@[])
+    let encoded = encodeCandidMessage(@[blobValue])
+    let decoded = decodeCandidMessage(encoded)
+    check decoded.values[0].kind == ctBlob
+    check decoded.values[0].blobVal == @[]
+
+  test "encode and decode with large blob":
+    let blobData = newSeq[uint8](mdc:1000)
+    for i in 0..<1000:
+      blobData[i] = uint8(i mod 256)
+    let blobValue = newCandidBlob(blobData)
+    let encoded = encodeCandidMessage(@[blobValue])
+    let decoded = decodeCandidMessage(encoded)
+    check decoded.values[0].kind == ctBlob
+    check decoded.values[0].blobVal == blobData
+
+  test "multiple blob values":
+    let blobValue1 = newCandidBlob(@[0x41u8, 0x42u8]) # "AB"
+    let blobValue2 = newCandidBlob(@[0x43u8, 0x44u8]) # "CD"
+    let blobValue3 = newCandidBlob(@[0x45u8, 0x46u8]) # "EF"
+    let encoded = encodeCandidMessage(@[blobValue1, blobValue2, blobValue3])
+    let decoded = decodeCandidMessage(encoded)
+    check decoded.values.len == 3
+    check decoded.values[0].kind == ctBlob
+    check decoded.values[0].blobVal == @[0x41u8, 0x42u8]
+    check decoded.values[1].kind == ctBlob
+    check decoded.values[1].blobVal == @[0x43u8, 0x44u8]
+    check decoded.values[2].kind == ctBlob
+    check decoded.values[2].blobVal == @[0x45u8, 0x46u8]
+
+  test "blob value type check":
+    let blobData = @[0x54u8, 0x65u8, 0x73u8, 0x74u8] # "Test"
+    let blobValue = newCandidBlob(blobData)
+    check blobValue.kind == ctBlob
+    check blobValue.blobVal == blobData
+```
+
+#### 6. canister関数の実装パターン
+```nim
+proc argBlob*(data: seq[uint8]): seq[uint8] {.ic_update.} =
+  # blobデータをそのまま返す
+  return data
+
+proc responseBlob*(): seq[uint8] {.ic_update.} =
+  # テスト用のblobデータを返す
+  return @[0x48u8, 0x65u8, 0x6Cu8, 0x6Cu8, 0x6Fu8] # "Hello"
+```
+
+#### 7. dfx callテストの実行例
+```bash
+# ASCII文字列のテスト
+dfx canister call arg_msg_reply_backend argBlob 'blob "Hello"'
+
+# バイナリデータのテスト  
+dfx canister call arg_msg_reply_backend argBlob 'blob "\00\01\02\FF"'
+
+# 空のblobのテスト
+dfx canister call arg_msg_reply_backend argBlob 'blob ""'
+
+# レスポンス専用テスト
+dfx canister call arg_msg_reply_backend responseBlob
+```
+
+#### 8. 技術的注意点
+- **メモリ効率**: 大きなblobデータの処理時はメモリ使用量に注意
+- **エンコードサイズ**: blob型は可変長のため、データサイズに応じてエンコードサイズが変動
+- **型判定**: `vec nat8`と`blob`の自動判定ロジックは慎重に実装
+- **エラーハンドリング**: 無効なバイナリデータやサイズ制限の処理
+
+#### 9. vec nat8との関係性
+- **内部表現**: 両方とも`seq[uint8]`として扱う
+- **型区別**: CandidValueのkindフィールドで区別（`ctBlob` vs `ctVec`）
+- **変換ルール**: 
+  - 明示的に`blob`と指定された場合 → `ctBlob`
+  - `vec nat8`と指定された場合 → `ctVec`
+  - デコード時の自動判定は設定可能
+
+#### 10. 統合テストでの検証項目
+- 各種データパターンでの往復変換成功
+- dfx callでの引数・レスポンス形式の正確性
+- エラーケースの適切な処理
+- 大きなデータサイズでの性能確認
+- `vec nat8`との相互変換の正確性
+
+### Blob型の具体的な実装方針
+
+#### API設計の基本原則
+- **Candidメッセージレベル**: 完全に`vec nat8`として処理（blob特有の処理なし）
+- **Nim APIレベル**: blob専用関数名で使いやすさを提供
+- **内部実装**: 実態は配列操作、blob固有の処理は関数名レベルのみ
+
+#### 関数名の設計パターン
+```nim
+# CandidValue作成時
+proc newCandidBlob*(data: seq[uint8]): CandidValue =
+  # 内部的にはvecと同じ処理だが、kindをctBlobに設定
+  CandidValue(kind: ctBlob, blobVal: data)
+
+# 値取得時
+proc getBlobValue*(cv: CandidValue): seq[uint8] =
+  # 内部的には配列として取得
+  cv.blobVal
+
+# Request/Replyでの取り扱い
+proc getBlob*(self: Request, index: int): seq[uint8]
+proc reply*(data: seq[uint8])  # blob専用オーバーロード
+```
+
+#### 実装での注意点
+- **エンコード/デコード**: `vec nat8`と完全に同一の処理
+- **型判定**: CandidValueのkindフィールドでのみ区別
+- **メモリ効率**: 配列操作と同一のため、追加オーバーヘッドなし
+- **互換性**: `vec nat8`との完全な相互変換が可能
+
+#### コード例での実装イメージ
+```nim
+# 使用例：blob作成
+let blobData = @[0x48u8, 0x65u8, 0x6Cu8, 0x6Cu8, 0x6Fu8]
+let candidBlob = newCandidBlob(blobData)  # kindがctBlobになる
+
+# 使用例：値取得
+let retrievedData = getBlobValue(candidBlob)  # seq[uint8]として取得
+
+# 内部処理：エンコード時はvec nat8と同じ
+let encoded = serializeCandid(candidBlob)  # vec nat8として処理
+```
+
+#### vec nat8との関係性
+- **メッセージレベル**: 区別不可能（同一のバイト列）
+- **型情報レベル**: CandidValue.kindで区別
+- **関数レベル**: 異なる関数名で利便性向上
+- **実行時処理**: 完全に同一
+
+#### 実装時の作業項目
+1. **candid_types.nim**: `newCandidBlob`関数追加
+2. **request.nim**: `getBlob`関数追加
+3. **reply.nim**: blob用の`reply`オーバーロード追加
+4. **serialization**: vec nat8と同一の処理を流用
+5. **deserialization**: 型判定ロジックのみ追加
 

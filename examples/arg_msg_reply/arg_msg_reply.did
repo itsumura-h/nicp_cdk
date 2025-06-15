@@ -17,7 +17,13 @@ service : {
   argFloat64: (float64) -> (float64) query;
   argText: (text) -> (text) query;
   argPrincipal: (principal) -> (principal) query;
+  argBlob: (blob) -> (blob) query;
+  argOpt: (opt nat8) -> (opt nat8) query;
+  argVec: (vec nat16) -> (vec nat16) query;
   msgPrincipal: () -> (principal) query;
+  responseBlob: () -> (blob) query;
+  responseOpt: () -> (opt nat8) query;
+  responseVec: () -> (vec nat16) query;
   responseEmpty: () -> () query;
   responseNull: () -> (null) query;
   responseRecord: () -> (

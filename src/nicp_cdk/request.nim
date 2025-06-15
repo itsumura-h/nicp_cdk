@@ -1,3 +1,4 @@
+import std/options
 import ./ic_types/candid_types
 import ./ic_types/candid_message/candid_decode
 import ./ic_types/ic_principal
@@ -121,3 +122,39 @@ proc getPrincipal*(self:Request, index:int): Principal =
   ## Get the argument at the specified index as a principal
   assert self.values[index].kind == ctPrincipal
   return self.values[index].principalVal
+
+
+# 指定されたインデックスの引数を blob として取得する
+proc getBlob*(self:Request, index:int): seq[uint8] =
+  ## Get the argument at the specified index as a blob (accepts both ctBlob and ctVec of nat8)
+  case self.values[index].kind:
+  of ctBlob:
+    return self.values[index].blobVal
+  of ctVec:
+    # vec nat8として受信された場合は、各要素からbyte列を構築
+    var result = newSeq[uint8](self.values[index].vecVal.len)
+    for i, val in self.values[index].vecVal:
+      assert val.kind == ctNat8, "Vector elements must be nat8 for blob conversion"
+      result[i] = uint8(val.natVal)
+    return result
+  else:
+    assert false, "Expected blob or vec nat8, got: " & $self.values[index].kind
+
+
+# 指定されたインデックスの引数を Option として取得する
+proc getOpt*[T](self:Request, index:int, valueGetter: proc(self: Request, index: int): T): Option[T] =
+  ## Get the argument at the specified index as an optional value
+  assert self.values[index].kind == ctOpt, "Expected optional type, got: " & $self.values[index].kind
+  if self.values[index].optVal.isSome():
+    # 一時的なRequestオブジェクトを作成して内部値を取得
+    let tempRequest = Request(values: @[self.values[index].optVal.get()])
+    return some(valueGetter(tempRequest, 0))
+  else:
+    return none(T)
+
+
+# 指定されたインデックスの引数を Vector として取得する
+proc getVec*(self:Request, index:int): seq[CandidValue] =
+  ## Get the argument at the specified index as a vector
+  assert self.values[index].kind == ctVec, "Expected vector type, got: " & $self.values[index].kind
+  return self.values[index].vecVal

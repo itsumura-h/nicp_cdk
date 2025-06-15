@@ -114,6 +114,13 @@ proc decodeTypeTableEntry(data: seq[byte], offset: var int): TypeTableEntry =
   of ctVec:
     result.vecElementType = decodeSLEB128(data, offset)
   
+  of ctBlob:
+    # Blobはvec nat8として処理されるが、要素型は確認のみ
+    let elementType = decodeSLEB128(data, offset)
+    # nat8でない場合はエラー（実際にはBlob専用の処理ではないが、一貫性のため）
+    if elementType != typeCodeFromCandidType(ctNat8):
+      raise newException(CandidDecodeError, "Blob element type must be nat8")
+  
   of ctFunc:
     let argCount = decodeULEB128(data, offset)
     result.funcArgs = newSeq[int](int(argCount))
@@ -313,6 +320,16 @@ proc decodeValue(data: seq[byte], offset: var int, typeRef: int, typeTable: seq[
       result.vecVal = newSeq[CandidValue](int(elementCount))
       for i in 0..<int(elementCount):
         result.vecVal[i] = decodeValue(data, offset, typeEntry.vecElementType, typeTable)
+    
+    of ctBlob:
+      # Blobはvec nat8として処理されるが、結果はblobValフィールドに格納
+      let elementCount = decodeULEB128(data, offset)
+      result.blobVal = newSeq[uint8](int(elementCount))
+      for i in 0..<int(elementCount):
+        if offset >= data.len:
+          raise newException(CandidDecodeError, "Unexpected end of data in blob")
+        result.blobVal[i] = data[offset]
+        offset += 1
     of ctFunc:
       # 関数参照: principal + method name
       let principalLength = decodeULEB128(data, offset)

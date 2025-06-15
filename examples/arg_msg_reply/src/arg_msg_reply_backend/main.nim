@@ -177,3 +177,62 @@ proc argPrincipal() {.query.} =
   let arg = request.getPrincipal(0)
   icEcho "arg: ", arg
   reply(arg)
+
+
+proc argBlob() {.query.} =
+  echo "===== main.nim argBlob() ====="
+  let request = Request.new()
+  let arg = request.getBlob(0)
+  icEcho "arg length: ", arg.len
+  icEcho "arg: ", arg
+  reply(arg)
+
+
+proc responseBlob() {.query.} =
+  echo "===== main.nim responseBlob() ====="
+  # テスト用のblobデータを返す（"Hello World"のUTF-8バイト列）
+  let blobData = @[0x48u8, 0x65u8, 0x6Cu8, 0x6Cu8, 0x6Fu8, 0x20u8, 0x57u8, 0x6Fu8, 0x72u8, 0x6Cu8, 0x64u8]
+  icEcho "response blob length: ", blobData.len
+  reply(blobData)
+
+
+proc argOpt() {.query.} =
+  echo "===== main.nim argOpt() ====="
+  let request = Request.new()
+  # Option[uint8]として受け取る例
+  let arg = request.getOpt(0, proc(r: Request, i: int): uint8 = r.getNat8(i))
+  icEcho "arg isSome: ", arg.isSome()
+  if arg.isSome():
+    icEcho "arg value: ", arg.get()
+  reply(arg)
+
+
+proc responseOpt() {.query.} =
+  echo "===== main.nim responseOpt() ====="
+  # テスト用のOptionデータを返す（Some(42)）
+  let optData = some(uint8(42))
+  icEcho "response opt isSome: ", optData.isSome()
+  if optData.isSome():
+    icEcho "response opt value: ", optData.get()
+  reply(optData)
+
+
+proc argVec() {.query.} =
+  echo "===== main.nim argVec() ====="
+  let request = Request.new()
+  let arg = request.getVec(0)
+  icEcho "arg length: ", arg.len
+  icEcho "arg: ", arg
+  reply(arg)
+
+
+proc responseVec() {.query.} =
+  echo "===== main.nim responseVec() ====="
+  # テスト用のVectorデータを返す（[100, 200, 300]のnat16）
+  let vecData = @[
+    newCandidValue(uint16(100)),
+    newCandidValue(uint16(200)),
+    newCandidValue(uint16(300))
+  ]
+  icEcho "response vec length: ", vecData.len
+  reply(vecData)

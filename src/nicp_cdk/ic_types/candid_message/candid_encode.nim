@@ -82,6 +82,9 @@ proc inferTypeDescriptor(value: CandidValue): TypeDescriptor =
     else:
       # 空ベクタの場合、要素型を推論できないため、emptyとする
       result.vecElementType = TypeDescriptor(kind: ctEmpty)
+  of ctBlob:
+    # Blobは常にvec nat8として処理される
+    discard
   else:
     discard
 
@@ -135,6 +138,10 @@ proc addTypeToTable(builder: var TypeBuilder, typeDesc: TypeDescriptor): int =
       typeCodeFromCandidType(typeDesc.vecElementType.kind)
     else:
       addTypeToTable(builder, typeDesc.vecElementType)
+  
+  of ctBlob:
+    # Blobはvec nat8として処理される
+    discard
   
   of ctFunc:
     entry.funcArgs = @[]
@@ -197,6 +204,10 @@ proc encodeTypeTableEntry(entry: TypeTableEntry): seq[byte] =
   
   of ctVec:
     result.add(encodeSLEB128(int32(entry.vecElementType)))
+  
+  of ctBlob:
+    # Blobはvec nat8として処理されるため、nat8の型コードを出力
+    result.add(encodeSLEB128(int32(typeCodeFromCandidType(ctNat8))))
   
   of ctFunc:
     result.add(encodeULEB128(uint(entry.funcArgs.len)))
@@ -357,6 +368,12 @@ proc encodeValue(value: CandidValue, typeRef: int, typeTable: seq[TypeTableEntry
       for element in value.vecVal:
         result.add(encodeValue(element, typeEntry.vecElementType, typeTable))
     
+    of ctBlob:
+      # Blobは実際にはvec nat8として処理される
+      result.add(encodeULEB128(uint(value.blobVal.len)))
+      for byteVal in value.blobVal:
+        result.add(byteVal)
+    
     of ctFunc:
       # 関数参照: principal + method name
       let principalBytes = value.funcVal.principal.bytes
@@ -400,6 +417,10 @@ proc encodeCandidMessage*(values: seq[CandidValue]): seq[byte] =
     let typeDesc = inferTypeDescriptor(value)
     let typeRef = if isPrimitiveType(value.kind):
       typeCodeFromCandidType(value.kind)
+    elif value.kind == ctBlob:
+      # Blobはvec nat8として型テーブルに追加
+      let vecTypeDesc = TypeDescriptor(kind: ctVec, vecElementType: TypeDescriptor(kind: ctNat8))
+      addTypeToTable(builder, vecTypeDesc)
     else:
       addTypeToTable(builder, typeDesc)
     valueTypes.add(typeRef)
@@ -416,4 +437,11 @@ proc encodeCandidMessage*(values: seq[CandidValue]): seq[byte] =
   
   # 5. 値シーケンスをエンコード
   for i, value in values:
-    result.add(encodeValue(value, valueTypes[i], builder.typeTable)) 
+    if value.kind == ctBlob:
+      # Blobはvec nat8として処理 - 長さ + 各バイトをnat8として
+      result.add(encodeULEB128(uint(value.blobVal.len)))
+      for byteVal in value.blobVal:
+        # 各バイトをnat8値として直接出力（nat8は1バイト固定）
+        result.add(byteVal)
+    else:
+      result.add(encodeValue(value, valueTypes[i], builder.typeTable)) 
