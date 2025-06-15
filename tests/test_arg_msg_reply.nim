@@ -479,4 +479,46 @@ suite "Text Type Tests":
     let callResult = callCanisterFunction("argText", "(\"hello world\" : text)")
     echo "Call output: ", callResult
     # スペースを含む文字列のtext値が返されることを確認（型注釈なし）
-    check callResult.contains("(\"hello world\")") 
+    check callResult.contains("(\"hello world\")")
+
+suite "Principal Type Tests":
+  setup:
+    echo "Starting principal type test setup..."
+
+  teardown:
+    echo "Principal type test teardown complete"
+
+  test "Test argPrincipal function with management canister":
+    echo "Testing argPrincipal function with management canister..."
+    let callResult = callCanisterFunction("argPrincipal", "(principal \"aaaaa-aa\")")
+    echo "Call output: ", callResult
+    # management canister principal値が返されることを確認
+    check callResult.contains("(principal \"aaaaa-aa\")")
+
+  test "Test argPrincipal function with governance canister":
+    echo "Testing argPrincipal function with governance canister..."
+    let callResult = callCanisterFunction("argPrincipal", "(principal \"rrkah-fqaaa-aaaaa-aaaaq-cai\")")
+    echo "Call output: ", callResult
+    # governance canister principal値が返されることを確認
+    check callResult.contains("(principal \"rrkah-fqaaa-aaaaa-aaaaq-cai\")")
+
+  test "Test argPrincipal function with ledger canister":
+    echo "Testing argPrincipal function with ledger canister..."
+    let callResult = callCanisterFunction("argPrincipal", "(principal \"ryjl3-tyaaa-aaaaa-aaaba-cai\")")
+    echo "Call output: ", callResult
+    # ledger canister principal値が返されることを確認
+    check callResult.contains("(principal \"ryjl3-tyaaa-aaaaa-aaaba-cai\")")
+
+  test "Test argPrincipal function with internet identity canister":
+    echo "Testing argPrincipal function with internet identity canister..."
+    let callResult = callCanisterFunction("argPrincipal", "(principal \"rdmx6-jaaaa-aaaaa-aaadq-cai\")")
+    echo "Call output: ", callResult
+    # internet identity canister principal値が返されることを確認
+    check callResult.contains("(principal \"rdmx6-jaaaa-aaaaa-aaadq-cai\")")
+
+  test "Test argPrincipal function with custom principal":
+    echo "Testing argPrincipal function with custom principal..."
+    let callResult = callCanisterFunction("argPrincipal", "(principal \"w7x7r-cok77-xa\")")
+    echo "Call output: ", callResult
+    # custom principal値が返されることを確認
+    check callResult.contains("(principal \"w7x7r-cok77-xa\")") 

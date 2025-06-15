@@ -169,3 +169,11 @@ proc argFloat64() {.query.} =
   let arg = request.getFloat64(0)
   icEcho "arg: ", arg
   reply(arg)
+
+
+proc argPrincipal() {.query.} =
+  echo "===== main.nim argPrincipal() ====="
+  let request = Request.new()
+  let arg = request.getPrincipal(0)
+  icEcho "arg: ", arg
+  reply(arg)

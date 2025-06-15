@@ -16,6 +16,7 @@ service : {
   argFloat32: (float32) -> (float32) query;
   argFloat64: (float64) -> (float64) query;
   argText: (text) -> (text) query;
+  argPrincipal: (principal) -> (principal) query;
   msgPrincipal: () -> (principal) query;
   responseEmpty: () -> () query;
   responseNull: () -> (null) query;

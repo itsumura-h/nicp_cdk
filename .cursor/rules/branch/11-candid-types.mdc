@@ -74,12 +74,12 @@ alwaysApply: true
 - [x] **ctInt32** - 32bit整数のテスト
   - [x] 単体テスト作成 (`tests/types/test_int32.nim`)
   - [x] canister関数作成 (`argInt32`)
-  - [ ] dfx call テスト（dfx型注釈処理の問題により失敗）
+  - [ ] dfx call テスト（デシリアライゼーションエラー: Subtyping error Int32）
 
 - [x] **ctInt64** - 64bit整数のテスト
   - [x] 単体テスト作成 (`tests/types/test_int64.nim`)
   - [x] canister関数作成 (`argInt64`)
-  - [x] dfx call テスト（基本的な値は動作、大きな値でcanisterエラー）
+  - [x] dfx call テスト（基本値は動作、大きな値でCanisterエラーIC0506）
 
 - [x] **ctFloat32** - 32bit浮動小数点のテスト
   - [x] 単体テスト作成 (`tests/types/test_float32.nim`)
@@ -91,15 +91,15 @@ alwaysApply: true
   - [x] canister関数作成 (`argFloat64`)
   - [x] dfx call テスト
 
-- [ ] **ctText** - テキスト型のテスト
-  - [ ] 単体テスト作成 (`tests/types/test_text.nim`)
-  - [ ] canister関数作成 (`argText`)
-  - [ ] dfx call テスト
+- [x] **ctText** - テキスト型のテスト
+  - [x] 単体テスト作成 (`tests/types/test_text.nim`)
+  - [x] canister関数作成 (`argText`)
+  - [x] dfx call テスト（統合テストで実装確認済み）
 
-- [ ] **ctPrincipal** - Principal型のテスト
-  - [ ] 単体テスト作成 (`tests/types/test_principal.nim`)
-  - [ ] canister関数作成 (`argPrincipal`)
-  - [ ] dfx call テスト
+- [x] **ctPrincipal** - Principal型のテスト
+  - [x] 単体テスト作成 (`tests/types/test_principal.nim`)
+  - [x] canister関数作成 (`argPrincipal`)
+  - [x] dfx call テスト
 
 ### 複合型（Composite Types）
 - [ ] **ctBlob** - バイナリデータ型のテスト
@@ -197,8 +197,11 @@ alwaysApply: true
 - 各テストの実行: `nim c -r tests/types/test_*.nim`
 - 統合テストの実行: `nim c -r tests/test_arg_msg_reply.nim` 
   - 自動的にcanisterをデプロイし、実装済みの型のcanister callテストを実行
-  - 現在対応済み：responseNull, argBool, argNat, argInt, argNat8, argNat16, argNat32, argNat64, argInt8, argInt16, argInt64（基本値）
-  - 問題のある型：argInt32（dfx型注釈処理の問題）、argInt64の大きな値（canisterエラー）
+  - **実際のテスト実行結果（36/40テスト成功）**：
+    - ✅ 成功：responseNull, argBool, argNat, argInt, argNat8, argNat16, argNat32, argNat64, argInt8, argInt16, argFloat32, argFloat64, argText, argPrincipal（5種類全て成功）
+    - ❌ 失敗：argInt32（全テスト：Subtyping error Int32）, argInt64（大きな値：CanisterエラーIC0506）
+  - 基本型（Primitive Types）の多くは実装完了、一部に課題あり
+  - Int32型のSubtyping errorとInt64大きな値の問題要調査
 - canister全体テスト: `cd examples/arg_msg_reply && dfx deploy && dfx canister call arg_msg_reply_backend <function_name>`
 - Management Canister最終テスト: `dfx canister call arg_msg_reply_backend argEcdsaPublicKeyArgs`
 
@@ -255,9 +258,11 @@ alwaysApply: true
 - **統合テストのエラーハンドリング**: dfxコマンドの絶対パス使用とディレクトリ管理が重要
 - **DIDファイル更新**: 新しい関数追加後は`dfx deploy`で型定義の更新確認が必要
 
-### 既知の制約事項
+### 既知の制約事項と課題
 - `newCandidValue`は汎用関数だが、サポートしていない型は個別に追加が必要
 - 統合テストは順次実行のため、大量の型追加時は実行時間が長くなる
 - canister関数名は`arg{TypeName}`パターンに統一（responseパターンは特殊用途のみ）
 - **nat64型の制約**: CandidValueのnatValフィールドがuint型のため、64bit値の一部でキャストによる情報損失が発生する。小さな値（42、100など）は正常動作するが、大きな値（10000000000以上）では不正確な結果となる場合がある。
+- **int32型の重大な問題**: 全てのint32値でSubtyping error（wire_type: int, expect_type: int32）が発生。candidの型変換処理に根本的な問題がある可能性。
+- **int64型の大きな値問題**: 1_000_000_000_000以上の値でCanisterエラー（IC0506）が発生。canister内部でのオーバーフローまたは処理限界の可能性。
 
