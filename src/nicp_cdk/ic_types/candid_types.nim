@@ -1,6 +1,9 @@
 import std/options
 import std/tables
 import std/macros
+import std/sequtils
+import std/strutils
+import std/algorithm
 import ./ic_principal
 
 
@@ -101,6 +104,77 @@ type
       elems*: seq[CandidRecord]
 
 
+# ================================================================================
+# 共通ユーティリティ関数
+# ================================================================================
+
+proc toString*(data: seq[byte]): string =
+  return data.mapIt(it.toHex()).join("")
+
+proc stringToBytes*(s: string): seq[byte] =
+  # 2文字ずつバイト列に変換
+  for i in countup(0, s.len-1, 2):
+    result.add(byte(s[i..i+1].parseHexInt()))
+
+proc ptrToUint32*(p: pointer): uint32 =
+  return cast[uint32](p)
+
+proc ptrToInt*(p: pointer): int =
+  return cast[int](p)
+
+proc typeCodeFromCandidType*(candidType: CandidType): int =
+  ## CandidTypeから型コードを取得
+  case candidType:
+  of ctNull: -1
+  of ctBool: -2
+  of ctNat: -3
+  of ctInt: -4
+  of ctNat8: -5
+  of ctNat16: -6
+  of ctNat32: -7
+  of ctNat64: -8
+  of ctInt8: -9
+  of ctInt16: -10
+  of ctInt32: -11
+  of ctInt64: -12
+  of ctFloat32: -13
+  of ctFloat64: -14
+  of ctText: -15
+  of ctReserved: -16
+  of ctEmpty: -17
+  of ctOpt: -18
+  of ctVec: -19
+  of ctRecord: -20
+  of ctVariant: -21
+  of ctFunc: -22
+  of ctService: -23
+  of ctPrincipal: -24
+  else:
+    raise newException(ValueError, "Unsupported type for encoding: " & $candidType)
+
+proc isPrimitiveType*(candidType: CandidType): bool =
+  ## 基本型かどうかを判定
+  case candidType:
+  of ctNull, ctBool, ctNat, ctInt, ctNat8, ctNat16, ctNat32, ctNat64,
+     ctInt8, ctInt16, ctInt32, ctInt64, ctFloat32, ctFloat64,
+     ctText, ctReserved, ctEmpty, ctPrincipal:
+    return true
+  else:
+    return false
+
+# フィールド名から32bitハッシュを計算（Candidの仕様に従う）
+proc candidHash*(name: string): uint32 =
+  ## Candid仕様のフィールドハッシュ計算
+  var h: uint32 = 0
+  for c in name:
+    h = h * 223 + uint32(ord(c))
+  return h
+
+
+# ================================================================================
+# 既存のプロシージャは継続
+# ================================================================================
+
 proc newCandidValue*[T](value: T): CandidValue =
   when T is bool:
     CandidValue(kind: ctBool, boolVal: value)
@@ -135,15 +209,6 @@ proc newCandidValue*[T](value: T): CandidValue =
     CandidValue(kind: ctText, textVal: $value)
   else:
     raise newException(ValueError, "Unsupported type: " & $typeof(value))
-
-
-# フィールド名から32bitハッシュを計算（Candidの仕様に従う）
-proc candidHash*(name: string): uint32 =
-  ## Candid仕様のフィールドハッシュ計算
-  var h: uint32 = 0
-  for c in name:
-    h = h * 223 + uint32(ord(c))
-  return h
 
 
 # ================================================================================
