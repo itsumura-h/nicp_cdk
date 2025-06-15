@@ -84,3 +84,32 @@ proc responseRecord() {.query.} =
   }
   echo "record: ", $record
   reply(record)
+
+
+proc responseNull() {.query.} =
+  echo "===== main.nim responseNull() ====="
+  reply()
+
+
+proc argNat8() {.query.} =
+  echo "===== main.nim argNat8() ====="
+  let request = Request.new()
+  let arg = request.getNat8(0)
+  icEcho "arg: ", arg
+  reply(arg)
+
+
+proc argNat16() {.query.} =
+  echo "===== main.nim argNat16() ====="
+  let request = Request.new()
+  let arg = request.getNat16(0)
+  icEcho "arg: ", arg
+  reply(arg)
+
+
+proc argNat64() {.query.} =
+  echo "===== main.nim argNat64() ====="
+  let request = Request.new()
+  let arg = request.getNat64(0)
+  icEcho "arg: ", arg
+  reply(arg)

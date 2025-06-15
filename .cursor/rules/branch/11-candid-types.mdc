@@ -6,4 +6,257 @@ alwaysApply: true
 このブランチでは、nicp_cdkがcandidの全ての型についてNimの型との相互変換とcandid messageとのエンコード・デコードが正しく行われる処理を作ることを目的とする。
 
 テストは単体テストの作成と、実際にcanisterを動かしての2つの方法で行う。
-/application/tests/types 以下に、それぞれのcandid型についての単体テストを作成する。
+
+## 単体テストの作成
+- /application/tests/types 以下に、それぞれのcandid型についての単体テストを作成する。
+  - serializeCandid関数の動作をテストする
+  - candidの型をNimの型に変換して、それをcandid messageとしてエンコードして、デコードして、Nimの型に変換するという流れをテストする。
+- canisterを動かしてのテスト
+  - `/application/examples/arg_msg_reply/src/arg_msg_reply_backend/main.nim` に、それぞれの型の引数を受け取って、それをまた返すような関数を作成する。
+  - 関数名は、その型の引数を受け取る場合は `arg{型名}` と、引数を受け取らずにレスポンスだけをチェックしたい場合は `response{型名}`とすること
+  - `/application/examples/arg_msg_reply` ディレクトリに移動して、 `dfx deploy -y` を実行し、 `dfx canister call arg_msg_reply arg{型名}` を実行して、それぞれの型の引数を受け取って、それをまた返すような関数をテストする
+
+テストを実行して成功したら、テストシナリオ一覧に進捗を記入すること。
+
+## テストシナリオ一覧
+
+### 基本型（Primitive Types）
+- [x] **ctNull** - null値のテスト
+  - [x] 単体テスト作成 (`tests/types/test_null.nim`)
+  - [x] canister関数作成 (`argNull`)
+  - [x] dfx call テスト
+
+- [x] **ctBool** - boolean値のテスト
+  - [x] 単体テスト作成 (`tests/types/test_bool.nim`)
+  - [x] canister関数作成 (`argBool`)
+  - [x] dfx call テスト
+
+- [x] **ctNat** - 自然数のテスト
+  - [x] 単体テスト作成 (`tests/types/test_nat.nim`)
+  - [x] canister関数作成 (`argNat`)
+  - [x] dfx call テスト
+
+- [x] **ctInt** - 整数のテスト
+  - [x] 単体テスト作成 (`tests/types/test_int.nim`)
+  - [x] canister関数作成 (`argInt`)
+  - [x] dfx call テスト
+
+- [x] **ctNat8** - 8bit自然数のテスト
+  - [x] 単体テスト作成 (`tests/types/test_nat8.nim`)
+  - [x] canister関数作成 (`argNat8`)
+  - [x] dfx call テスト
+
+- [x] **ctNat16** - 16bit自然数のテスト
+  - [x] 単体テスト作成 (`tests/types/test_nat16.nim`)
+  - [x] canister関数作成 (`argNat16`)
+  - [x] dfx call テスト
+
+- [ ] **ctNat32** - 32bit自然数のテスト
+  - [ ] 単体テスト作成 (`tests/types/test_nat32.nim`)
+  - [ ] canister関数作成 (`argNat32`)
+  - [ ] dfx call テスト
+
+- [x] **ctNat64** - 64bit自然数のテスト
+  - [x] 単体テスト作成 (`tests/types/test_nat64.nim`)
+  - [x] canister関数作成 (`argNat64`)
+  - [x] dfx call テスト（小さな値は動作、大きな値は制約あり）
+
+- [ ] **ctInt8** - 8bit整数のテスト
+  - [ ] 単体テスト作成 (`tests/types/test_int8.nim`)
+  - [ ] canister関数作成 (`argInt8`)
+  - [ ] dfx call テスト
+
+- [ ] **ctInt16** - 16bit整数のテスト
+  - [ ] 単体テスト作成 (`tests/types/test_int16.nim`)
+  - [ ] canister関数作成 (`argInt16`)
+  - [ ] dfx call テスト
+
+- [ ] **ctInt32** - 32bit整数のテスト
+  - [ ] 単体テスト作成 (`tests/types/test_int32.nim`)
+  - [ ] canister関数作成 (`argInt32`)
+  - [ ] dfx call テスト
+
+- [ ] **ctInt64** - 64bit整数のテスト
+  - [ ] 単体テスト作成 (`tests/types/test_int64.nim`)
+  - [ ] canister関数作成 (`argInt64`)
+  - [ ] dfx call テスト
+
+- [ ] **ctFloat32** - 32bit浮動小数点のテスト
+  - [ ] 単体テスト作成 (`tests/types/test_float32.nim`)
+  - [ ] canister関数作成 (`argFloat32`)
+  - [ ] dfx call テスト
+
+- [ ] **ctFloat64** - 64bit浮動小数点のテスト
+  - [ ] 単体テスト作成 (`tests/types/test_float64.nim`)
+  - [ ] canister関数作成 (`argFloat64`)
+  - [ ] dfx call テスト
+
+- [ ] **ctText** - テキスト型のテスト
+  - [ ] 単体テスト作成 (`tests/types/test_text.nim`)
+  - [ ] canister関数作成 (`argText`)
+  - [ ] dfx call テスト
+
+- [ ] **ctPrincipal** - Principal型のテスト
+  - [ ] 単体テスト作成 (`tests/types/test_principal.nim`)
+  - [ ] canister関数作成 (`argPrincipal`)
+  - [ ] dfx call テスト
+
+### 複合型（Composite Types）
+- [ ] **ctBlob** - バイナリデータ型のテスト
+  - [ ] 単体テスト作成 (`tests/types/test_blob.nim`)
+  - [ ] canister関数作成 (`argBlob`)
+  - [ ] dfx call テスト
+
+- [ ] **ctOpt** - Option型のテスト
+  - [ ] 単体テスト作成 (`tests/types/test_opt.nim`)
+  - [ ] canister関数作成 (`argOpt`)
+  - [ ] dfx call テスト（Some/Noneの両方）
+
+- [ ] **ctVec** - Vector/Array型のテスト
+  - [ ] 単体テスト作成 (`tests/types/test_vec.nim`)
+  - [ ] canister関数作成 (`argVec`)
+  - [ ] dfx call テスト
+
+- [ ] **ctRecord** - Record型のテスト
+  - [ ] 単体テスト作成 (`tests/types/test_record.nim`)
+  - [ ] canister関数作成 (`argRecord`)
+  - [ ] dfx call テスト
+
+- [ ] **ctVariant** - Variant型のテスト
+  - [ ] 単体テスト作成 (`tests/types/test_variant.nim`)
+  - [ ] canister関数作成 (`argVariant`)
+  - [ ] dfx call テスト
+
+### 特殊型（Special Types）
+- [ ] **ctFunc** - Function型のテスト
+  - [ ] 単体テスト作成 (`tests/types/test_func.nim`)
+  - [ ] canister関数作成 (`argFunc`)
+  - [ ] dfx call テスト
+
+- [ ] **ctService** - Service型のテスト
+  - [ ] 単体テスト作成 (`tests/types/test_service.nim`)
+  - [ ] canister関数作成 (`argService`)
+  - [ ] dfx call テスト
+
+- [ ] **ctReserved** - Reserved型のテスト
+  - [ ] 単体テスト作成 (`tests/types/test_reserved.nim`)
+  - [ ] canister関数作成 (`argReserved`)
+  - [ ] dfx call テスト
+
+- [ ] **ctEmpty** - Empty型のテスト
+  - [ ] 単体テスト作成 (`tests/types/test_empty.nim`)
+  - [ ] canister関数作成 (`argEmpty`)
+  - [ ] dfx call テスト
+
+### 修飾型（Qualifier Types）
+- [ ] **ctQuery** - Query型のテスト
+  - [ ] 単体テスト作成 (`tests/types/test_query.nim`)
+  - [ ] canister関数作成 (`argQuery`)
+  - [ ] dfx call テスト
+
+- [ ] **ctOneway** - Oneway型のテスト
+  - [ ] 単体テスト作成 (`tests/types/test_oneway.nim`)
+  - [ ] canister関数作成 (`argOneway`)
+  - [ ] dfx call テスト
+
+- [ ] **ctCompositeQuery** - CompositeQuery型のテスト
+  - [ ] 単体テスト作成 (`tests/types/test_composite_query.nim`)
+  - [ ] canister関数作成 (`argCompositeQuery`)
+  - [ ] dfx call テスト
+
+### 特別なテストケース（Management Canister用）
+- [ ] **EcdsaPublicKeyArgs** - Management CanisterのECDSA Public Key用の複合型
+  - [ ] 単体テスト作成 (`tests/types/test_ecdsa_public_key_args.nim`)
+  - [ ] canister関数作成 (`argEcdsaPublicKeyArgs`)
+  - [ ] dfx call テスト
+  - [ ] 実際のManagement Canister呼び出しテスト
+
+### 複合テストシナリオ
+- [ ] **ネストしたRecord** - Record内にRecordが含まれる場合
+- [ ] **ネストしたVariant** - Variant内にVariantが含まれる場合
+- [ ] **複雑なOpt** - Option内に複合型が含まれる場合
+- [ ] **混在Vec** - 異なる型が混在するVector
+- [ ] **大きなデータ** - サイズが大きなBlob/Textのテスト
+
+## 統合テスト（Integration Test）の実装方針
+- `/application/tests/test_arg_msg_reply.nim` を作成し、canister callテストを自動化する
+- テストの流れ：
+  1. `execProcess`を使用してdfx deployコマンドを実行してcanisterをデプロイ
+  2. 各Candid型について`dfx canister call`を実行してcanisterに問い合わせ
+  3. レスポンスの内容を検証（正しいCandid型でレスポンスが返されることを確認）
+  4. エラーハンドリング（deployやcall失敗時の適切なエラーメッセージ）
+- テスト対象：
+  - 実装済みの基本型（null, bool, nat, int, nat8）
+  - 今後実装する全ての型
+- プロセス実行時の注意：
+  - テスト実行前にexamples/arg_msg_replyディレクトリに移動
+  - dfx deployは`-y`フラグを使用して対話を回避
+  - stdout/stderrの適切な処理とログ出力
+
+## 進捗確認方法
+- 各テストの実行: `nim c -r tests/types/test_*.nim`
+- 統合テストの実行: `nim c -r tests/test_arg_msg_reply.nim` 
+  - 自動的にcanisterをデプロイし、実装済みの型のcanister callテストを実行
+  - 現在対応済み：responseNull, argBool, argNat, argInt, argNat8, argNat16
+- canister全体テスト: `cd examples/arg_msg_reply && dfx deploy && dfx canister call arg_msg_reply_backend <function_name>`
+- Management Canister最終テスト: `dfx canister call arg_msg_reply_backend argEcdsaPublicKeyArgs`
+
+## 統合テストの機能
+- `/application/tests/test_arg_msg_reply.nim` により、以下を自動化：
+  1. dfx deploy -yによるcanisterの自動デプロイ
+  2. 各Candid型のcanister call実行とレスポンス検証
+  3. エラーハンドリングとログ出力
+- 新しい型が実装された際は、統合テストにも対応するテストケースを追加すること
+
+## 実装パターンと修正方針
+
+### 新しいCandid型を追加する際の必須修正箇所
+1. **candid_types.nim**: `newCandidValue`関数にその型のサポートを追加
+   - 例: `elif T is uint16: CandidValue(kind: ctNat16, natVal: uint(value))`
+2. **request.nim**: `get{TypeName}`関数を追加
+   - 例: `proc getNat16*(self:Request, index:int): uint16`
+3. **reply.nim**: `reply({type})`関数を追加  
+   - 例: `proc reply*(msg: uint16)`
+4. **main.nim**: canister関数`arg{TypeName}`を実装
+5. **arg_msg_reply.did**: DIDファイルに関数定義を追加
+6. **test_arg_msg_reply.nim**: 統合テストにテストケースを追加
+
+### 単体テストの実装パターン
+- `newCandidValue(値)`を使用してCandidValueを作成
+- エンコードサイズの検証（固定幅型は一定、可変長型は値に依存）
+- エンコード・デコードの往復テスト
+- 境界値テスト（0, 最大値、特殊値）
+- 複数値のテスト
+
+### 型別の注意点
+- **固定幅型** (nat8, nat16, nat32, nat64, int8, int16, int32, int64, float32, float64): 
+  - エンコードサイズは固定（ヘッダー7バイト + 型サイズ）
+  - `natVal`フィールドを使用（uintにキャスト）
+- **可変長型** (nat, int, text, blob):
+  - エンコードサイズは値に依存
+  - LEB128/SLEB128エンコーディング
+- **複合型** (record, variant, vec, opt):
+  - ネストした構造のテストが必要
+  - 型テーブルが複雑になる
+
+### dfx callでの型注針パターン
+- 引数: `'(値 : 型名)'` 例: `'(42 : nat16)'`
+- レスポンス: 基本型は型注針あり、boolは型注針なし
+- 大きな数値は区切り文字付き: `(1_000 : nat16)`, `(65_535 : nat16)`
+
+### 実装時の技術的注意点
+- **CandidValueの統一フィールド**: 固定幅nat型（nat8, nat16, nat32, nat64）は全て`natVal: uint`フィールドを使用
+- **型キャスト**: request/replyでは適切な型キャスト（`uint8`, `uint16`等）が必要
+- **エンコードサイズ計算**: 
+  - DIDL0ヘッダー: 4バイト
+  - 型テーブル: 基本型で3バイト（型数1 + 型ID2バイト）
+  - 値部分: 型により異なる（nat8=1, nat16=2, nat32=4, nat64=8バイト）
+- **統合テストのエラーハンドリング**: dfxコマンドの絶対パス使用とディレクトリ管理が重要
+- **DIDファイル更新**: 新しい関数追加後は`dfx deploy`で型定義の更新確認が必要
+
+### 既知の制約事項
+- `newCandidValue`は汎用関数だが、サポートしていない型は個別に追加が必要
+- 統合テストは順次実行のため、大量の型追加時は実行時間が長くなる
+- canister関数名は`arg{TypeName}`パターンに統一（responseパターンは特殊用途のみ）
+- **nat64型の制約**: CandidValueのnatValフィールドがuint型のため、64bit値の一部でキャストによる情報損失が発生する。小さな値（42、100など）は正常動作するが、大きな値（10000000000以上）では不正確な結果となる場合がある。
+

@@ -241,6 +241,10 @@ proc newCandidValue*[T](value: T): CandidValue =
     CandidValue(kind: ctInt, intVal: value)
   elif T is byte:
     CandidValue(kind: ctNat8, natVal: uint(value))
+  elif T is uint16:
+    CandidValue(kind: ctNat16, natVal: uint(value))
+  elif T is uint64:
+    CandidValue(kind: ctNat64, natVal: uint(value))
   elif T is uint:
     CandidValue(kind: ctNat, natVal: value)
   elif T is float or T is float32:

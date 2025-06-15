@@ -42,6 +42,20 @@ proc reply*(msg: uint) =
   ic0_msg_reply()
 
 
+proc reply*(msg: uint8) =
+  let value = newCandidValue(msg)
+  let encoded = encodeCandidMessage(@[value])
+  ic0_msg_reply_data_append(ptrToInt(addr encoded[0]), encoded.len)
+  ic0_msg_reply()
+
+
+proc reply*(msg: uint16) =
+  let value = newCandidValue(msg)
+  let encoded = encodeCandidMessage(@[value])
+  ic0_msg_reply_data_append(ptrToInt(addr encoded[0]), encoded.len)
+  ic0_msg_reply()
+
+
 proc reply*(msg: float32) =
   let value = newCandidFloat(msg)
   let encoded = encodeCandidMessage(@[value])
@@ -81,5 +95,12 @@ proc reply*(msg: CandidRecord) =
   echo "value: ", value
   let encoded = encodeCandidMessage(@[value])
   echo "encoded: ", encoded
+  ic0_msg_reply_data_append(ptrToInt(addr encoded[0]), encoded.len)
+  ic0_msg_reply()
+
+
+proc reply*(msg: uint64) =
+  let value = newCandidValue(msg)
+  let encoded = encodeCandidMessage(@[value])
   ic0_msg_reply_data_append(ptrToInt(addr encoded[0]), encoded.len)
   ic0_msg_reply()

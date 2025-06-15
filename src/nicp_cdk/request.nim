@@ -29,6 +29,24 @@ proc getNat*(self:Request, index:int): uint =
   return self.values[index].natVal
 
 
+proc getNat8*(self:Request, index:int): uint8 =
+  ## Get the argument at the specified index as a nat8
+  assert self.values[index].kind == ctNat8
+  return self.values[index].natVal.uint8
+
+
+proc getNat16*(self:Request, index:int): uint16 =
+  ## Get the argument at the specified index as a nat16
+  assert self.values[index].kind == ctNat16
+  return self.values[index].natVal.uint16
+
+
+proc getNat64*(self:Request, index:int): uint64 =
+  ## Get the argument at the specified index as a nat64
+  assert self.values[index].kind == ctNat64
+  return self.values[index].natVal.uint64
+
+
 # 指定されたインデックスの引数を int32 として取得する
 proc getInt32*(self:Request, index:int): int32 =
   ## Get the argument at the specified index as an int32

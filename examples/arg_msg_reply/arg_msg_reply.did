@@ -4,10 +4,14 @@ service : {
   argBool: (bool) -> (bool) query;
   argInt: (int) -> (int) query;
   argNat: (nat) -> (nat) query;
+  argNat8: (nat8) -> (nat8) query;
+  argNat16: (nat16) -> (nat16) query;
+  argNat64: (nat64) -> (nat64) query;
   argFloat: (float32) -> (float32) query;
   argText: (text) -> (text) query;
   msgPrincipal: () -> (principal) query;
   responseEmpty: () -> () query;
+  responseNull: () -> (null) query;
   responseRecord: () -> (
     record{
       name : text;
