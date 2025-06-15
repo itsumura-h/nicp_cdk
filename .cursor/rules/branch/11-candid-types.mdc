@@ -1,0 +1,9 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+このブランチでは、nicp_cdkがcandidの全ての型についてNimの型との相互変換とcandid messageとのエンコード・デコードが正しく行われる処理を作ることを目的とする。
+
+テストは単体テストの作成と、実際にcanisterを動かしての2つの方法で行う。
+/application/tests/types 以下に、それぞれのcandid型についての単体テストを作成する。

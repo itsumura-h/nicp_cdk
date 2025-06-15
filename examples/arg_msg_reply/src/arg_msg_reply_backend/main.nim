@@ -84,19 +84,3 @@ proc responseRecord() {.query.} =
   }
   echo "record: ", $record
   reply(record)
-
-
-proc responseTEcdsaPublicKeyArgs() {.query.} =
-  let request = Request.new()
-  let caller = request.getPrincipal(0)
-  icEcho "caller: ", caller
-  let arg = %*{
-    "canister_id": none(Principal),
-    "derivation_path": caller.bytes.asBlob(),
-    "key_id": {
-      "curve": "secp256k1",
-      "name": "dfx_test_key"
-    }
-  }
-  icEcho "arg: ", $arg
-  reply(arg)
