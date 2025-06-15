@@ -1,0 +1,6 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+現在のブランチ名と一致するファイル名のルールが /application/.cursor/rules/branch にあった場合は、それを読み込んでください。
