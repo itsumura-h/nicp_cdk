@@ -430,4 +430,53 @@ suite "Float64 Type Tests":
     let callResult = callCanisterFunction("argFloat64", "(1.23456789012345 : float64)")
     echo "Call output: ", callResult
     # 高精度float64値が返されることを確認
-    check callResult.contains("1.23456789012345") or callResult.contains("1.23457e+00") 
+    check callResult.contains("1.23456789012345") or callResult.contains("1.23457e+00")
+
+suite "Text Type Tests":
+  setup:
+    echo "Starting text type test setup..."
+
+  teardown:
+    echo "Text type test teardown complete"
+
+  test "Test argText function with simple string":
+    echo "Testing argText function with simple string..."
+    let callResult = callCanisterFunction("argText", "(\"hello\" : text)")
+    echo "Call output: ", callResult
+    # text値が返されることを確認（型注釈なし）
+    check callResult.contains("(\"hello\")")
+
+  test "Test argText function with empty string":
+    echo "Testing argText function with empty string..."
+    let callResult = callCanisterFunction("argText", "(\"\" : text)")
+    echo "Call output: ", callResult
+    # 空文字列のtext値が返されることを確認（型注釈なし）
+    check callResult.contains("(\"\")")
+
+  test "Test argText function with Japanese string":
+    echo "Testing argText function with Japanese string..."
+    let callResult = callCanisterFunction("argText", "(\"こんにちは\" : text)")
+    echo "Call output: ", callResult
+    # 日本語のtext値が返されることを確認（型注釈なし）
+    check callResult.contains("(\"こんにちは\")")
+
+  test "Test argText function with special characters":
+    echo "Testing argText function with special characters..."
+    let callResult = callCanisterFunction("argText", "(\"Hello\\nWorld!\" : text)")
+    echo "Call output: ", callResult
+    # 特殊文字を含むtext値が返されることを確認（型注釈なし）
+    check callResult.contains("(\"Hello\\nWorld!\")")
+
+  test "Test argText function with numbers in string":
+    echo "Testing argText function with numbers in string..."
+    let callResult = callCanisterFunction("argText", "(\"12345\" : text)")
+    echo "Call output: ", callResult
+    # 数字を含む文字列のtext値が返されることを確認（型注釈なし）
+    check callResult.contains("(\"12345\")")
+
+  test "Test argText function with space string":
+    echo "Testing argText function with space string..."
+    let callResult = callCanisterFunction("argText", "(\"hello world\" : text)")
+    echo "Call output: ", callResult
+    # スペースを含む文字列のtext値が返されることを確認（型注釈なし）
+    check callResult.contains("(\"hello world\")") 
