@@ -28,6 +28,27 @@ proc reply*(msg: int32) =
 #   ic0_msg_reply()
 
 
+proc reply*(msg: int8) =
+  let value = newCandidValue(msg)
+  let encoded = encodeCandidMessage(@[value])
+  ic0_msg_reply_data_append(ptrToInt(addr encoded[0]), encoded.len)
+  ic0_msg_reply()
+
+
+proc reply*(msg: int16) =
+  let value = newCandidValue(msg)
+  let encoded = encodeCandidMessage(@[value])
+  ic0_msg_reply_data_append(ptrToInt(addr encoded[0]), encoded.len)
+  ic0_msg_reply()
+
+
+proc reply*(msg: int64) =
+  let value = newCandidValue(msg)
+  let encoded = encodeCandidMessage(@[value])
+  ic0_msg_reply_data_append(ptrToInt(addr encoded[0]), encoded.len)
+  ic0_msg_reply()
+
+
 proc reply*(msg: int) =
   let value = newCandidInt(msg)
   let encoded = encodeCandidMessage(@[value])
@@ -56,16 +77,24 @@ proc reply*(msg: uint16) =
   ic0_msg_reply()
 
 
+proc reply*(msg: uint32) =
+  let value = newCandidValue(msg)
+  let encoded = encodeCandidMessage(@[value])
+  ic0_msg_reply_data_append(ptrToInt(addr encoded[0]), encoded.len)
+  ic0_msg_reply()
+
+
 proc reply*(msg: float32) =
   let value = newCandidFloat(msg)
   let encoded = encodeCandidMessage(@[value])
   ic0_msg_reply_data_append(ptrToInt(addr encoded[0]), encoded.len)
   ic0_msg_reply()
 
-# proc reply*(msg: float64) =
-#   let response = serializeCandid(msg)
-#   ic0_msg_reply_data_append(ptrToUint32(addr response[0]), uint32(response.len))
-#   ic0_msg_reply()
+proc reply*(msg: float64) =
+  let value = newCandidValue(msg)
+  let encoded = encodeCandidMessage(@[value])
+  ic0_msg_reply_data_append(ptrToInt(addr encoded[0]), encoded.len)
+  ic0_msg_reply()
 
 proc reply*(msg: string) =
   let value = newCandidText(msg)

@@ -51,45 +51,45 @@ alwaysApply: true
   - [x] canister関数作成 (`argNat16`)
   - [x] dfx call テスト
 
-- [ ] **ctNat32** - 32bit自然数のテスト
-  - [ ] 単体テスト作成 (`tests/types/test_nat32.nim`)
-  - [ ] canister関数作成 (`argNat32`)
-  - [ ] dfx call テスト
+- [x] **ctNat32** - 32bit自然数のテスト
+  - [x] 単体テスト作成 (`tests/types/test_nat32.nim`)
+  - [x] canister関数作成 (`argNat32`)
+  - [x] dfx call テスト
 
 - [x] **ctNat64** - 64bit自然数のテスト
   - [x] 単体テスト作成 (`tests/types/test_nat64.nim`)
   - [x] canister関数作成 (`argNat64`)
   - [x] dfx call テスト（小さな値は動作、大きな値は制約あり）
 
-- [ ] **ctInt8** - 8bit整数のテスト
-  - [ ] 単体テスト作成 (`tests/types/test_int8.nim`)
-  - [ ] canister関数作成 (`argInt8`)
-  - [ ] dfx call テスト
+- [x] **ctInt8** - 8bit整数のテスト
+  - [x] 単体テスト作成 (`tests/types/test_int8.nim`)
+  - [x] canister関数作成 (`argInt8`)
+  - [x] dfx call テスト
 
-- [ ] **ctInt16** - 16bit整数のテスト
-  - [ ] 単体テスト作成 (`tests/types/test_int16.nim`)
-  - [ ] canister関数作成 (`argInt16`)
-  - [ ] dfx call テスト
+- [x] **ctInt16** - 16bit整数のテスト
+  - [x] 単体テスト作成 (`tests/types/test_int16.nim`)
+  - [x] canister関数作成 (`argInt16`)
+  - [x] dfx call テスト
 
-- [ ] **ctInt32** - 32bit整数のテスト
-  - [ ] 単体テスト作成 (`tests/types/test_int32.nim`)
-  - [ ] canister関数作成 (`argInt32`)
-  - [ ] dfx call テスト
+- [x] **ctInt32** - 32bit整数のテスト
+  - [x] 単体テスト作成 (`tests/types/test_int32.nim`)
+  - [x] canister関数作成 (`argInt32`)
+  - [ ] dfx call テスト（dfx型注釈処理の問題により失敗）
 
-- [ ] **ctInt64** - 64bit整数のテスト
-  - [ ] 単体テスト作成 (`tests/types/test_int64.nim`)
-  - [ ] canister関数作成 (`argInt64`)
-  - [ ] dfx call テスト
+- [x] **ctInt64** - 64bit整数のテスト
+  - [x] 単体テスト作成 (`tests/types/test_int64.nim`)
+  - [x] canister関数作成 (`argInt64`)
+  - [x] dfx call テスト（基本的な値は動作、大きな値でcanisterエラー）
 
-- [ ] **ctFloat32** - 32bit浮動小数点のテスト
-  - [ ] 単体テスト作成 (`tests/types/test_float32.nim`)
-  - [ ] canister関数作成 (`argFloat32`)
-  - [ ] dfx call テスト
+- [x] **ctFloat32** - 32bit浮動小数点のテスト
+  - [x] 単体テスト作成 (`tests/types/test_float32.nim`)
+  - [x] canister関数作成 (`argFloat32`)
+  - [x] dfx call テスト
 
-- [ ] **ctFloat64** - 64bit浮動小数点のテスト
-  - [ ] 単体テスト作成 (`tests/types/test_float64.nim`)
-  - [ ] canister関数作成 (`argFloat64`)
-  - [ ] dfx call テスト
+- [x] **ctFloat64** - 64bit浮動小数点のテスト
+  - [x] 単体テスト作成 (`tests/types/test_float64.nim`)
+  - [x] canister関数作成 (`argFloat64`)
+  - [x] dfx call テスト
 
 - [ ] **ctText** - テキスト型のテスト
   - [ ] 単体テスト作成 (`tests/types/test_text.nim`)
@@ -197,7 +197,8 @@ alwaysApply: true
 - 各テストの実行: `nim c -r tests/types/test_*.nim`
 - 統合テストの実行: `nim c -r tests/test_arg_msg_reply.nim` 
   - 自動的にcanisterをデプロイし、実装済みの型のcanister callテストを実行
-  - 現在対応済み：responseNull, argBool, argNat, argInt, argNat8, argNat16
+  - 現在対応済み：responseNull, argBool, argNat, argInt, argNat8, argNat16, argNat32, argNat64, argInt8, argInt16, argInt64（基本値）
+  - 問題のある型：argInt32（dfx型注釈処理の問題）、argInt64の大きな値（canisterエラー）
 - canister全体テスト: `cd examples/arg_msg_reply && dfx deploy && dfx canister call arg_msg_reply_backend <function_name>`
 - Management Canister最終テスト: `dfx canister call arg_msg_reply_backend argEcdsaPublicKeyArgs`
 

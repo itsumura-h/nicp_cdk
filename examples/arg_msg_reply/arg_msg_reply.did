@@ -6,8 +6,15 @@ service : {
   argNat: (nat) -> (nat) query;
   argNat8: (nat8) -> (nat8) query;
   argNat16: (nat16) -> (nat16) query;
+  argNat32: (nat32) -> (nat32) query;
   argNat64: (nat64) -> (nat64) query;
+  argInt8: (int8) -> (int8) query;
+  argInt16: (int16) -> (int16) query;
+  argInt32: (int32) -> (int32) query;
+  argInt64: (int64) -> (int64) query;
   argFloat: (float32) -> (float32) query;
+  argFloat32: (float32) -> (float32) query;
+  argFloat64: (float64) -> (float64) query;
   argText: (text) -> (text) query;
   msgPrincipal: () -> (principal) query;
   responseEmpty: () -> () query;

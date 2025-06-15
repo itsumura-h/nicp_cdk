@@ -239,18 +239,28 @@ proc newCandidValue*[T](value: T): CandidValue =
     CandidValue(kind: ctBool, boolVal: value)
   elif T is int:
     CandidValue(kind: ctInt, intVal: value)
+  elif T is int8:
+    CandidValue(kind: ctInt8, intVal: int(value))
+  elif T is int16:
+    CandidValue(kind: ctInt16, intVal: int(value))
+  elif T is int32:
+    CandidValue(kind: ctInt32, intVal: int(value))
+  elif T is int64:
+    CandidValue(kind: ctInt64, intVal: int(value))
   elif T is byte:
     CandidValue(kind: ctNat8, natVal: uint(value))
   elif T is uint16:
     CandidValue(kind: ctNat16, natVal: uint(value))
+  elif T is uint32:
+    CandidValue(kind: ctNat32, natVal: uint(value))
   elif T is uint64:
     CandidValue(kind: ctNat64, natVal: uint(value))
   elif T is uint:
     CandidValue(kind: ctNat, natVal: value)
-  elif T is float or T is float32:
-    CandidValue(kind: ctFloat32, float32Val: value.float32)
   elif T is float64:
     CandidValue(kind: ctFloat64, float64Val: value)
+  elif T is float or T is float32:
+    CandidValue(kind: ctFloat32, float32Val: value.float32)
   elif T is string:
     CandidValue(kind: ctText, textVal: value)
   elif T is Principal:
@@ -295,6 +305,9 @@ proc newCandidFloat*(value: float32): CandidValue =
 
 proc newCandidFloat*(value: float): CandidValue =
   newCandidFloat(value.float32)
+
+proc newCandidFloat64*(value: float64): CandidValue =
+  CandidValue(kind: ctFloat64, float64Val: value)
 
 proc newCandidText*(value: string): CandidValue =
   CandidValue(kind: ctText, textVal: value)

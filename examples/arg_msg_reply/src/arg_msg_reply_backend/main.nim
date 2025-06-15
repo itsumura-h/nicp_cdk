@@ -107,9 +107,65 @@ proc argNat16() {.query.} =
   reply(arg)
 
 
+proc argNat32() {.query.} =
+  echo "===== main.nim argNat32() ====="
+  let request = Request.new()
+  let arg = request.getNat32(0)
+  icEcho "arg: ", arg
+  reply(arg)
+
+
 proc argNat64() {.query.} =
   echo "===== main.nim argNat64() ====="
   let request = Request.new()
   let arg = request.getNat64(0)
+  icEcho "arg: ", arg
+  reply(arg)
+
+
+proc argInt8() {.query.} =
+  echo "===== main.nim argInt8() ====="
+  let request = Request.new()
+  let arg = request.getInt8(0)
+  icEcho "arg: ", arg
+  reply(arg)
+
+
+proc argInt16() {.query.} =
+  echo "===== main.nim argInt16() ====="
+  let request = Request.new()
+  let arg = request.getInt16(0)
+  icEcho "arg: ", arg
+  reply(arg)
+
+
+proc argInt32() {.query.} =
+  echo "===== main.nim argInt32() ====="
+  let request = Request.new()
+  let arg = request.getInt32(0)
+  icEcho "arg: ", arg
+  reply(arg)
+
+
+proc argInt64() {.query.} =
+  echo "===== main.nim argInt64() ====="
+  let request = Request.new()
+  let arg = request.getInt64(0)
+  icEcho "arg: ", arg
+  reply(arg)
+
+
+proc argFloat32() {.query.} =
+  echo "===== main.nim argFloat32() ====="
+  let request = Request.new()
+  let arg = request.getFloat32(0)
+  icEcho "arg: ", arg
+  reply(arg)
+
+
+proc argFloat64() {.query.} =
+  echo "===== main.nim argFloat64() ====="
+  let request = Request.new()
+  let arg = request.getFloat64(0)
   icEcho "arg: ", arg
   reply(arg)
