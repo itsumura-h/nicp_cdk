@@ -1,6 +1,7 @@
 import std/strutils
 import std/options
 import ../../../../src/nicp_cdk
+import ../../../../src/nicp_cdk/ic_types/candid_types
 
 
 proc greet() {.query.} =
@@ -173,10 +174,9 @@ proc argFloat64() {.query.} =
 
 proc argPrincipal() {.query.} =
   echo "===== main.nim argPrincipal() ====="
-  let request = Request.new()
-  let arg = request.getPrincipal(0)
-  icEcho "arg: ", arg
-  reply(arg)
+  let caller = Msg.caller()
+  icEcho "caller: ", caller
+  reply(caller)
 
 
 proc argBlob() {.query.} =
@@ -236,3 +236,24 @@ proc responseVec() {.query.} =
   ]
   icEcho "response vec length: ", vecData.len
   reply(vecData)
+
+
+proc argVariant() {.query.} =
+  echo "===== main.nim argVariant() ====="
+  let request = Request.new()
+  let arg = request.getVariant(0)
+  icEcho "arg tag: ", arg.tag
+  icEcho "arg value: ", arg.value
+  reply(arg)
+
+
+proc responseVariant() {.query.} =
+  echo "===== main.nim responseVariant() ====="
+  # テスト用のVariantデータを返す（success variant with text）
+  let variantData = CandidVariant(
+    tag: candidHash("success"),
+    value: newCandidText("Operation completed successfully")
+  )
+  icEcho "response variant tag: ", variantData.tag
+  icEcho "response variant value: ", variantData.value
+  reply(variantData)

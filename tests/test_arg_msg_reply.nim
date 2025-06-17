@@ -663,4 +663,40 @@ suite "Vector Type Tests":
     let callResult = callCanisterFunction("responseVec")
     echo "Call output: ", callResult
     # [100, 200, 300]のvector値が返されることを確認
-    check callResult.contains("vec { 100 : nat16; 200 : nat16; 300 : nat16 }") 
+    check callResult.contains("vec { 100 : nat16; 200 : nat16; 300 : nat16 }")
+
+
+suite "Variant Type Tests":
+  setup:
+    echo "Starting variant type test setup..."
+
+  teardown:
+    echo "Variant type test teardown complete"
+
+  test "Test argVariant function with success variant":
+    echo "Testing argVariant function with success variant..."
+    let callResult = callCanisterFunction("argVariant", "variant { success = \"Operation completed\" }")
+    echo "Call output: ", callResult
+    # success variantが返されることを確認
+    check callResult.contains("variant { success = \"Operation completed\" }")
+
+  test "Test argVariant function with error variant":
+    echo "Testing argVariant function with error variant..."
+    let callResult = callCanisterFunction("argVariant", "variant { error = \"Something went wrong\" }")
+    echo "Call output: ", callResult
+    # error variantが返されることを確認
+    check callResult.contains("variant { error = \"Something went wrong\" }")
+
+  test "Test argVariant function with value variant":
+    echo "Testing argVariant function with value variant..."
+    let callResult = callCanisterFunction("argVariant", "variant { value = 12345 : nat }")
+    echo "Call output: ", callResult
+    # value variantが返されることを確認（型注釈付き）
+    check callResult.contains("variant { value = 12_345 : nat }")
+
+  test "Test responseVariant function":
+    echo "Testing responseVariant function..."
+    let callResult = callCanisterFunction("responseVariant", "()")
+    echo "Call output: ", callResult
+    # success variantが返されることを確認
+    check callResult.contains("variant { success = \"Operation completed successfully\" }") 

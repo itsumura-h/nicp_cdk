@@ -161,3 +161,11 @@ proc reply*(msg: seq[CandidValue]) =
   let encoded = encodeCandidMessage(@[value])
   ic0_msg_reply_data_append(ptrToInt(addr encoded[0]), encoded.len)
   ic0_msg_reply()
+
+
+proc reply*(msg: CandidVariant) =
+  ## Reply with a variant value
+  let value = CandidValue(kind: ctVariant, variantVal: msg)
+  let encoded = encodeCandidMessage(@[value])
+  ic0_msg_reply_data_append(ptrToInt(addr encoded[0]), encoded.len)
+  ic0_msg_reply()

@@ -158,3 +158,10 @@ proc getVec*(self:Request, index:int): seq[CandidValue] =
   ## Get the argument at the specified index as a vector
   assert self.values[index].kind == ctVec, "Expected vector type, got: " & $self.values[index].kind
   return self.values[index].vecVal
+
+
+# 指定されたインデックスの引数を Variant として取得する
+proc getVariant*(self:Request, index:int): CandidVariant =
+  ## Get the argument at the specified index as a variant
+  assert self.values[index].kind == ctVariant, "Expected variant type, got: " & $self.values[index].kind
+  return self.values[index].variantVal
