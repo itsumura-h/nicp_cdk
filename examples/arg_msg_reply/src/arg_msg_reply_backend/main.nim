@@ -257,3 +257,27 @@ proc responseVariant() {.query.} =
   icEcho "response variant tag: ", variantData.tag
   icEcho "response variant value: ", variantData.value
   reply(variantData)
+
+
+proc argFunc() {.query.} =
+  echo "===== main.nim argFunc() ====="
+  let request = Request.new()
+  let arg = request.getFunc(0)
+  icEcho "arg principal: ", arg.principal
+  icEcho "arg method: ", arg.methodName
+  reply(arg)
+
+
+proc responseFunc() {.query.} =
+  echo "===== main.nim responseFunc() ====="
+  # テスト用のFunc参照を返す（management canisterのraw_rand）
+  let funcData = CandidFunc(
+    principal: Principal.fromText("aaaaa-aa"),
+    methodName: "raw_rand",
+    args: @[],
+    returns: @[ctText],  # raw_randはtextを返す
+    annotations: @[]
+  )
+  icEcho "response func principal: ", funcData.principal
+  icEcho "response func method: ", funcData.methodName
+  reply(funcData)

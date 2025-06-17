@@ -699,4 +699,54 @@ suite "Variant Type Tests":
     let callResult = callCanisterFunction("responseVariant", "()")
     echo "Call output: ", callResult
     # success variantが返されることを確認
-    check callResult.contains("variant { success = \"Operation completed successfully\" }") 
+    check callResult.contains("variant { success = \"Operation completed successfully\" }")
+
+
+suite "Function Type Tests":
+  setup:
+    echo "Starting function type test setup..."
+
+  teardown:
+    echo "Function type test teardown complete"
+
+  test "Test argFunc function with management canister function":
+    echo "Testing argFunc function with management canister function..."
+    let callResult = callCanisterFunction("argFunc", "func \"aaaaa-aa\".raw_rand")
+    echo "Call output: ", callResult
+    # management canisterのfunc値が返されることを確認
+    check callResult.contains("func \"aaaaa-aa\".raw_rand")
+
+  test "Test argFunc function with custom canister function":
+    echo "Testing argFunc function with custom canister function..."
+    let callResult = callCanisterFunction("argFunc", "func \"rrkah-fqaaa-aaaaa-aaaaq-cai\".get_balance")
+    echo "Call output: ", callResult
+    # custom canisterのfunc値が返されることを確認
+    check callResult.contains("func \"rrkah-fqaaa-aaaaa-aaaaq-cai\".get_balance")
+
+  test "Test argFunc function with different method name":
+    echo "Testing argFunc function with different method name..."
+    let callResult = callCanisterFunction("argFunc", "func \"aaaaa-aa\".ecdsa_public_key")
+    echo "Call output: ", callResult
+    # 異なるメソッド名のfunc値が返されることを確認
+    check callResult.contains("func \"aaaaa-aa\".ecdsa_public_key")
+
+  test "Test argFunc function with empty method name":
+    echo "Testing argFunc function with empty method name..."
+    let callResult = callCanisterFunction("argFunc", "func \"aaaaa-aa\".\"\"")
+    echo "Call output: ", callResult
+    # 空のメソッド名のfunc値が返されることを確認
+    check callResult.contains("func \"aaaaa-aa\".\"\"")
+
+  test "Test argFunc function with ledger canister":
+    echo "Testing argFunc function with ledger canister..."
+    let callResult = callCanisterFunction("argFunc", "func \"ryjl3-tyaaa-aaaaa-aaaba-cai\".account_balance")
+    echo "Call output: ", callResult
+    # ledger canisterのfunc値が返されることを確認
+    check callResult.contains("func \"ryjl3-tyaaa-aaaaa-aaaba-cai\".account_balance")
+
+  test "Test responseFunc function":
+    echo "Testing responseFunc function..."
+    let callResult = callCanisterFunction("responseFunc", "()")
+    echo "Call output: ", callResult
+    # management canisterのraw_rand func値が返されることを確認
+    check callResult.contains("func \"aaaaa-aa\".raw_rand") 

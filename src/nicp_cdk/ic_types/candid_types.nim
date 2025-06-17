@@ -35,7 +35,7 @@ type
     of ctOpt: optVal*: Option[CandidValue]
     of ctVec: vecVal*: seq[CandidValue]
     of ctBlob: blobVal*: seq[uint8]
-    of ctFunc: funcVal*: tuple[principal: Principal, methodName: string]
+    of ctFunc: funcVal*: CandidFunc
     of ctService: serviceVal*: Principal
     of ctReserved, ctEmpty: discard
     of ctQuery: discard
@@ -103,6 +103,14 @@ type
     of ckArray:
       elems*: seq[CandidRecord]
 
+  # 既存のCandidFunc型定義を拡張
+  CandidFunc* = ref object
+    principal*: Principal
+    methodName*: string
+    args*: seq[CandidType]         # 引数の型リスト
+    returns*: seq[CandidType]      # 戻り値の型リスト  
+    annotations*: seq[string]      # query, oneway, composite_queryなど
+
 
 # ================================================================================
 # 共通ユーティリティ関数
@@ -153,6 +161,8 @@ proc `$`*(value: CandidValue): string =
     result.add("]")
   of ctFunc:
     result = "func \"" & $value.funcVal.principal & "\"." & value.funcVal.methodName
+    if value.funcVal.annotations.len > 0:
+      result.add(" " & value.funcVal.annotations.join(" "))
   of ctService:
     result = "service \"" & $value.serviceVal & "\""
   of ctReserved:
@@ -337,8 +347,15 @@ proc newCandidOpt*(value: Option[CandidValue]): CandidValue =
 proc newCandidVec*(values: seq[CandidValue]): CandidValue =
   CandidValue(kind: ctVec, vecVal: values)
 
-proc newCandidFunc*(principal: Principal, methodName: string): CandidValue =
-  CandidValue(kind: ctFunc, funcVal: (principal: principal, methodName: methodName))
+proc newCandidFunc*(principal: Principal, methodName: string, args: seq[CandidType] = @[], returns: seq[CandidType] = @[], annotations: seq[string] = @[]): CandidValue =
+  let funcRef = CandidFunc(
+    principal: principal,
+    methodName: methodName,
+    args: args,
+    returns: returns,
+    annotations: annotations
+  )
+  CandidValue(kind: ctFunc, funcVal: funcRef)
 
 proc newCandidService*(principal: Principal): CandidValue =
   CandidValue(kind: ctService, serviceVal: principal)
@@ -404,3 +421,42 @@ proc parseEnum*[T: enum](s: string, _: type T): T =
     if $enumValue == s:
       return enumValue
   raise newException(ValueError, "Unknown enum value: " & s & " for type " & $typeof(T))
+
+# CandidFunc型のヘルパー関数を追加
+proc newSimpleFunc*(principal: Principal, methodName: string): CandidFunc =
+  ## 引数・戻り値なしのシンプルなfunc参照を作成
+  CandidFunc(
+    principal: principal,
+    methodName: methodName,
+    args: @[],
+    returns: @[],
+    annotations: @[]
+  )
+
+proc newQueryFunc*(principal: Principal, methodName: string, returns: seq[CandidType] = @[]): CandidFunc =
+  ## Query annotationを持つfunc参照を作成
+  CandidFunc(
+    principal: principal,
+    methodName: methodName,
+    args: @[],
+    returns: returns,
+    annotations: @["query"]
+  )
+
+proc newUpdateFunc*(principal: Principal, methodName: string, args: seq[CandidType] = @[], returns: seq[CandidType] = @[]): CandidFunc =
+  ## Update func参照を作成（annotation無し）
+  CandidFunc(
+    principal: principal,
+    methodName: methodName,
+    args: args,
+    returns: returns,
+    annotations: @[]
+  )
+
+proc isQuery*(func: CandidFunc): bool =
+  ## func参照がquery関数かどうか判定
+  "query" in func.annotations
+
+proc isOneway*(func: CandidFunc): bool =
+  ## func参照がoneway関数かどうか判定
+  "oneway" in func.annotations

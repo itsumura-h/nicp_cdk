@@ -235,7 +235,14 @@ proc toCandidValue*(cr: CandidRecord): CandidValue =
   of ckPrincipal:
     result = CandidValue(kind: ctPrincipal, principalVal: Principal.fromText(cr.principalId))
   of ckFunc:
-    result = CandidValue(kind: ctFunc, funcVal: (principal: Principal.fromText(cr.funcRef.principal), methodName: cr.funcRef.methodName))
+    let funcRef = CandidFunc(
+      principal: Principal.fromText(cr.funcRef.principal),
+      methodName: cr.funcRef.methodName,
+      args: @[],
+      returns: @[],
+      annotations: @[]
+    )
+    result = CandidValue(kind: ctFunc, funcVal: funcRef)
   of ckService:
     result = CandidValue(kind: ctService, serviceVal: Principal.fromText(cr.serviceId))
   of ckArray:

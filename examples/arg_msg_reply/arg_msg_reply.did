@@ -21,11 +21,13 @@ service : {
   argOpt: (opt nat8) -> (opt nat8) query;
   argVec: (vec nat16) -> (vec nat16) query;
   argVariant: (variant { success : text; error : text; value : nat }) -> (variant { success : text; error : text; value : nat }) query;
+  argFunc: (func () -> ()) -> (func () -> ()) query;
   msgPrincipal: () -> (principal) query;
   responseBlob: () -> (blob) query;
   responseOpt: () -> (opt nat8) query;
   responseVec: () -> (vec nat16) query;
   responseVariant: () -> (variant { success : text }) query;
+  responseFunc: () -> (func () -> ()) query;
   responseEmpty: () -> () query;
   responseNull: () -> (null) query;
   responseRecord: () -> (

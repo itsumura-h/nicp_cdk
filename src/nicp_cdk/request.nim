@@ -165,3 +165,10 @@ proc getVariant*(self:Request, index:int): CandidVariant =
   ## Get the argument at the specified index as a variant
   assert self.values[index].kind == ctVariant, "Expected variant type, got: " & $self.values[index].kind
   return self.values[index].variantVal
+
+
+# 指定されたインデックスの引数を Function として取得する
+proc getFunc*(self:Request, index:int): CandidFunc =
+  ## Get the argument at the specified index as a function
+  assert self.values[index].kind == ctFunc, "Expected func type, got: " & $self.values[index].kind
+  return self.values[index].funcVal

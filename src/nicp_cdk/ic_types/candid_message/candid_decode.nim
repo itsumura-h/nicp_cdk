@@ -347,7 +347,14 @@ proc decodeValue(data: seq[byte], offset: var int, typeRef: int, typeTable: seq[
         methodName[i] = char(data[offset + i])
       offset += int(methodNameLength)
       
-      result.funcVal = (principal: principal, methodName: methodName)
+      let funcRef = CandidFunc(
+        principal: principal,
+        methodName: methodName,
+        args: @[],
+        returns: @[],
+        annotations: @[]
+      )
+      result.funcVal = funcRef
     of ctService:
       # サービス参照: principal のみ
       let principalLength = decodeULEB128(data, offset)
