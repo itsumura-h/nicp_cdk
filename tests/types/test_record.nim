@@ -2,16 +2,16 @@ discard """
   cmd: "nim c --skipUserCfg $file"
 """
 
-# nim c -r --skipUserCfg tests/test_candid_record.nim
+# nim c -r --skipUserCfg tests/types/test_record.nim
 
 import std/unittest
 import std/options
-import ../src/nicp_cdk/ic_types/candid_types
-import ../src/nicp_cdk/ic_types/ic_record
-import ../src/nicp_cdk/ic_types/ic_principal
-import ../src/nicp_cdk/ic_types/ic_variant
-import ../src/nicp_cdk/ic_types/ic_service
-import ../src/nicp_cdk/ic_types/candid_funcs
+import ../../src/nicp_cdk/ic_types/candid_types
+import ../../src/nicp_cdk/ic_types/ic_record
+import ../../src/nicp_cdk/ic_types/ic_principal
+import ../../src/nicp_cdk/ic_types/ic_variant
+import ../../src/nicp_cdk/ic_types/ic_service
+import ../../src/nicp_cdk/ic_types/candid_funcs
 
 
 # テストスイート: CandidValue %*マクロのテスト
