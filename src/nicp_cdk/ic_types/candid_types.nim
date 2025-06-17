@@ -360,6 +360,10 @@ proc newCandidFunc*(principal: Principal, methodName: string, args: seq[CandidTy
 proc newCandidService*(principal: Principal): CandidValue =
   CandidValue(kind: ctService, serviceVal: principal)
 
+proc newCandidEmpty*(): CandidValue =
+  ## Creates a CandidValue of kind ctEmpty.
+  CandidValue(kind: ctEmpty)
+
 # ================================================================================
 # Generic enum-based variant constructors
 # ================================================================================
@@ -445,7 +449,7 @@ proc newQueryFunc*(principal: Principal, methodName: string, returns: seq[Candid
 
 proc newUpdateFunc*(principal: Principal, methodName: string, args: seq[CandidType] = @[], returns: seq[CandidType] = @[]): CandidFunc =
   ## Update func参照を作成（annotation無し）
-  CandidFunc(
+  return CandidFunc(
     principal: principal,
     methodName: methodName,
     args: args,
@@ -453,10 +457,10 @@ proc newUpdateFunc*(principal: Principal, methodName: string, args: seq[CandidTy
     annotations: @[]
   )
 
-proc isQuery*(func: CandidFunc): bool =
+proc isQuery*(f: CandidFunc): bool =
   ## func参照がquery関数かどうか判定
-  "query" in func.annotations
+  "query" in f.annotations
 
-proc isOneway*(func: CandidFunc): bool =
+proc isOneway*(f: CandidFunc): bool =
   ## func参照がoneway関数かどうか判定
-  "oneway" in func.annotations
+  "oneway" in f.annotations

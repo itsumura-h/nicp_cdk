@@ -179,6 +179,14 @@ proc argPrincipal() {.query.} =
   reply(caller)
 
 
+proc argService() : Principal {.update.} =
+  echo "===== main.nim argService() ====="
+  let request = Request.new()
+  let id = request.getService(0)
+  icEcho "Service ID: ", id
+  reply(id)
+
+
 proc argBlob() {.query.} =
   echo "===== main.nim argBlob() ====="
   let request = Request.new()

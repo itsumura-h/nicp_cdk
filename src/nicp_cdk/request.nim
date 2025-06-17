@@ -172,3 +172,9 @@ proc getFunc*(self:Request, index:int): CandidFunc =
   ## Get the argument at the specified index as a function
   assert self.values[index].kind == ctFunc, "Expected func type, got: " & $self.values[index].kind
   return self.values[index].funcVal
+
+
+proc getService*(self:Request, index:int): Principal =
+  ## Get the argument at the specified index as a service
+  assert self.values[index].kind == ctService, "Expected service type, got: " & $self.values[index].kind
+  return self.values[index].serviceVal
