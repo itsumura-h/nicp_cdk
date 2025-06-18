@@ -21,6 +21,15 @@ service : {
   argOpt: (opt nat8) -> (opt nat8) query;
   argVec: (vec nat16) -> (vec nat16) query;
   argVariant: (variant { success : text; error : text; value : nat }) -> (variant { success : text; error : text; value : nat }) query;
+  argEcdsaCurve: (variant { secp256k1; secp256r1 }) -> (variant { secp256k1; secp256r1 }) query;
+  responseEcdsaPublicKeyArgs: () -> (
+    record {
+      canister_id : principal;
+      derivation_path : text;
+      curve : text;
+      key_name : text;
+    }
+  ) query;
   argFunc: (func () -> ()) -> (func () -> ()) query;
   msgPrincipal: () -> (principal) query;
   responseBlob: () -> (blob) query;

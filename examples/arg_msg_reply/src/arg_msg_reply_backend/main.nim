@@ -250,6 +250,24 @@ proc argVariant() {.query.} =
   reply(arg)
 
 
+proc argEcdsaCurve() {.query.} =
+  echo "===== main.nim argEcdsaCurve() ====="
+  let request = Request.new()
+  let arg = request.getVariant(0)
+  icEcho "ECDSA curve tag: ", arg.tag
+  icEcho "ECDSA curve value: ", arg.value
+  
+  # ECDSA curveのvariant処理
+  if arg.tag == candidHash("secp256k1"):
+    icEcho "Received: secp256k1 curve"
+  elif arg.tag == candidHash("secp256r1"):
+    icEcho "Received: secp256r1 curve"
+  else:
+    icEcho "Unknown ECDSA curve tag: ", arg.tag
+  
+  reply(arg)
+
+
 proc responseVariant() {.query.} =
   echo "===== main.nim responseVariant() ====="
   # テスト用のVariantデータを返す（success variant with text）
@@ -380,3 +398,27 @@ proc responseComplexNestedRecord() {.query.} =
   }
   icEcho "response complex nested record: ", complexRecord
   reply(complexRecord)
+
+
+proc responseEcdsaPublicKeyArgs() {.query.} =
+  echo "===== main.nim responseEcdsaPublicKeyArgs() ====="
+  
+  try:
+    # シンプルなRecord構造で確実に動作させる
+    echo "Step 1: Creating ECDSA public key args record..."
+    
+    var record = newCRecord()
+    record["canister_id"] = newCPrincipal("rdmx6-jaaaa-aaaaa-aaadq-cai")
+    record["derivation_path"] = newCText("test-derivation-path")
+    record["curve"] = newCText("secp256k1")
+    record["key_name"] = newCText("test-key-1")
+    echo "Step 2: ECDSA record created"
+    
+    echo "Step 3: About to call reply function..."
+    reply(record)
+    echo "Step 4: Reply successful"
+    
+  except CatchableError as e:
+    echo "Error at step: ", e.msg
+    echo "Error type: ", $e.name
+    reply("Detailed error: " & e.msg & " (Type: " & $e.name & ")")
