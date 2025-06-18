@@ -178,3 +178,9 @@ proc getService*(self:Request, index:int): Principal =
   ## Get the argument at the specified index as a service
   assert self.values[index].kind == ctService, "Expected service type, got: " & $self.values[index].kind
   return self.values[index].serviceVal
+
+
+proc getEmpty*(self:Request, index:int) =
+  ## Get the argument at the specified index as empty (validation only)
+  assert self.values[index].kind == ctEmpty, "Expected empty type, got: " & $self.values[index].kind
+  # Empty型は値を持たないため、型チェックのみ実行

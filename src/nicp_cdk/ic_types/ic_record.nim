@@ -13,6 +13,45 @@ import ./candid_funcs
 # CandidRecordの操作に特化したモジュール
 # 型変換ロジックはcandid_funcs.nimに移動済み
 
+# ===== Record型バリデーション関数 =====
+
+proc validateRecordFieldType(cv: CandidValue, fieldName: string) =
+  ## Record内のフィールドが対応している型かチェック
+  ## ICPのCanister環境でサポートされていない型を検出してエラーを発生
+  case cv.kind:
+  of ctFunc, ctService, ctReserved, ctQuery, ctOneway, ctCompositeQuery:
+    let typeName = case cv.kind:
+      of ctFunc: "func"
+      of ctService: "service"  
+      of ctReserved: "reserved"
+      of ctQuery: "query"
+      of ctOneway: "oneway"
+      of ctCompositeQuery: "composite_query"
+      else: "unknown"
+    let alternatives = case cv.kind:
+      of ctFunc: "Supported alternatives: Principal (for service references), Text (for method names)"
+      of ctService: "Supported alternatives: Principal (for service references)"
+      else: "These types are not supported in ICP Canister communication."
+    raise newException(ValueError, 
+      &"Unsupported Candid type '{typeName}' in Record field '{fieldName}'. " &
+      alternatives)
+  else:
+    # ネストしたRecord/Variant/Array内もチェック
+    case cv.kind:
+    of ctRecord:
+      for key, value in cv.recordVal.fields:
+        validateRecordFieldType(value, &"{fieldName}.{key}")
+    of ctVec:
+      for i, elem in cv.vecVal:
+        validateRecordFieldType(elem, &"{fieldName}[{i}]")
+    of ctOpt:
+      if cv.optVal.isSome():
+        validateRecordFieldType(cv.optVal.get(), &"{fieldName}.some")
+    of ctVariant:
+      validateRecordFieldType(cv.variantVal.value, &"{fieldName}.variant_value")
+    else:
+      discard  # その他の型は許可
+
 # ===== アクセサ関数 =====
 
 proc getInt*(cv: CandidRecord): int =
@@ -71,7 +110,12 @@ proc `[]=`*(cv: CandidRecord, key: string, value: CandidRecord) =
   ## レコードのフィールドを設定
   if cv.kind != ckRecord:
     raise newException(ValueError, &"Cannot set field on {cv.kind}")
-  cv.fields[key] = value.toCandidValue()
+  
+  # フィールドの型をバリデーション
+  let candidValue = value.toCandidValue()
+  validateRecordFieldType(candidValue, key)
+  
+  cv.fields[key] = candidValue
 
 # ===== インデックス演算子（配列用） =====
 

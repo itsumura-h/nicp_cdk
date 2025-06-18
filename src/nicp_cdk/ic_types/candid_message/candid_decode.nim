@@ -277,8 +277,8 @@ proc decodePrimitiveValue(data: seq[byte], offset: var int, candidType: CandidTy
     discard
   
   of ctEmpty:
-    # emptyは値があってはならない
-    raise newException(CandidDecodeError, "Empty type should not have a value")
+    # emptyは値を持たない（何もしない）
+    discard
   
   else:
     raise newException(CandidDecodeError, "Unexpected primitive type: " & $candidType)

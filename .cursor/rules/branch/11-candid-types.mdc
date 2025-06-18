@@ -119,6 +119,9 @@ alwaysApply: true
 
 - [x] **ctRecord** - Record型のテスト
   - [x] 単体テスト作成 (`tests/types/test_record.nim`)
+  - [x] 非対応型制限機能実装 (func, service, reserved, query, oneway, composite_query)
+  - [x] 代替実装パターンテスト (Principal + Text組み合わせ)
+  - [x] ネストした構造での制限テスト
   - [x] canister関数作成 (`responseRecord`)
   - [ ] dfx call テスト
 
@@ -143,10 +146,10 @@ alwaysApply: true
   - [ ] canister関数作成 (`argReserved`)
   - [ ] dfx call テスト
 
-- [ ] **ctEmpty** - Empty型のテスト
-  - [ ] 単体テスト作成 (`tests/types/test_empty.nim`)
-  - [ ] canister関数作成 (`argEmpty`)
-  - [ ] dfx call テスト
+- [x] **ctEmpty** - Empty型のテスト
+  - [x] 単体テスト作成 (`tests/types/test_empty.nim`)
+  - [x] canister関数作成 (`responseEmpty`)
+  - [x] dfx call テスト（responseEmpty正常動作確認済み）
 
 ### 修飾型（Qualifier Types）
 - [ ] **ctQuery** - Query型のテスト
@@ -177,6 +180,118 @@ alwaysApply: true
 - [ ] **複雑なOpt** - Option内に複合型が含まれる場合
 - [ ] **混在Vec** - 異なる型が混在するVector
 - [ ] **大きなデータ** - サイズが大きなBlob/Textのテスト
+
+## Record型における非対応型の制限設計方針
+
+### 背景と目的
+ICPのCanister環境において、一部のCandid型はCanister間通信で直接サポートされていない、または実用性に制限があります。Record型内にこれらの型が含まれると、Canisterのデプロイや実行時にエラーが発生する可能性が高いため、事前に検証とエラー出力を行う設計とします。
+
+### 制限対象の型
+以下のCandid型はRecord型のフィールドとして使用できません：
+
+1. **ctFunc** - Function型
+   - Canister間関数参照として設計されているが、現在のICP実装では制限がある
+   - Opaque referenceとしての完全な実装が困難
+
+2. **ctService** - Service型  
+   - Canisterサービス参照だが、Record内での使用は実用性が低い
+   - Principal型での代替が推奨される
+
+3. **ctReserved** - Reserved型
+   - 将来の拡張用に予約された型で、現在は使用不可
+
+4. **ctQuery** - Query修飾型
+   - 関数の修飾子であり、データ型として単独使用は不適切
+
+5. **ctOneway** - Oneway修飾型
+   - 関数の修飾子であり、データ型として単独使用は不適切
+
+6. **ctCompositeQuery** - CompositeQuery修飾型
+   - 関数の修飾子であり、データ型として単独使用は不適切
+
+### 実装方針
+
+#### エラー検出タイミング
+- **Record作成時**: `newCRecord()`, `%*マクロ`, `CandidRecord`の各種コンストラクタ
+- **フィールド設定時**: `record[key] = value`の代入操作
+- **フィールド追加時**: `record.add(key, value)`などの追加操作
+
+#### エラーメッセージ設計
+```nim
+ValueError: Unsupported Candid type '{type_name}' in Record field '{field_name}'. 
+This type is not supported in ICP Canister communication.
+Supported alternatives: Principal (for service references), Text (for function names)
+```
+
+#### 代替案の提案
+制限された型の代替案を明示的に提案：
+- **func/service → Principal + method名**: 関数/サービス参照は`Principal`と`Text`の組み合わせで表現
+- **reserved → エラー**: 使用不可、設計見直しが必要  
+- **修飾型 → エラー**: 関数シグネチャの一部であり、データ型として不適切
+
+#### 実装箇所
+1. **ic_record.nim**: バリデーション関数の追加
+2. **candid_funcs.nim**: 型チェック関数の追加  
+3. **test_record.nim**: エラーケースのテスト追加
+
+#### バリデーション関数
+```nim
+proc validateRecordFieldType(cv: CandidValue, fieldName: string) =
+  ## Record内のフィールドが対応している型かチェック
+  case cv.kind:
+  of ctFunc, ctService, ctReserved, ctQuery, ctOneway, ctCompositeQuery:
+    let typeName = case cv.kind:
+      of ctFunc: "func"
+      of ctService: "service"  
+      of ctReserved: "reserved"
+      of ctQuery: "query"
+      of ctOneway: "oneway"
+      of ctCompositeQuery: "composite_query"
+      else: "unknown"
+    raise newException(ValueError, 
+      &"Unsupported Candid type '{typeName}' in Record field '{fieldName}'. " &
+      "This type is not supported in ICP Canister communication.")
+  else:
+    # ネストしたRecord/Variant/Array内もチェック
+    case cv.kind:
+    of ctRecord:
+      for key, value in cv.recordFields:
+        validateRecordFieldType(value, &"{fieldName}.{key}")
+    of ctVec:
+      for i, elem in cv.vecElements:
+        validateRecordFieldType(elem, &"{fieldName}[{i}]")
+    of ctOpt:
+      if cv.optVal.isSome():
+        validateRecordFieldType(cv.optVal.get(), &"{fieldName}.some")
+    else:
+      discard  # その他の型は許可
+```
+
+### テスト方針
+
+#### 正常系テスト
+- 許可された型のみを含むRecordの作成・操作
+- ネストしたRecord構造での許可された型の使用
+
+#### 異常系テスト  
+- 制限された型を含むRecord作成時のエラー発生確認
+- エラーメッセージの内容確認
+- ネストした構造での制限された型検出確認
+
+#### 代替案テスト
+- func型の代わりにPrincipal + Text組み合わせでの実装確認
+- service型の代わりにPrincipal型での実装確認
+
+### 互換性とマイグレーション
+
+#### 既存コードへの影響
+- 現在のテストで使用されているfunc/service型をPrincipal型に置き換え
+- `%*マクロ`使用時の自動的な制限チェック
+
+#### 段階的移行
+1. **Phase 1**: バリデーション関数の実装（警告モード）
+2. **Phase 2**: エラーモードへの切り替え  
+3. **Phase 3**: 代替実装パターンの文書化
 
 ## 統合テスト（Integration Test）の実装方針
 - `/application/tests/test_arg_msg_reply.nim` を作成し、canister callテストを自動化する
@@ -260,6 +375,42 @@ alwaysApply: true
   - 値部分: 型により異なる（nat8=1, nat16=2, nat32=4, nat64=8バイト）
 - **統合テストのエラーハンドリング**: dfxコマンドの絶対パス使用とディレクトリ管理が重要
 - **DIDファイル更新**: 新しい関数追加後は`dfx deploy`で型定義の更新確認が必要
+
+### Record型における非対応型制限の実装完了
+
+#### 実装完了項目
+- **バリデーション機能**: `validateRecordFieldType`関数の実装
+- **制限対象型**: func, service, reserved, query, oneway, composite_query
+- **エラー検出**: Record作成時、フィールド設定時にバリデーション実行
+- **ネストサポート**: Record/Variant/Array内の制限型も検出
+- **代替案提示**: エラーメッセージで実用的な代替案を提案
+
+#### テスト実装完了
+- **正常系テスト**: 許可された型のみを含むRecord作成・操作
+- **異常系テスト**: 制限された型を含むRecord作成時のエラー発生確認  
+- **エラーメッセージテスト**: エラーメッセージの内容確認
+- **ネストテスト**: ネストした構造での制限された型検出確認
+- **代替案テスト**: Principal + Text組み合わせでの実装確認
+
+#### 代替実装パターン
+```nim
+# func型の代替（Principal + Text）
+let funcRef = %*{
+  "principal": Principal.fromText("aaaaa-aa"),
+  "method": "handleSuccess"
+}
+
+# service型の代替（Principal）
+let serviceRef = %*{
+  "ledger": Principal.fromText("ryjl3-tyaaa-aaaaa-aaaba-cai")
+}
+```
+
+#### 実装詳細
+- **関数**: `validateRecordFieldType` in `ic_record.nim`
+- **呼び出し箇所**: フィールド設定時（`[]=`演算子）
+- **制限動作**: 制限された型を検出すると即座にValueError例外発生
+- **エラーメッセージ**: 型名、フィールド名、代替案を含む詳細なメッセージ
 
 ### 既知の制約事項と課題
 - `newCandidValue`は汎用関数だが、サポートしていない型は個別に追加が必要
