@@ -53,6 +53,7 @@ proc getTypeSignature(typeDesc: TypeDescriptor): string =
       result.add($rowMethod.hash & ":" & getTypeSignature(rowMethod.methodType) & ";")
     result.add("}")
   else:
+    # 基本型や未処理の型のフォールバック
     result = $typeDesc.kind
 
 

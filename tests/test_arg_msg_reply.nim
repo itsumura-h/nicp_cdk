@@ -712,4 +712,46 @@ suite "Service Type Tests":
     let callResult = callCanisterFunction("argService", "(service \"" & principalId & "\")")
     echo "Call output: ", callResult
     # service型がPrincipalとして返されることを確認
-    check callResult.contains("(service \"" & principalId & "\")") 
+    check callResult.contains("(service \"" & principalId & "\")")
+
+suite "Nested Record Type Tests":
+  setup:
+    echo "Starting nested record type test setup..."
+
+  teardown:
+    echo "Nested record type test teardown complete"
+
+  test "Test responseNestedRecord function":
+    echo "Testing responseNestedRecord function..."
+    let callResult = callCanisterFunction("responseNestedRecord")
+    echo "Call output: ", callResult
+    # ネストしたRecordが正しく返されることを確認
+    check callResult.contains("record { user = record { name = \"Alice\"; age = 30; isActive = true }; metadata = record { created = \"2024-03-20\"; version = 1 } }")
+
+  test "Test responseDeepNestedRecord function":
+    echo "Testing responseDeepNestedRecord function..."
+    let callResult = callCanisterFunction("responseDeepNestedRecord")
+    echo "Call output: ", callResult
+    # 深くネストしたRecordが正しく返されることを確認
+    check callResult.contains("organization = record") and 
+          callResult.contains("departments = record") and
+          callResult.contains("engineering = record") and
+          callResult.contains("team = record") and
+          callResult.contains("frontend = record") and
+          callResult.contains("backend = record")
+
+  test "Test responseComplexNestedRecord function":
+    echo "Testing responseComplexNestedRecord function..."
+    let callResult = callCanisterFunction("responseComplexNestedRecord")
+    echo "Call output: ", callResult
+    # 複雑なネストRecordが正しく返されることを確認
+    check callResult.contains("application = record") and
+          callResult.contains("info = record") and
+          callResult.contains("settings = record") and
+          callResult.contains("database = record") and
+          callResult.contains("cache = record") and
+          callResult.contains("users = record") and
+          callResult.contains("permissions = record") and
+          callResult.contains("files = record")
+
+ 

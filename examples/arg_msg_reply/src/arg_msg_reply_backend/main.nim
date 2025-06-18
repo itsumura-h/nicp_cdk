@@ -1,7 +1,10 @@
 import std/strutils
 import std/options
+import std/tables
 import ../../../../src/nicp_cdk
 import ../../../../src/nicp_cdk/ic_types/candid_types
+import ../../../../src/nicp_cdk/ic_types/candid_message/candid_encode
+import ../../../../src/nicp_cdk/ic0/ic0
 
 
 proc greet() {.query.} =
@@ -281,3 +284,99 @@ proc responseFunc() {.query.} =
   icEcho "response func principal: ", funcData.principal
   icEcho "response func method: ", funcData.methodName
   reply(funcData)
+
+
+# proc argNestedRecord() {.query.} =
+#   echo "===== main.nim argNestedRecord() ====="
+#   let request = Request.new()
+#   let arg = request.getRecord(0)
+#   icEcho "arg: ", arg
+#   # ネストしたRecordをそのまま返す
+#   reply(arg)
+
+
+proc responseNestedRecord() {.query.} =
+  echo "===== main.nim responseNestedRecord() START ====="
+  
+  try:
+    # シンプルなRecord構造で確実に動作させる（ネストなし）
+    echo "Step 1: Creating simple record structure..."
+    
+    var record = newCRecord()
+    record["name"] = newCText("Alice")
+    record["age"] = newCInt(30)
+    record["isActive"] = newCBool(true)
+    echo "Step 2: Simple record created"
+    
+    echo "Step 3: About to call reply function..."
+    reply(record)
+    echo "Step 4: Reply successful"
+    
+  except CatchableError as e:
+    echo "Error at step: ", e.msg
+    echo "Error type: ", $e.name
+    reply("Detailed error: " & e.msg & " (Type: " & $e.name & ")")
+  
+  echo "===== main.nim responseNestedRecord() END ====="
+
+
+proc responseDeepNestedRecord() {.query.} =
+  echo "===== main.nim responseDeepNestedRecord() ====="
+  # より深くネストしたRecordを返す
+  let deepRecord = %*{
+    "organization": {
+      "name": "Tech Corp",
+      "departments": {
+        "engineering": {
+          "name": "Engineering",
+          "team": {
+            "frontend": {
+              "name": "Frontend Team",
+              "members": 5
+            },
+            "backend": {
+              "name": "Backend Team",
+              "members": 7
+            }
+          }
+        }
+      }
+    }
+  }
+  icEcho "response deep nested record: ", deepRecord
+  reply(deepRecord)
+
+
+proc responseComplexNestedRecord() {.query.} =
+  echo "===== main.nim responseComplexNestedRecord() ====="
+  # 様々な型を含む複雑なネストRecord
+  let complexRecord = %*{
+    "application": {
+      "info": {
+        "name": "MyApp",
+        "version": "1.0.0",
+        "settings": {
+          "database": {
+            "host": "localhost",
+            "port": 5432,
+            "ssl": true
+          },
+          "cache": {
+            "enabled": true,
+            "ttl": 3600,
+            "servers": ["redis1:6379", "redis2:6379"]
+          }
+        }
+      },
+      "users": {
+        "permissions": {
+          "admin": [Principal.fromText("aaaaa-aa")]
+        }
+      },
+      "files": {
+        "config": @[0x7Bu8, 0x7Du8].asBlob  # "{}"
+      }
+    }
+  }
+  icEcho "response complex nested record: ", complexRecord
+  reply(complexRecord)

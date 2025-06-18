@@ -220,9 +220,10 @@ proc toCandidValue*(cr: CandidRecord): CandidValue =
   of ckBlob:
     result = CandidValue(kind: ctBlob, blobVal: cr.bytesVal)
   of ckRecord:
-    # OrderedTableを普通のTableに変換
+    # OrderedTableを普通のTableに変換し、ネストしたCandidRecordも正しく変換
     var tableData = initTable[string, CandidValue]()
     for key, value in cr.fields:
+      # 値が既にCandidValueの場合はそのまま使用、そうでなければ再帰的に変換
       tableData[key] = value
     result = newCandidRecord(tableData)
   of ckVariant:

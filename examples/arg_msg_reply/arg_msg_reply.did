@@ -37,4 +37,64 @@ service : {
       "principal" : principal;
     }
   ) query;
+
+  responseNestedRecord: () -> (
+    record {
+      name : text;
+      age : int;
+      isActive : bool;
+    }
+  ) query;
+  responseDeepNestedRecord: () -> (
+    record {
+      organization : record {
+        name : text;
+        departments : record {
+          engineering : record {
+            name : text;
+            team : record {
+              frontend : record {
+                name : text;
+                members : int;
+              };
+              backend : record {
+                name : text;
+                members : int;
+              };
+            };
+          };
+        };
+      };
+    }
+  ) query;
+  responseComplexNestedRecord: () -> (
+    record {
+      application : record {
+        info : record {
+          name : text;
+          version : text;
+          settings : record {
+            database : record {
+              host : text;
+              port : int;
+              ssl : bool;
+            };
+            cache : record {
+              enabled : bool;
+              ttl : int;
+              servers : vec text;
+            };
+          };
+        };
+        users : record {
+          permissions : record {
+            admin : vec principal;
+          };
+        };
+        files : record {
+          config : blob;
+        };
+      };
+    }
+  ) query;
 }
