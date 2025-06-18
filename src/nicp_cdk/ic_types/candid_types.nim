@@ -291,8 +291,8 @@ proc newCandidValue*[T](value: T): CandidValue =
   elif T is tuple[principal: Principal, methodName: string]:
     CandidValue(kind: ctFunc, funcVal: value)
   elif T is enum:
-    # 任意のenum型を文字列として扱う
-    CandidValue(kind: ctText, textVal: $value)
+    # Enum型をVariant型として変換（Enum名のVariantとしてnull値を持つ）
+    newCandidVariant($value, newCandidNull())
   else:
     raise newException(ValueError, "Unsupported type: " & $typeof(value))
 
@@ -425,6 +425,49 @@ proc parseEnum*[T: enum](s: string, _: type T): T =
     if $enumValue == s:
       return enumValue
   raise newException(ValueError, "Unknown enum value: " & s & " for type " & $typeof(T))
+
+# ================================================================================
+# Enum型とVariant型の相互変換機能
+# ================================================================================
+
+proc getEnumValue*[T: enum](cv: CandidValue, enumType: typedesc[T]): T =
+  ## CandidValueからEnum値を取得（Variant型から変換）
+  if cv.kind != ctVariant:
+    raise newException(ValueError, "CandidValue is not a variant type")
+  
+  # Variantのタグ（ハッシュ値）から対応するEnum値を検索
+  let variant = cv.variantVal
+  # タグハッシュから文字列を逆算するのは困難なため、全Enum値と比較
+  for enumValue in T:
+    let expectedHash = candidHash($enumValue)
+    if variant.tag == expectedHash:
+      return enumValue
+  
+  # 見つからない場合は文字列による比較も試行
+  raise newException(ValueError, 
+    "Cannot convert Variant tag " & $variant.tag & " to enum type " & $typeof(T) & ". " &
+    "Available enum values: " & @[T.low..T.high].mapIt($it).join(", "))
+
+proc validateEnumType*[T: enum](enumType: typedesc[T]) =
+  ## Enum型の制約をチェック（{.pure.} pragma付きかどうかなど）
+  # 注意: Nimのコンパイル時情報では{.pure.}の検出は困難
+  # 実行時チェックとして、連続性や重複をチェック
+  var enumValues: seq[string] = @[]
+  for enumValue in T:
+    let enumStr = $enumValue
+    if enumStr in enumValues:
+      raise newException(ValueError, 
+        "Duplicate enum value '" & enumStr & "' found in type " & $typeof(T) & ". " &
+        "Enum types for Candid conversion should have unique string representations.")
+    enumValues.add(enumStr)
+
+proc isEnumCompatible*[T: enum](enumType: typedesc[T]): bool =
+  ## Enum型がCandid変換に対応しているかチェック
+  try:
+    validateEnumType(enumType)
+    return true
+  except ValueError:
+    return false
 
 # CandidFunc型のヘルパー関数を追加
 proc newSimpleFunc*(principal: Principal, methodName: string): CandidFunc =

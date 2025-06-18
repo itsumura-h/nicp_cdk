@@ -31,6 +31,73 @@ service : {
     }
   ) query;
   argFunc: (func () -> ()) -> (func () -> ()) query;
+
+  // Phase 3.1: Enum機能のCanister関数定義
+  argSimpleStatus: (variant { Active; Inactive }) -> (variant { Active; Inactive }) query;
+  responseSimpleStatus: () -> (variant { Active; Inactive }) query;
+  argPriority: (variant { Low; Medium; High; Critical }) -> (variant { Low; Medium; High; Critical }) query;
+  responsePriority: () -> (variant { Low; Medium; High; Critical }) query;
+  argEcdsaCurveEnum: (variant { secp256k1; secp256r1 }) -> (variant { secp256k1; secp256r1 }) query;
+  responseEcdsaCurveEnum: () -> (variant { secp256k1; secp256r1 }) query;
+  
+  // Phase 3.1: Record内Enum値のCanister関数定義
+  argRecordWithEnum: (
+    record {
+      status : variant { Active; Inactive };
+      priority : variant { Low; Medium; High; Critical };
+      curve : variant { secp256k1; secp256r1 };
+    }
+  ) -> (
+    record {
+      status : variant { Active; Inactive };
+      priority : variant { Low; Medium; High; Critical };
+      curve : variant { secp256k1; secp256r1 };
+    }
+  ) query;
+  
+  responseRecordWithEnum: () -> (
+    record {
+      id : int;
+      name : text;
+      status : variant { Active; Inactive };
+      priority : variant { Low; Medium; High; Critical };
+      curve : variant { secp256k1; secp256r1 };
+      timestamp : text;
+    }
+  ) query;
+  
+  // Phase 3.1: Management Canister ECDSA連携テスト用関数定義
+  argEcdsaPublicKeyArgsEnum: (
+    record {
+      canister_id : opt principal;
+      derivation_path : vec blob;
+      key_id : record {
+        curve : variant { secp256k1; secp256r1 };
+        name : text;
+      };
+    }
+  ) -> (
+    record {
+      canister_id : opt principal;
+      derivation_path : vec blob;
+      key_id : record {
+        curve : variant { secp256k1; secp256r1 };
+        name : text;
+      };
+    }
+  ) query;
+  
+  responseEcdsaPublicKeyArgsEnum: () -> (
+    record {
+      canister_id : opt principal;
+      derivation_path : vec blob;
+      key_id : record {
+        curve : variant { secp256k1; secp256r1 };
+        name : text;
+      };
+    }
+  ) query;
+
   msgPrincipal: () -> (principal) query;
   responseBlob: () -> (blob) query;
   responseOpt: () -> (opt nat8) query;

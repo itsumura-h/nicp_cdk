@@ -209,6 +209,48 @@ proc getService*(cv: CandidRecord): Principal =
     raise newException(ValueError, &"Expected Service, got {cv.kind}")
   Principal.fromText(cv.serviceId)
 
+# ================================================================================
+# Enum型サポート関数
+# ================================================================================
+
+proc getEnum*[T: enum](cv: CandidRecord, enumType: typedesc[T], key: string): T =
+  ## RecordからEnum値を取得（指定されたキーのVariant値をEnum型に変換）
+  if cv.kind != ckRecord:
+    raise newException(ValueError, &"Cannot get enum field from {cv.kind}, expected record")
+  
+  if key notin cv.fields:
+    raise newException(KeyError, &"Key '{key}' not found in record")
+  
+  let candidValue = cv.fields[key]
+  if candidValue.kind != ctVariant:
+    raise newException(ValueError, 
+      &"Expected variant type for enum conversion at field '{key}', got: {candidValue.kind}")
+  
+  try:
+    return getEnumValue(candidValue, enumType)
+  except ValueError as e:
+    raise newException(ValueError, 
+      &"Failed to convert variant at field '{key}' to enum type {$typeof(T)}: {e.msg}")
+
+proc `[]=`*[T: enum](cv: CandidRecord, key: string, enumValue: T) =
+  ## RecordにEnum値を設定（自動的にVariant型として変換）
+  if cv.kind != ckRecord:
+    raise newException(ValueError, &"Cannot set field on {cv.kind}, expected record")
+  
+  try:
+    # Enum値をVariant CandidValueに変換
+    let candidValue = newCandidValue(enumValue)
+    
+    # バリデーションを実行（Variant型なので通常は問題ないが、一応チェック）
+    validateRecordFieldType(candidValue, key)
+    
+    # フィールドに設定
+    cv.fields[key] = candidValue
+    
+  except ValueError as e:
+    raise newException(ValueError, 
+      &"Failed to set enum value at field '{key}': {e.msg}")
+
 # ===== Option/Variant専用ヘルパー =====
 
 # テスト用のVariantラッパー型
@@ -255,6 +297,57 @@ proc getVariant*(cv: CandidRecord): VariantResult =
     tag: tagStr,
     value: fromCandidValue(cv.variantVal.value)
   )
+
+# ===== 必要なヘルパー関数 =====
+
+proc newCNull*(): CandidRecord =
+  ## Null値のCandidRecordを作成
+  CandidRecord(kind: ckNull)
+
+proc newCBoolRecord*(value: bool): CandidRecord =
+  ## Bool値のCandidRecordを作成
+  CandidRecord(kind: ckBool, boolVal: value)
+
+proc newCIntRecord*(value: int64): CandidRecord =
+  ## Int値のCandidRecordを作成
+  CandidRecord(kind: ckInt, intVal: value)
+
+proc newCFloat64Record*(value: float): CandidRecord =
+  ## Float64値のCandidRecordを作成
+  CandidRecord(kind: ckFloat64, f64Val: value)
+
+proc newCTextRecord*(value: string): CandidRecord =
+  ## Text値のCandidRecordを作成
+  CandidRecord(kind: ckText, strVal: value)
+
+proc newCBlobRecord*(value: seq[uint8]): CandidRecord =
+  ## Blob値のCandidRecordを作成
+  CandidRecord(kind: ckBlob, bytesVal: value)
+
+proc newCRecordEmpty*(): CandidRecord =
+  ## 空のRecord CandidRecordを作成
+  CandidRecord(kind: ckRecord, fields: initOrderedTable[string, CandidValue]())
+
+proc newCArrayRecord*(): CandidRecord =
+  ## 空のArray CandidRecordを作成
+  CandidRecord(kind: ckArray, elems: @[])
+
+proc newCVariantRecord*(tag: string): CandidRecord =
+  ## Variant CandidRecordを作成
+  let variant = CandidVariant(tag: candidHash(tag), value: newCandidNull())
+  CandidRecord(kind: ckVariant, variantVal: variant)
+
+proc newCPrincipal*(principalId: string): CandidRecord =
+  ## Principal CandidRecordを作成
+  CandidRecord(kind: ckPrincipal, principalId: principalId)
+
+proc newCOptionNone*(): CandidRecord =
+  ## None Option CandidRecordを作成
+  CandidRecord(kind: ckOption, optVal: none(CandidRecord))
+
+proc asSome*(value: CandidRecord): CandidRecord =
+  ## Some Option CandidRecordを作成
+  CandidRecord(kind: ckOption, optVal: some(value))
 
 # ===== フィールド名のハッシュ化関数 =====
 
@@ -353,13 +446,13 @@ macro candidLit*(x: untyped): CandidRecord =
     # リテラル値
     of nnkIntLit, nnkInt8Lit, nnkInt16Lit, nnkInt32Lit, nnkInt64Lit,
        nnkUIntLit, nnkUInt8Lit, nnkUInt16Lit, nnkUInt32Lit, nnkUInt64Lit:
-      newCall(bindSym"newCInt", node)
+      newCall(bindSym"newCIntRecord", node)
     
     of nnkFloatLit, nnkFloat32Lit, nnkFloat64Lit:
-      newCall(bindSym"newCFloat64", node)
+      newCall(bindSym"newCFloat64Record", node)
     
     of nnkStrLit:
-      newCall(bindSym"newCText", node)
+      newCall(bindSym"newCTextRecord", node)
     
     # nil値をnewCNull()として解釈
     of nnkNilLit:
@@ -367,9 +460,9 @@ macro candidLit*(x: untyped): CandidRecord =
     
     of nnkIdent:
       if node.strVal == "true":
-        newCall(bindSym"newCBool", newLit(true))
+        newCall(bindSym"newCBoolRecord", newLit(true))
       elif node.strVal == "false":
-        newCall(bindSym"newCBool", newLit(false))
+        newCall(bindSym"newCBoolRecord", newLit(false))
       elif node.strVal == "cnull":
         newCall(bindSym"newCNull")
       else:
@@ -379,19 +472,19 @@ macro candidLit*(x: untyped): CandidRecord =
           when `varName` is CandidRecord:
             `varName`
           elif `varName` is bool:
-            newCBool(`varName`)
+            newCBoolRecord(`varName`)
           elif `varName` is SomeInteger:
-            newCInt(`varName`.int64)
+            newCIntRecord(`varName`.int64)
           elif `varName` is SomeFloat:
-            newCFloat64(`varName`.float)
+            newCFloat64Record(`varName`.float)
           elif `varName` is string:
-            newCText(`varName`)
+            newCTextRecord(`varName`)
           elif `varName` is seq[uint8]:
-            newCBlob(`varName`)
+            newCBlobRecord(`varName`)
           elif `varName` is Principal:
             newCPrincipal(`varName`.value)
           elif `varName` is enum:
-            newCVariant($`varName`)
+            newCVariantRecord($`varName`)
           elif `varName` is Option:
             if `varName`.isSome():
               asSome(candidLit(`varName`.get()))
@@ -406,7 +499,7 @@ macro candidLit*(x: untyped): CandidRecord =
     of nnkBracket:
       let arrayVar = genSym(nskVar, "arr")
       result = newStmtList()
-      result.add(newVarStmt(arrayVar, newCall(bindSym"newCArray")))
+      result.add(newVarStmt(arrayVar, newCall(bindSym"newCArrayRecord")))
       for elem in node:
         result.add(newCall(bindSym"add", arrayVar, buildCandidValue(elem)))
       result.add(arrayVar)
@@ -416,7 +509,7 @@ macro candidLit*(x: untyped): CandidRecord =
     of nnkTableConstr:
       let recordVar = genSym(nskVar, "rec")
       result = newStmtList()
-      result.add(newVarStmt(recordVar, newCall(bindSym"newCRecord")))
+      result.add(newVarStmt(recordVar, newCall(bindSym"newCRecordEmpty")))
       for pair in node:
         if pair.kind == nnkExprColonExpr and pair.len == 2:
           let key = pair[0]
@@ -454,19 +547,19 @@ macro candidLit*(x: untyped): CandidRecord =
             when val is CandidRecord:
               val
             elif val is bool:
-              newCBool(val)
+              newCBoolRecord(val)
             elif val is SomeInteger:
-              newCInt(val.int64)
+              newCIntRecord(val.int64)
             elif val is SomeFloat:
-              newCFloat64(val.float)
+              newCFloat64Record(val.float)
             elif val is string:
-              newCText(val)
+              newCTextRecord(val)
             elif val is seq[uint8]:
-              newCBlob(val)
+              newCBlobRecord(val)
             elif val is Principal:
               newCPrincipal(val.value)
             elif val is enum:
-              newCVariant($val)
+              newCVariantRecord($val)
             elif val is Option:
               if val.isSome():
                 asSome(candidLit(val.get()))

@@ -2,6 +2,7 @@ import std/options
 import ./ic_types/candid_types
 import ./ic_types/candid_message/candid_decode
 import ./ic_types/ic_principal
+import ./ic_types/ic_record
 import ./ic0/ic0
 
 
@@ -184,3 +185,41 @@ proc getEmpty*(self:Request, index:int) =
   ## Get the argument at the specified index as empty (validation only)
   assert self.values[index].kind == ctEmpty, "Expected empty type, got: " & $self.values[index].kind
   # Empty型は値を持たないため、型チェックのみ実行
+
+
+# 指定されたインデックスの引数を Record として取得する
+# TODO: Phase 3.2で実装予定 - fromCandidValue関数の依存関係を解決後に有効化
+# proc getRecord*(self:Request, index:int): CandidRecord =
+#   ## Get the argument at the specified index as a record
+#   assert self.values[index].kind == ctRecord, "Expected record type, got: " & $self.values[index].kind
+#   return fromCandidValue(self.values[index])
+
+
+# ================================================================================
+# Enum型サポート関数
+# ================================================================================
+
+proc getEnum*[T: enum](self: Request, index: int, enumType: typedesc[T]): T =
+  ## Get the argument at the specified index as an enum value (from Variant)
+  if index < 0 or index >= self.values.len:
+    raise newException(IndexDefect, "Request index " & $index & " is out of bounds (0.." & $(self.values.len - 1) & ")")
+  
+  let candidValue = self.values[index]
+  if candidValue.kind != ctVariant:
+    raise newException(ValueError, 
+      "Expected variant type for enum conversion at index " & $index & ", got: " & $candidValue.kind)
+  
+  try:
+    return getEnumValue(candidValue, enumType)
+  except ValueError as e:
+    raise newException(ValueError, 
+      "Failed to convert variant at index " & $index & " to enum type " & $typeof(T) & ": " & e.msg)
+
+
+# ================================================================================
+# テスト用ヘルパー関数
+# ================================================================================
+
+proc newMockRequest*(values: seq[CandidValue]): Request =
+  ## テスト用のRequestオブジェクトを作成
+  Request(values: values)
