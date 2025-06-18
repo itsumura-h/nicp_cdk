@@ -1,6 +1,9 @@
 import std/options
 import std/tables
 import std/macros
+import std/sequtils
+import std/strutils
+import std/algorithm
 import ./ic_principal
 
 
@@ -32,7 +35,7 @@ type
     of ctOpt: optVal*: Option[CandidValue]
     of ctVec: vecVal*: seq[CandidValue]
     of ctBlob: blobVal*: seq[uint8]
-    of ctFunc: funcVal*: tuple[principal: Principal, methodName: string]
+    of ctFunc: funcVal*: CandidFunc
     of ctService: serviceVal*: Principal
     of ctReserved, ctEmpty: discard
     of ctQuery: discard
@@ -100,24 +103,181 @@ type
     of ckArray:
       elems*: seq[CandidRecord]
 
+  # 既存のCandidFunc型定義を拡張
+  CandidFunc* = ref object
+    principal*: Principal
+    methodName*: string
+    args*: seq[CandidType]         # 引数の型リスト
+    returns*: seq[CandidType]      # 戻り値の型リスト  
+    annotations*: seq[string]      # query, oneway, composite_queryなど
+
+
+# ================================================================================
+# 共通ユーティリティ関数
+# ================================================================================
+proc `$`*(value: CandidValue): string =
+  ## CandidValue を文字列に変換する
+  case value.kind:
+  of ctNull:
+    result = "null"
+  of ctBool:
+    result = $value.boolVal
+  of ctNat, ctNat8, ctNat16, ctNat32, ctNat64:
+    result = $value.natVal
+  of ctInt, ctInt8, ctInt16, ctInt32, ctInt64:
+    result = $value.intVal
+  of ctFloat32:
+    result = $value.float32Val
+  of ctFloat64:
+    result = $value.float64Val
+  of ctText:
+    result = "\"" & value.textVal & "\""
+  of ctPrincipal:
+    result = "principal \"" & $value.principalVal & "\""
+  of ctBlob:
+    result = "blob \"" & value.blobVal.mapIt(it.toHex()).join("") & "\""
+  of ctRecord:
+    result = "record {"
+    var first = true
+    for fieldName, fieldValue in value.recordVal.fields:
+      if not first:
+        result.add("; ")
+      result.add(fieldName & " = " & $fieldValue)
+      first = false
+    result.add("}")
+  of ctVariant:
+    result = "variant {" & $value.variantVal.tag & " = " & $value.variantVal.value & "}"
+  of ctOpt:
+    if value.optVal.isSome:
+      result = "opt " & $value.optVal.get()
+    else:
+      result = "null"
+  of ctVec:
+    result = "vec ["
+    for i, elem in value.vecVal:
+      if i > 0:
+        result.add(", ")
+      result.add($elem)
+    result.add("]")
+  of ctFunc:
+    result = "func \"" & $value.funcVal.principal & "\"." & value.funcVal.methodName
+    if value.funcVal.annotations.len > 0:
+      result.add(" " & value.funcVal.annotations.join(" "))
+  of ctService:
+    result = "service \"" & $value.serviceVal & "\""
+  of ctReserved:
+    result = "reserved"
+  of ctEmpty:
+    result = "empty"
+  of ctQuery:
+    result = "query"
+  of ctOneway:
+    result = "oneway"  
+  of ctCompositeQuery:
+    result = "composite_query"
+
+
+proc toString*(data: seq[byte]): string =
+  return data.mapIt(it.toHex()).join("")
+
+proc stringToBytes*(s: string): seq[byte] =
+  # 2文字ずつバイト列に変換
+  for i in countup(0, s.len-1, 2):
+    result.add(byte(s[i..i+1].parseHexInt()))
+
+proc ptrToUint32*(p: pointer): uint32 =
+  return cast[uint32](p)
+
+proc ptrToInt*(p: pointer): int =
+  return cast[int](p)
+
+proc typeCodeFromCandidType*(candidType: CandidType): int =
+  ## CandidTypeから型コードを取得
+  case candidType:
+  of ctNull: -1
+  of ctBool: -2
+  of ctNat: -3
+  of ctInt: -4
+  of ctNat8: -5
+  of ctNat16: -6
+  of ctNat32: -7
+  of ctNat64: -8
+  of ctInt8: -9
+  of ctInt16: -10
+  of ctInt32: -11
+  of ctInt64: -12
+  of ctFloat32: -13
+  of ctFloat64: -14
+  of ctText: -15
+  of ctReserved: -16
+  of ctEmpty: -17
+  of ctOpt: -18
+  of ctVec: -19
+  of ctBlob: -19  # BlobはVecと同じ型コード
+  of ctRecord: -20
+  of ctVariant: -21
+  of ctFunc: -22
+  of ctService: -23
+  of ctPrincipal: -24
+  else:
+    raise newException(ValueError, "Unsupported type for encoding: " & $candidType)
+
+proc isPrimitiveType*(candidType: CandidType): bool =
+  ## 基本型かどうかを判定
+  case candidType:
+  of ctNull, ctBool, ctNat, ctInt, ctNat8, ctNat16, ctNat32, ctNat64,
+     ctInt8, ctInt16, ctInt32, ctInt64, ctFloat32, ctFloat64,
+     ctText, ctReserved, ctEmpty, ctPrincipal:
+    return true
+  else:
+    return false
+
+# フィールド名から32bitハッシュを計算（Candidの仕様に従う）
+proc candidHash*(name: string): uint32 =
+  ## Candid仕様のフィールドハッシュ計算
+  var h: uint32 = 0
+  for c in name:
+    h = h * 223 + uint32(ord(c))
+  return h
+
+
+# ================================================================================
+# 既存のプロシージャは継続
+# ================================================================================
 
 proc newCandidValue*[T](value: T): CandidValue =
   when T is bool:
     CandidValue(kind: ctBool, boolVal: value)
   elif T is int:
     CandidValue(kind: ctInt, intVal: value)
+  elif T is int8:
+    CandidValue(kind: ctInt8, intVal: int(value))
+  elif T is int16:
+    CandidValue(kind: ctInt16, intVal: int(value))
+  elif T is int32:
+    CandidValue(kind: ctInt32, intVal: int(value))
+  elif T is int64:
+    CandidValue(kind: ctInt64, intVal: int(value))
   elif T is byte:
     CandidValue(kind: ctNat8, natVal: uint(value))
+  elif T is uint16:
+    CandidValue(kind: ctNat16, natVal: uint(value))
+  elif T is uint32:
+    CandidValue(kind: ctNat32, natVal: uint(value))
+  elif T is uint64:
+    CandidValue(kind: ctNat64, natVal: uint(value))
   elif T is uint:
     CandidValue(kind: ctNat, natVal: value)
-  elif T is float or T is float32:
-    CandidValue(kind: ctFloat32, float32Val: value.float32)
   elif T is float64:
     CandidValue(kind: ctFloat64, float64Val: value)
+  elif T is float or T is float32:
+    CandidValue(kind: ctFloat32, float32Val: value.float32)
   elif T is string:
     CandidValue(kind: ctText, textVal: value)
   elif T is Principal:
     CandidValue(kind: ctPrincipal, principalVal: value)
+  elif T is seq[uint8]:
+    CandidValue(kind: ctBlob, blobVal: value)
   elif T is seq[byte]:
     CandidValue(kind: ctVec, vecVal: value.mapIt(newCandidValue(it)))
   elif T is CandidRecord:
@@ -135,15 +295,6 @@ proc newCandidValue*[T](value: T): CandidValue =
     CandidValue(kind: ctText, textVal: $value)
   else:
     raise newException(ValueError, "Unsupported type: " & $typeof(value))
-
-
-# フィールド名から32bitハッシュを計算（Candidの仕様に従う）
-proc candidHash*(name: string): uint32 =
-  ## Candid仕様のフィールドハッシュ計算
-  var h: uint32 = 0
-  for c in name:
-    h = h * 223 + uint32(ord(c))
-  return h
 
 
 # ================================================================================
@@ -167,6 +318,9 @@ proc newCandidFloat*(value: float32): CandidValue =
 
 proc newCandidFloat*(value: float): CandidValue =
   newCandidFloat(value.float32)
+
+proc newCandidFloat64*(value: float64): CandidValue =
+  CandidValue(kind: ctFloat64, float64Val: value)
 
 proc newCandidText*(value: string): CandidValue =
   CandidValue(kind: ctText, textVal: value)
@@ -193,11 +347,22 @@ proc newCandidOpt*(value: Option[CandidValue]): CandidValue =
 proc newCandidVec*(values: seq[CandidValue]): CandidValue =
   CandidValue(kind: ctVec, vecVal: values)
 
-proc newCandidFunc*(principal: Principal, methodName: string): CandidValue =
-  CandidValue(kind: ctFunc, funcVal: (principal: principal, methodName: methodName))
+proc newCandidFunc*(principal: Principal, methodName: string, args: seq[CandidType] = @[], returns: seq[CandidType] = @[], annotations: seq[string] = @[]): CandidValue =
+  let funcRef = CandidFunc(
+    principal: principal,
+    methodName: methodName,
+    args: args,
+    returns: returns,
+    annotations: annotations
+  )
+  CandidValue(kind: ctFunc, funcVal: funcRef)
 
 proc newCandidService*(principal: Principal): CandidValue =
   CandidValue(kind: ctService, serviceVal: principal)
+
+proc newCandidEmpty*(): CandidValue =
+  ## Creates a CandidValue of kind ctEmpty.
+  CandidValue(kind: ctEmpty)
 
 # ================================================================================
 # Generic enum-based variant constructors
@@ -260,3 +425,42 @@ proc parseEnum*[T: enum](s: string, _: type T): T =
     if $enumValue == s:
       return enumValue
   raise newException(ValueError, "Unknown enum value: " & s & " for type " & $typeof(T))
+
+# CandidFunc型のヘルパー関数を追加
+proc newSimpleFunc*(principal: Principal, methodName: string): CandidFunc =
+  ## 引数・戻り値なしのシンプルなfunc参照を作成
+  CandidFunc(
+    principal: principal,
+    methodName: methodName,
+    args: @[],
+    returns: @[],
+    annotations: @[]
+  )
+
+proc newQueryFunc*(principal: Principal, methodName: string, returns: seq[CandidType] = @[]): CandidFunc =
+  ## Query annotationを持つfunc参照を作成
+  CandidFunc(
+    principal: principal,
+    methodName: methodName,
+    args: @[],
+    returns: returns,
+    annotations: @["query"]
+  )
+
+proc newUpdateFunc*(principal: Principal, methodName: string, args: seq[CandidType] = @[], returns: seq[CandidType] = @[]): CandidFunc =
+  ## Update func参照を作成（annotation無し）
+  return CandidFunc(
+    principal: principal,
+    methodName: methodName,
+    args: args,
+    returns: returns,
+    annotations: @[]
+  )
+
+proc isQuery*(f: CandidFunc): bool =
+  ## func参照がquery関数かどうか判定
+  "query" in f.annotations
+
+proc isOneway*(f: CandidFunc): bool =
+  ## func参照がoneway関数かどうか判定
+  "oneway" in f.annotations

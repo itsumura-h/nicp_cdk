@@ -2,16 +2,17 @@ discard """
   cmd: "nim c --skipUserCfg $file"
 """
 
-# nim c -r --skipUserCfg tests/test_candid_record.nim
+# nim c -r --skipUserCfg tests/types/test_record.nim
 
 import std/unittest
 import std/options
-import ../src/nicp_cdk/ic_types/candid_types
-import ../src/nicp_cdk/ic_types/ic_record
-import ../src/nicp_cdk/ic_types/ic_principal
-import ../src/nicp_cdk/ic_types/ic_variant
-import ../src/nicp_cdk/ic_types/ic_service
-import ../src/nicp_cdk/ic_types/candid_funcs
+import std/strutils
+import ../../src/nicp_cdk/ic_types/candid_types
+import ../../src/nicp_cdk/ic_types/ic_record
+import ../../src/nicp_cdk/ic_types/ic_principal
+import ../../src/nicp_cdk/ic_types/ic_variant
+import ../../src/nicp_cdk/ic_types/ic_service
+import ../../src/nicp_cdk/ic_types/candid_funcs
 
 
 # テストスイート: CandidValue %*マクロのテスト
@@ -151,29 +152,74 @@ suite "CandidValue %*macro tests":
       emptyVariant.value.isNull() == true
       variantExample["success"].isVariant() == true
 
-  test "Func型のテスト":
-    let funcExample = %*{
-      "callback": newCFunc("aaaaa-aa", "onComplete"),
-      "handler": newCFunc("w7x7r-cok77-xa", "processData")
-    }
-    
-    check:
-      $funcExample["callback"].getFuncPrincipal() == "aaaaa-aa"
-      funcExample["callback"].getFuncMethod() == "onComplete"
-      $funcExample["handler"].getFuncPrincipal() == "w7x7r-cok77-xa"
-      funcExample["handler"].getFuncMethod() == "processData"
-      funcExample["callback"].isFunc() == true
+  test "非対応型の制限テスト - Func型":
+    # Func型をRecord内で使用するとエラーが発生することを確認
+    expect(ValueError):
+      let funcValue = newCFunc("aaaaa-aa", "onComplete")
+      let funcExample = %*{
+        "callback": funcValue
+      }
 
-  test "Service型のテスト":
-    let serviceExample = %*{
-      "ledger": newCService("ryjl3-tyaaa-aaaaa-aaaba-cai"),
-      "registry": newCService("rrkah-fqaaa-aaaaa-aaaaq-cai")
+  test "非対応型の制限テスト - Service型":
+    # Service型をRecord内で使用するとエラーが発生することを確認
+    expect(ValueError):
+      let serviceValue = newCService("ryjl3-tyaaa-aaaaa-aaaba-cai")
+      let serviceExample = %*{
+        "ledger": serviceValue
+      }
+
+  test "非対応型の制限テスト - エラーメッセージ":
+    # エラーメッセージの内容確認
+    try:
+      let funcValue = newCFunc("aaaaa-aa", "onComplete") 
+      let funcExample = %*{
+        "callback": funcValue
+      }
+      check false  # ここに到達したらテストは失敗
+    except ValueError as e:
+      check strutils.contains($e.msg, "func")
+      check strutils.contains($e.msg, "callback")
+      check strutils.contains($e.msg, "Principal")
+      check strutils.contains($e.msg, "method names")
+
+  test "ネストした構造での制限テスト":
+    # ネストしたRecord内で非対応型を使用した場合のテスト
+    expect(ValueError):
+      let funcValue = newCFunc("aaaaa-aa", "test")
+      let nestedExample = %*{
+        "user": {
+          "name": "Alice",
+          "callback": funcValue  # この部分でエラー
+        }
+      }
+
+  test "代替実装パターンのテスト":
+    # func型とservice型の代替実装パターンを示すテスト
+    let alternativeExample = %*{
+      "user": {
+        "name": "Alice",
+        "callbacks": {
+          "successHandler": {
+            "principal": Principal.fromText("aaaaa-aa"),
+            "method": "handleSuccess"
+          },
+          "errorHandler": {
+            "principal": Principal.fromText("aaaaa-aa"), 
+            "method": "handleError"
+          }
+        },
+        "services": {
+          "ledger": Principal.fromText("ryjl3-tyaaa-aaaaa-aaaba-cai"),
+          "registry": Principal.fromText("rrkah-fqaaa-aaaaa-aaaaq-cai")
+        }
+      }
     }
     
     check:
-      serviceExample["ledger"].getService() == Principal.fromText("ryjl3-tyaaa-aaaaa-aaaba-cai")
-      serviceExample["registry"].getService() == Principal.fromText("rrkah-fqaaa-aaaaa-aaaaq-cai")
-      serviceExample["ledger"].isService() == true
+      alternativeExample["user"]["name"].getStr() == "Alice"
+      alternativeExample["user"]["callbacks"]["successHandler"]["method"].getStr() == "handleSuccess"
+      alternativeExample["user"]["callbacks"]["errorHandler"]["principal"].getPrincipal() == Principal.fromText("aaaaa-aa")
+      alternativeExample["user"]["services"]["ledger"].getPrincipal() == Principal.fromText("ryjl3-tyaaa-aaaaa-aaaba-cai")
 
   test "複合型のテスト":
     let complexExample = %*{
@@ -193,13 +239,16 @@ suite "CandidValue %*macro tests":
       },
       "status": newCVariant("success", newCText("User data retrieved")),
       "timestamp": 1710936000,
-      "services": [
-        newCService("ryjl3-tyaaa-aaaaa-aaaba-cai"),
-        newCService("rrkah-fqaaa-aaaaa-aaaaq-cai")
+      # 非対応型の代わりにPrincipal型を使用
+      "serviceRefs": [
+        Principal.fromText("ryjl3-tyaaa-aaaaa-aaaba-cai"),
+        Principal.fromText("rrkah-fqaaa-aaaaa-aaaaq-cai")
       ],
-      "callbacks": {
-        "onSuccess": newCFunc("aaaaa-aa", "handleSuccess"),
-        "onError": newCFunc("aaaaa-aa", "handleError")
+      "callbackRefs": {
+        "onSuccessPrincipal": Principal.fromText("aaaaa-aa"),
+        "onSuccessMethod": "handleSuccess",
+        "onErrorPrincipal": Principal.fromText("aaaaa-aa"),
+        "onErrorMethod": "handleError"
       }
     }
     
@@ -216,10 +265,10 @@ suite "CandidValue %*macro tests":
       complexExample["status"].getVariant().tag == "success"
       complexExample["status"].getVariant().value.getStr() == "User data retrieved"
       complexExample["timestamp"].getInt() == 1710936000
-      complexExample["services"].len() == 2
-      complexExample["services"][0].getService() == Principal.fromText("ryjl3-tyaaa-aaaaa-aaaba-cai")
-      complexExample["callbacks"]["onSuccess"].getFuncMethod() == "handleSuccess"
-      complexExample["callbacks"]["onError"].getFuncMethod() == "handleError"
+      complexExample["serviceRefs"].len() == 2
+      complexExample["serviceRefs"][0].getPrincipal() == Principal.fromText("ryjl3-tyaaa-aaaaa-aaaba-cai")
+      complexExample["callbackRefs"]["onSuccessMethod"].getStr() == "handleSuccess"
+      complexExample["callbackRefs"]["onErrorMethod"].getStr() == "handleError"
 
   test "asBlob拡張メソッドのテスト":
     # asBlobメソッドがseq[uint8]をBlob型として明示的に変換することを確認
@@ -264,21 +313,13 @@ suite "CandidValue %*macro tests":
       variantNewExample["error"].isVariant() == true
       variantNewExample["empty"].isVariant() == true
 
-  test "Service.new()構文のテスト":
-    # 新しいService.new()構文が正しく動作することを確認
-    let ledgerService = Service.new("ryjl3-tyaaa-aaaaa-aaaba-cai")
-    let registryService = Service.new("rrkah-fqaaa-aaaaa-aaaaq-cai")
-    
-    let serviceNewExample = %*{
-      "ledger": ledgerService,
-      "registry": registryService
-    }
-    
-    check:
-      serviceNewExample["ledger"].getService() == Principal.fromText("ryjl3-tyaaa-aaaaa-aaaba-cai")
-      serviceNewExample["registry"].getService() == Principal.fromText("rrkah-fqaaa-aaaaa-aaaaq-cai")
-      serviceNewExample["ledger"].isService() == true
-      serviceNewExample["registry"].isService() == true
+  test "Service.new()構文の制限テスト":
+    # Service.new()構文も非対応型として制限されることを確認
+    expect(ValueError):
+      let ledgerService = Service.new("ryjl3-tyaaa-aaaaa-aaaba-cai")
+      let serviceNewExample = %*{
+        "ledger": ledgerService
+      }
 
   test("t-ecdsa public key args"):
     type Curve = enum
