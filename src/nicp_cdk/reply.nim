@@ -177,3 +177,23 @@ proc reply*(msg: CandidFunc) =
   let encoded = encodeCandidMessage(@[value])
   ic0_msg_reply_data_append(ptrToInt(addr encoded[0]), encoded.len)
   ic0_msg_reply()
+
+
+# ================================================================================
+# Enum型サポート関数
+# ================================================================================
+
+proc reply*[T: enum](enumValue: T) =
+  ## Reply with an enum value (automatically converted to Variant)
+  try:
+    let value = newCandidValue(enumValue)  # Enum→Variant変換
+    let encoded = encodeCandidMessage(@[value])
+    ic0_msg_reply_data_append(ptrToInt(addr encoded[0]), encoded.len)
+    ic0_msg_reply()
+  except ValueError as e:
+    # Enum変換エラーの場合、エラーメッセージを返す
+    let errorText = "Enum conversion error: " & e.msg
+    let errorValue = newCandidText(errorText)
+    let encoded = encodeCandidMessage(@[errorValue])
+    ic0_msg_reply_data_append(ptrToInt(addr encoded[0]), encoded.len)
+    ic0_msg_reply()
