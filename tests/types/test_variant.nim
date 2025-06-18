@@ -1,9 +1,18 @@
+discard """
+  cmd: nim c --skipUserCfg $file
+"""
+
+# nim c -r --skipUserCfg tests/types/test_variant.nim
+
 import std/unittest
 import std/options
+import std/tables
 import ../../src/nicp_cdk/ic_types/candid_types
 import ../../src/nicp_cdk/ic_types/ic_principal
 import ../../src/nicp_cdk/ic_types/candid_message/candid_encode
 import ../../src/nicp_cdk/ic_types/candid_message/candid_decode
+import ../../src/nicp_cdk/ic_types/ic_variant
+import ../../src/nicp_cdk/ic_types/ic_record  # %*マクロのため
 
 suite "ic_variant tests":
   test "serializeCandid with variant success":
@@ -173,4 +182,185 @@ suite "ic_variant tests":
     let variant2 = newCandidVariant("error", newCandidText("Failed"))
     check variant1.variantVal.tag != variant2.variantVal.tag
     check variant1.variantVal.tag == candidHash("success")
-    check variant2.variantVal.tag == candidHash("error") 
+    check variant2.variantVal.tag == candidHash("error")
+
+  # ===== 新しいic_variant.nimの機能テスト =====
+
+  test "newSuccessVariant with string":
+    let variant = newSuccessVariant("Operation completed")
+    check variant.kind == ctVariant
+    check isSuccessVariant(variant)
+    check getSuccessValue(variant).textVal == "Operation completed"
+
+  test "newSuccessVariant with int":
+    let variant = newSuccessVariant(42)
+    check variant.kind == ctVariant
+    check isSuccessVariant(variant)
+    check getSuccessValue(variant).intVal == 42
+
+  test "newErrorVariant":
+    let variant = newErrorVariant("Something went wrong")
+    check variant.kind == ctVariant
+    check isErrorVariant(variant)
+    check getErrorValue(variant).textVal == "Something went wrong"
+
+  test "newSomeVariant and newNoneVariant":
+    let someVariant = newSomeVariant("有る値")
+    check isSomeVariant(someVariant)
+    check getSomeValue(someVariant).textVal == "有る値"
+
+    let noneVariant = newNoneVariant()
+    check isNoneVariant(noneVariant)
+
+  test "newNestedVariant":
+    let innerValue = newCandidText("inner text")
+    let nestedVariant = newNestedVariant("outer", "inner", innerValue)
+    check nestedVariant.kind == ctVariant
+    check isVariantTag(nestedVariant, "outer")
+    
+    let outerValue = getVariantValue(nestedVariant)
+    check outerValue.kind == ctVariant
+    check isVariantTag(outerValue, "inner")
+    check getVariantValue(outerValue).textVal == "inner text"
+
+  test "newVariantWithRecord":
+    var recordFields = initTable[string, CandidValue]()
+    recordFields["name"] = newCandidText("Alice")
+    recordFields["age"] = newCandidInt(30)
+    
+    let variant = newVariantWithRecord("user", recordFields)
+    check variant.kind == ctVariant
+    check isVariantTag(variant, "user")
+    
+    let recordValue = getVariantValue(variant)
+    check recordValue.kind == ctRecord
+
+  test "newVariantWithVector":
+    let elements = @[
+      newCandidText("item1"),
+      newCandidText("item2"),
+      newCandidText("item3")
+    ]
+    
+    let variant = newVariantWithVector("list", elements)
+    check variant.kind == ctVariant
+    check isVariantTag(variant, "list")
+    
+    let vectorValue = getVariantValue(variant)
+    check vectorValue.kind == ctVec
+    check vectorValue.vecVal.len == 3
+
+  test "variant validation":
+    let validVariant = newSuccessVariant("test")
+    check validateVariant(validVariant)
+    
+    let invalidVariant = newCandidText("not a variant")
+    check not validateVariant(invalidVariant)
+
+  test "getVariantInfo":
+    let variant = newErrorVariant("test error")
+    let info = getVariantInfo(variant)
+    check info.tag == candidHash("error")
+    check info.valueKind == ctText
+
+  # ===== Enum型のテスト =====
+
+  test "enum variant operations":
+    type MyTestStatus = enum
+      mtsActive = "active"
+      mtsPending = "pending"
+      mtsInactive = "inactive"
+
+    let enumVariant = newEnumVariant(mtsActive)
+    check enumVariant.kind == ctVariant
+    check isEnumVariant(enumVariant, MyTestStatus)
+    check getEnumValue(enumVariant, MyTestStatus) == mtsActive
+
+  test "enum variant with value":
+    type MyOperationResult = enum
+      morSuccess = "success"
+      morFailure = "failure"
+
+    let enumVariant = newEnumVariantWithValue(morSuccess, newCandidText("完了"))
+    check isEnumVariant(enumVariant, MyOperationResult)
+    check getEnumValue(enumVariant, MyOperationResult) == morSuccess
+    check getVariantValue(enumVariant).textVal == "完了"
+
+  # ===== 複雑なシナリオテスト =====
+
+  test "complex variant scenario - API response":
+    # API応答のシミュレーション
+    var successData = initTable[string, CandidValue]()
+    successData["user_id"] = newCandidInt(12345)
+    successData["username"] = newCandidText("alice_smith")
+    successData["email"] = newCandidText("alice@example.com")
+    
+    let successResponse = newVariantWithRecord("success", successData)
+    
+    check isVariantTag(successResponse, "success")
+    let userData = getVariantValue(successResponse)
+    check userData.kind == ctRecord
+
+    # エラー応答のシミュレーション
+    let errorResponse = newErrorVariant("User not found")
+    check isErrorVariant(errorResponse)
+    check getErrorValue(errorResponse).textVal == "User not found"
+
+  test "variant roundtrip encoding/decoding":
+    # 複雑なvariantのエンコード・デコードテスト
+    let originalVariant = newSuccessVariant("テスト成功")
+    let encoded = encodeCandidMessage(@[originalVariant])
+    let decoded = decodeCandidMessage(encoded)
+    
+    check decoded.values.len == 1
+    let decodedVariant = decoded.values[0]
+    check isSuccessVariant(decodedVariant)
+    check getSuccessValue(decodedVariant).textVal == "テスト成功"
+
+suite "ic_variant advanced tests":
+  test "multiple nested variants":
+    # 3層ネストのvariant
+    let deepestValue = newCandidText("最深層の値")
+    let level2Variant = newCandidVariant("level2", deepestValue)
+    let level1Variant = newCandidVariant("level1", level2Variant)
+    let rootVariant = newCandidVariant("root", level1Variant)
+    
+    check isVariantTag(rootVariant, "root")
+    let level1 = getVariantValue(rootVariant)
+    check isVariantTag(level1, "level1")
+    let level2 = getVariantValue(level1)
+    check isVariantTag(level2, "level2")
+    let deepest = getVariantValue(level2)
+    check deepest.textVal == "最深層の値"
+
+  test "variant performance with many tags":
+    # 多数の異なるタグでのvariant作成テスト
+    var variants: seq[CandidValue] = @[]
+    
+    for i in 0..<100:
+      let tag = "tag_" & $i
+      let value = newCandidInt(i)
+      let variant = newCandidVariant(tag, value)
+      variants.add(variant)
+    
+    # 全てのvariantが正しく作成されていることを確認
+    for i, variant in variants:
+      let expectedTag = "tag_" & $i
+      check isVariantTag(variant, expectedTag)
+      check getVariantValue(variant).intVal == i
+
+  test "variant error handling":
+    let notAVariant = newCandidText("text")
+    
+    # 型安全な関数でのエラーハンドリング
+    expect(ValueError):
+      discard getVariantTag(notAVariant)
+    
+    expect(ValueError):
+      discard getVariantValue(notAVariant)
+    
+    expect(ValueError):
+      discard getSuccessValue(newErrorVariant("error"))
+    
+    expect(ValueError):
+      discard getErrorValue(newSuccessVariant("success")) 
