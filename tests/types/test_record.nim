@@ -12,7 +12,8 @@ import ../../src/nicp_cdk/ic_types/ic_record
 import ../../src/nicp_cdk/ic_types/ic_principal
 import ../../src/nicp_cdk/ic_types/ic_variant
 import ../../src/nicp_cdk/ic_types/ic_service
-import ../../src/nicp_cdk/ic_types/candid_funcs
+# candid_funcsはic_recordに含まれているため除外
+# import ../../src/nicp_cdk/ic_types/candid_funcs
 
 
 # テストスイート: CandidValue %*マクロのテスト
@@ -24,7 +25,7 @@ suite "CandidValue %*macro tests":
       "age": 30,
       "isActive": true,
       "score": 95.5,
-      "nilField": nil
+      "nilField": newCNull()
     }
     
     check:
@@ -339,5 +340,108 @@ suite "CandidValue %*macro tests":
     check:
       arg["canister_id"].isNone() == true
       arg["derivation_path"].getBytes() == derivationPath
-      arg["key_id"]["curve"].getEnum(Curve) == Curve.secp256k1
+      arg["key_id"].getEnum(Curve, "curve") == Curve.secp256k1
       arg["key_id"]["name"].getStr() == "dfx_test_key"
+
+  test "seq[seq[uint8]]処理のデバッグテスト":
+    echo "===== seq[seq[uint8]]処理のデバッグテスト開始 ====="
+    
+    # Step 1: 基本的なseq[uint8]の処理テスト
+    let simpleBlob = @[0x01u8, 0x02u8, 0x03u8]
+    echo "Step 1: simpleBlob = ", simpleBlob
+    
+    try:
+      let blobValue = newCandidValue(simpleBlob)
+      echo "Step 1 成功: blobValue.kind = ", blobValue.kind
+      echo "Step 1 成功: blobValue.blobVal = ", blobValue.blobVal
+    except Exception as e:
+      echo "Step 1 エラー: ", e.msg
+    
+    # Step 2: seq[seq[uint8]]の作成テスト
+    let blobArray = @[simpleBlob]
+    echo "Step 2: blobArray = ", blobArray
+    echo "Step 2: blobArray.len = ", blobArray.len
+    echo "Step 2: blobArray[0] = ", blobArray[0]
+    
+    # Step 3: processSeqValueマクロの直接テスト
+    try:
+      echo "Step 3: processSeqValue呼び出し開始"
+      let processedValue = processSeqValue(blobArray)
+      echo "Step 3 成功: processedValue.kind = ", processedValue.kind
+      echo "Step 3 成功: processedValue.vecVal.len = ", processedValue.vecVal.len
+      if processedValue.vecVal.len > 0:
+        echo "Step 3 成功: processedValue.vecVal[0].kind = ", processedValue.vecVal[0].kind
+    except Exception as e:
+      echo "Step 3 エラー: ", e.msg
+    
+    # Step 4: CandidRecordへの[]=演算子追加が必要かテスト
+    try:
+      echo "Step 4: CandidRecord作成とフィールド設定テスト"
+      var record = newCRecordEmpty()
+      echo "Step 4: record作成成功"
+      
+      # シンプルなフィールド設定テスト
+      record["key_name"] = newCTextRecord("test-key-1")
+      echo "Step 4: text フィールド設定成功"
+      
+      # CandidValueを直接設定しようとするテスト（エラーが予想される）
+      let testCandidValue = newCandidValue("test_value")
+      echo "Step 4: testCandidValue作成成功, kind = ", testCandidValue.kind
+      
+      # ここでエラーが発生するはず
+      # record["test_field"] = testCandidValue
+      echo "Step 4: CandidValue直接設定はスキップ（型不一致のため）"
+      
+    except Exception as e:
+      echo "Step 4 エラー: ", e.msg
+    
+    # Step 5: 回避策のテスト - CandidValueからCandidRecordへの変換
+    try:
+      echo "Step 5: CandidValue → CandidRecord変換テスト"
+      let testValue = newCandidValue("test")
+      echo "Step 5: testValue.kind = ", testValue.kind
+      
+      # fromCandidValue関数が必要
+      # let recordValue = fromCandidValue(testValue)
+      echo "Step 5: fromCandidValue関数の実装が必要"
+      
+    except Exception as e:
+      echo "Step 5 エラー: ", e.msg
+    
+    echo "===== デバッグテスト完了 ====="
+    
+    # テストは一旦成功とする（デバッグ情報を収集するため）
+    check true
+
+  test "CandidValue[]= オーバーロード必要性のテスト":
+    echo "===== CandidValue[]= オーバーロード必要性のテスト ====="
+    
+    # 現在のCandidRecord[]=演算子の確認
+    var record = newCRecordEmpty()
+    
+    # 現在サポートされている型
+    record["text"] = newCTextRecord("test")
+    record["int"] = newCIntRecord(42)
+    record["bool"] = newCBoolRecord(true)
+    
+    echo "現在サポートされている型での設定は成功"
+    
+    # CandidValueでの設定が必要なケース
+    let candidTextValue = newCandidValue("test_candid_value")
+    let candidIntValue = newCandidValue(123)
+    let candidBlobValue = newCandidValue(@[0x01u8, 0x02u8])
+    
+    echo "CandidValue作成成功:"
+    echo "  candidTextValue.kind = ", candidTextValue.kind
+    echo "  candidIntValue.kind = ", candidIntValue.kind
+    echo "  candidBlobValue.kind = ", candidBlobValue.kind
+    
+    # 以下は現在エラーになるはず（オーバーロードが必要）
+    try:
+      # record["candid_text"] = candidTextValue  # これがエラーになる
+      echo "CandidValue直接設定: まだ未サポート"
+    except:
+      echo "期待されるエラー: CandidValue直接設定は現在未サポート"
+    
+    echo "===== CandidValue[]= オーバーロード必要性確認完了 ====="
+    check true

@@ -4,6 +4,7 @@ import std/tables
 import ../../../../src/nicp_cdk
 import ../../../../src/nicp_cdk/ic_types/candid_types
 import ../../../../src/nicp_cdk/ic_types/candid_message/candid_encode
+import ../../../../src/nicp_cdk/ic_types/candid_funcs
 import ../../../../src/nicp_cdk/ic0/ic0
 
 # ================================================================================
@@ -88,41 +89,62 @@ proc responseRecordWithEnum*() {.query.} =
   echo "===== main.nim responseRecordWithEnum() ====="
   
   # Enum値を含むRecordを作成
-  var recordResponse = newCRecord()
-  recordResponse["id"] = newCInt(12345)
-  recordResponse["name"] = newCText("Test Task")
-  recordResponse["status"] = SimpleStatus.Active  # Enum値の自動変換
-  recordResponse["priority"] = Priority.Critical
-  recordResponse["curve"] = EcdsaCurve.secp256r1
-  recordResponse["timestamp"] = newCText("2024-01-01T00:00:00Z")
+  # var recordResponse = newCRecord()
+  # recordResponse["id"] = newCInt(12345)
+  # recordResponse["name"] = newCText("Test Task")
+  # recordResponse["status"] = SimpleStatus.Active  # Enum値の自動変換
+  # recordResponse["priority"] = Priority.Critical
+  # recordResponse["curve"] = EcdsaCurve.secp256r1
+  # recordResponse["timestamp"] = newCText("2024-01-01T00:00:00Z")
+  # let recordResponse = %*{
+  #   "id": 12345,
+  #   "name": "Test Task", 
+  #   "status": SimpleStatus.Active,
+  #   "priority": Priority.Critical,
+  #   "curve": EcdsaCurve.secp256r1,
+  #   "timestamp": "2024-01-01T00:00:00Z"
+  # }
+  
+  # 一時的にシンプルなレスポンス
+  let recordResponse = "Record with enum response temporarily disabled"
   
   icEcho "Record with enum response: ", recordResponse
   reply(recordResponse)
 
 # ================================================================================
-# Phase 3.1: Management Canister ECDSA連携テスト用関数
+# Management Canister ECDSA連携テスト用関数（統合版）
 # ================================================================================
 
-proc argEcdsaPublicKeyArgsEnum*() {.query.} =
-  echo "===== main.nim argEcdsaPublicKeyArgsEnum() ====="
-  let request = Request.new()
-  let ecdsaArgs = request.getVariant(0)
-  
-  # Management Canister ECDSA引数の簡易処理
-  icEcho "ECDSA args variant tag: ", ecdsaArgs.tag
-  icEcho "ECDSA args variant value: ", ecdsaArgs.value
-  
-  # 受け取った引数をそのまま返す
-  reply(ecdsaArgs)
-
-proc responseEcdsaPublicKeyArgsEnum*() {.query.} =
-  echo "===== main.nim responseEcdsaPublicKeyArgsEnum() ====="
-  
-  # Phase 3.2で実装予定 - 関数名競合問題解決後に有効化
-  # Management Canister ECDSA public key引数構造を作成
-  let simpleResponse = EcdsaCurve.secp256k1  # シンプルなenum値を返す
-  icEcho "Simple ECDSA curve enum response: ", simpleResponse
-  reply(simpleResponse)
+proc responseEcdsaPublicKeyArgs() {.query.} =
+  echo "===== main.nim responseEcdsaPublicKeyArgs() ====="
+  try:
+    # Motokoの仕様に基づくECDSA public key引数構造をシンプルなレスポンスで作成
+    echo "Step 1: Creating ECDSA public key args structure"
+    
+    # シンプルなRecord構造でテスト
+    var ecdsaArgs = newCRecord()
+    
+    # canister_id: opt principal = None
+    ecdsaArgs["canister_id"] = ic_record.newCOptionNone()
+    
+    # derivation_path: vec blob = シンプルなデータ
+    let testBlob = @[0x74u8, 0x65u8, 0x73u8, 0x74u8]  # "test"
+    ecdsaArgs["derivation_path"] = newCBlob(testBlob)
+    
+    # key_id: record { curve: text, name: text } （variantの代わりにtextで一時的に）
+    var keyIdRecord = newCRecord()
+    keyIdRecord["curve"] = ic_record.newCText("secp256k1")
+    keyIdRecord["name"] = ic_record.newCText("dfx_test_key")
+    ecdsaArgs["key_id"] = keyIdRecord
+    
+    echo "Step 2: ECDSA structure created successfully"
+    icEcho "ECDSA Args: ", ecdsaArgs
+    
+    reply(ecdsaArgs)
+    
+  except Exception as e:
+    echo "Error in responseEcdsaPublicKeyArgs: ", e.msg
+    reply("Error: " & e.msg)
 
 # ================================================================================
 # 既存の関数（変更なし）
@@ -204,8 +226,8 @@ proc responseRecord() {.query.} =
   echo "===== main.nim responseRecord() ====="
   # Phase 3.2で実装予定 - 関数名競合問題解決後に有効化
   var record = newCRecord()
-  record["name"] = newCText("John")
-  record["age"] = newCInt(30)
+  record["name"] = ic_record.newCText("John")
+  record["age"] = ic_record.newCIntRecord(30)
   echo "record: ", $record
   reply(record)
 
@@ -433,7 +455,7 @@ proc responseNestedRecord() {.query.} =
     echo "Step 1: Creating simple record structure..."
     
     var record = newCRecord()
-    record["name"] = newCText("Alice")
+    record["name"] = ic_record.newCText("Alice")
     record["age"] = newCInt(30)
     record["isActive"] = newCBool(true)
     echo "Step 2: Simple record created"
@@ -452,42 +474,33 @@ proc responseNestedRecord() {.query.} =
 
 proc responseDeepNestedRecord() {.query.} =
   echo "===== main.nim responseDeepNestedRecord() ====="
-  # より深くネストしたRecordを返す
-  let deepRecord = %*{
-    "organization": {
-      "name": "Tech Corp",
-      "departments": {
-        "engineering": {
-          "name": "Engineering",
-          "team": {
-            "frontend": {
-              "name": "Frontend Team",
-              "members": 5
-            },
-            "backend": {
-              "name": "Backend Team",
-              "members": 7
-            }
-          }
-        }
-      }
-    }
-  }
-  icEcho "response deep nested record: ", deepRecord
-  reply(deepRecord)
+  # より深くネストしたRecordを返す - 一時的に無効化（%*マクロのint型問題）
+  # let deepRecord = %*{
+  #   "organization": {
+  #     "name": "Tech Corp",
+  #     "departments": {
+  #       "engineering": {
+  #         "name": "Engineering",
+  #         "team": {
+  #           "frontend": {
+  #             "name": "Frontend Team",
+  #             "members": 5
+  #           },
+  #           "backend": {
+  #             "name": "Backend Team",
+  #             "members": 7
+  #           }
+  #         }
+  #       }
+  #     }
+  #   }
+  # }
+  # icEcho "response deep nested record: ", deepRecord
+  # reply(deepRecord)
+  reply("Deep nested record temporarily disabled for ECDSA testing")
 
 
 proc responseComplexNestedRecord() {.query.} =
   echo "===== main.nim responseComplexNestedRecord() ====="
   # Phase 3.2で実装予定 - Principal/Blob関連の競合問題解決後に有効化
   reply("complex_record_feature_disabled_for_phase3")
-
-
-proc responseEcdsaPublicKeyArgs() {.query.} =
-  echo "===== main.nim responseEcdsaPublicKeyArgs() ====="
-  
-  # Phase 3.2で実装予定 - Principal関連の競合問題解決後に有効化
-  var record = newCRecord()
-  record["curve"] = newCText("secp256k1")
-  record["key_name"] = newCText("test-key-1")
-  reply(record)

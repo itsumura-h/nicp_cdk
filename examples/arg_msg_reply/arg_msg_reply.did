@@ -24,10 +24,12 @@ service : {
   argEcdsaCurve: (variant { secp256k1; secp256r1 }) -> (variant { secp256k1; secp256r1 }) query;
   responseEcdsaPublicKeyArgs: () -> (
     record {
-      canister_id : principal;
-      derivation_path : text;
-      curve : text;
-      key_name : text;
+      canister_id : opt principal;
+      derivation_path : blob;
+      key_id : record {
+        curve : text;
+        name : text;
+      };
     }
   ) query;
   argFunc: (func () -> ()) -> (func () -> ()) query;
@@ -66,37 +68,7 @@ service : {
     }
   ) query;
   
-  // Phase 3.1: Management Canister ECDSA連携テスト用関数定義
-  argEcdsaPublicKeyArgsEnum: (
-    record {
-      canister_id : opt principal;
-      derivation_path : vec blob;
-      key_id : record {
-        curve : variant { secp256k1; secp256r1 };
-        name : text;
-      };
-    }
-  ) -> (
-    record {
-      canister_id : opt principal;
-      derivation_path : vec blob;
-      key_id : record {
-        curve : variant { secp256k1; secp256r1 };
-        name : text;
-      };
-    }
-  ) query;
-  
-  responseEcdsaPublicKeyArgsEnum: () -> (
-    record {
-      canister_id : opt principal;
-      derivation_path : vec blob;
-      key_id : record {
-        curve : variant { secp256k1; secp256r1 };
-        name : text;
-      };
-    }
-  ) query;
+
 
   msgPrincipal: () -> (principal) query;
   responseBlob: () -> (blob) query;

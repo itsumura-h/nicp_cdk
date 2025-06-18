@@ -8,11 +8,11 @@ import ./consts
 
 # https://wiki.internetcomputer.org/wiki/Principal
 const
-  ManagementCanister = "aaaaa-aa"
-  GovernanceCanister = "rrkah-fqaaa-aaaaa-aaaaq-cai"
-  LedgerCanister = "ryjl3-tyaaa-aaaaa-aaaba-cai"
-  NetworkNervousSystemCanister = "tdb26-jop6k-aogll-7ltgs-eruif-6kk7m-qpktf-gdiqx-mxtrf-vb5e6-eqe"
-  AnonymousUser = "2vxsx-fae"
+  MANAGEMENT_CANISTER = "aaaaa-aa"
+  GOVERNANCE_CANISTER = "rrkah-fqaaa-aaaaa-aaaaq-cai"
+  LEDGER_CANISTER = "ryjl3-tyaaa-aaaaa-aaaba-cai"
+  NETWORK_NERVOUS_SYSTEM_CANISTER = "tdb26-jop6k-aogll-7ltgs-eruif-6kk7m-qpktf-gdiqx-mxtrf-vb5e6-eqe"
+  ANONYMOUS_USER = "2vxsx-fae"
 
 
 type Principal* = object
@@ -78,6 +78,26 @@ proc fromText*(_:type Principal, text: string): Principal =
   assert checksum == calculatedChecksum, "Invalid Principal checksum"
   
   result.value = text
+
+
+proc managementCanister*(_:type Principal): Principal =
+  return Principal.fromText(MANAGEMENT_CANISTER)
+  
+
+proc governanceCanister*(_:type Principal): Principal =
+  return Principal.fromText(GOVERNANCE_CANISTER)
+  
+
+proc ledgerCanister*(_:type Principal): Principal =
+  return Principal.fromText(LEDGER_CANISTER)
+  
+
+proc networkNervousSystemCanister*(_:type Principal): Principal =
+  return Principal.fromText(NETWORK_NERVOUS_SYSTEM_CANISTER)
+  
+
+proc anonymousUser*(_:type Principal): Principal =
+  return Principal.fromText(ANONYMOUS_USER)
 
 
 proc readPrincipal*(data: seq[byte]; offset: var int): Principal =

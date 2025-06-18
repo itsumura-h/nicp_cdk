@@ -251,6 +251,22 @@ proc `[]=`*[T: enum](cv: CandidRecord, key: string, enumValue: T) =
     raise newException(ValueError, 
       &"Failed to set enum value at field '{key}': {e.msg}")
 
+proc `[]=`*(cv: CandidRecord, key: string, value: CandidValue) =
+  ## CandidValueを直接CandidRecordのフィールドとして設定
+  if cv.kind != ckRecord:
+    raise newException(ValueError, &"Cannot set field on {cv.kind}, expected record")
+  
+  try:
+    # CandidValueのバリデーションを実行
+    validateRecordFieldType(value, key)
+    
+    # フィールドに設定
+    cv.fields[key] = value
+    
+  except ValueError as e:
+    raise newException(ValueError, 
+      &"Failed to set CandidValue at field '{key}': {e.msg}")
+
 # ===== Option/Variant専用ヘルパー =====
 
 # テスト用のVariantラッパー型
@@ -337,7 +353,7 @@ proc newCVariantRecord*(tag: string): CandidRecord =
   let variant = CandidVariant(tag: candidHash(tag), value: newCandidNull())
   CandidRecord(kind: ckVariant, variantVal: variant)
 
-proc newCPrincipal*(principalId: string): CandidRecord =
+proc newCPrincipalRecord*(principalId: string): CandidRecord =
   ## Principal CandidRecordを作成
   CandidRecord(kind: ckPrincipal, principalId: principalId)
 
@@ -348,6 +364,182 @@ proc newCOptionNone*(): CandidRecord =
 proc asSome*(value: CandidRecord): CandidRecord =
   ## Some Option CandidRecordを作成
   CandidRecord(kind: ckOption, optVal: some(value))
+
+# ===== CandidValue ⇔ CandidRecord 変換関数 =====
+
+proc candidValueToCandidRecord*(cv: CandidValue): CandidRecord =
+  ## CandidValueからCandidRecordに変換
+  case cv.kind:
+  of ctNull:
+    newCNull()
+  of ctBool:
+    newCBoolRecord(cv.boolVal)
+  of ctNat, ctInt:
+    newCIntRecord(cv.natVal.int64)
+  of ctNat8, ctNat16, ctNat32, ctNat64:
+    newCIntRecord(cv.natVal.int64)
+  of ctInt8, ctInt16, ctInt32, ctInt64:
+    newCIntRecord(cv.intVal)
+  of ctFloat32:
+    CandidRecord(kind: ckFloat32, f32Val: cv.float32Val)
+  of ctFloat64:
+    newCFloat64Record(cv.float64Val)
+  of ctText:
+    newCTextRecord(cv.textVal)
+  of ctBlob:
+    newCBlobRecord(cv.blobVal)
+  of ctPrincipal:
+    newCPrincipalRecord(cv.principalVal.value)
+  of ctVec:
+    var arrayRecord = newCArrayRecord()
+    for elem in cv.vecVal:
+      arrayRecord.add(fromCandidValue(elem))
+    arrayRecord
+  of ctRecord:
+    var recordRecord = newCRecordEmpty()
+    for key, value in cv.recordVal.fields:
+      recordRecord.fields[key] = value
+    recordRecord
+  of ctOpt:
+    if cv.optVal.isSome():
+      asSome(fromCandidValue(cv.optVal.get()))
+    else:
+      newCOptionNone()
+  of ctVariant:
+    CandidRecord(kind: ckVariant, variantVal: cv.variantVal)
+  of ctFunc:
+    CandidRecord(kind: ckFunc, funcRef: (cv.funcVal.principal.value, cv.funcVal.methodName))
+  of ctService:
+    CandidRecord(kind: ckService, serviceId: cv.serviceVal.value)
+  else:
+    newCNull()  # 未対応の型はnullとして扱う
+
+proc toCandidValue*(cr: CandidRecord): CandidValue =
+  ## CandidRecordからCandidValueに変換
+  case cr.kind:
+  of ckNull:
+    newCandidNull()
+  of ckBool:
+    newCandidValue(cr.boolVal)
+  of ckInt:
+    newCandidValue(cr.intVal)
+  of ckFloat32:
+    CandidValue(kind: ctFloat32, float32Val: cr.f32Val)
+  of ckFloat64:
+    newCandidValue(cr.f64Val)
+  of ckText:
+    newCandidValue(cr.strVal)
+  of ckBlob:
+    newCandidValue(cr.bytesVal)
+  of ckPrincipal:
+    newCandidValue(Principal.fromText(cr.principalId))
+  of ckArray:
+    var vecItems: seq[CandidValue] = @[]
+    for elem in cr.elems:
+      vecItems.add(toCandidValue(elem))
+    CandidValue(kind: ctVec, vecVal: vecItems)
+  of ckRecord:
+    var candidRecord = CandidRecord(kind: ckRecord, fields: initOrderedTable[string, CandidValue]())
+    for key, value in cr.fields:
+      candidRecord.fields[key] = value
+    toCandidValue(candidRecord)
+  of ckOption:
+    if cr.optVal.isSome():
+      CandidValue(kind: ctOpt, optVal: some(toCandidValue(cr.optVal.get())))
+    else:
+      CandidValue(kind: ctOpt, optVal: none(CandidValue))
+  of ckVariant:
+    CandidValue(kind: ctVariant, variantVal: cr.variantVal)
+  of ckFunc:
+    let funcValue = CandidFunc(
+      principal: Principal.fromText(cr.funcRef.principal),
+      methodName: cr.funcRef.methodName,
+      args: @[],
+      returns: @[],
+      annotations: @[]
+    )
+    CandidValue(kind: ctFunc, funcVal: funcValue)
+  of ckService:
+    newCandidValue(Principal.fromText(cr.serviceId))
+  else:
+    newCandidNull()
+
+# ===== 型チェック関数 =====
+
+proc isNull*(cv: CandidRecord): bool =
+  ## レコードがNull型かチェック
+  cv.kind == ckNull
+
+proc isPrincipal*(cv: CandidRecord): bool =
+  ## レコードがPrincipal型かチェック
+  cv.kind == ckPrincipal
+
+proc isBlob*(cv: CandidRecord): bool =
+  ## レコードがBlob型かチェック
+  cv.kind == ckBlob
+
+proc isFloat32*(cv: CandidRecord): bool =
+  ## レコードがFloat32型かチェック
+  cv.kind == ckFloat32
+
+proc isFloat64*(cv: CandidRecord): bool =
+  ## レコードがFloat64型かチェック
+  cv.kind == ckFloat64
+
+proc isVariant*(cv: CandidRecord): bool =
+  ## レコードがVariant型かチェック
+  cv.kind == ckVariant
+
+proc isArray*(cv: CandidRecord): bool =
+  ## レコードがArray型かチェック
+  cv.kind == ckArray
+
+# ===== 拡張メソッド =====
+
+proc asBlob*(data: seq[uint8]): seq[uint8] =
+  ## seq[uint8]をBlob型として明示的に標識（実際は同じ型を返す）
+  data
+
+# ===== テスト用ヘルパー関数 =====
+
+proc newCFloat32*(value: float32): CandidRecord =
+  ## Float32値のCandidRecordを作成
+  CandidRecord(kind: ckFloat32, f32Val: value)
+
+proc newCText*(value: string): CandidRecord =
+  ## Text値のCandidRecordを作成
+  CandidRecord(kind: ckText, strVal: value)
+
+proc newCVariant*(tag: string, value: CandidRecord = newCNull()): CandidRecord =
+  ## Variant CandidRecordを作成
+  let variant = CandidVariant(tag: candidHash(tag), value: value.toCandidValue())
+  CandidRecord(kind: ckVariant, variantVal: variant)
+
+proc newCFunc*(principal: string, methodName: string): CandidRecord =
+  ## Func CandidRecordを作成
+  CandidRecord(kind: ckFunc, funcRef: (principal, methodName))
+
+proc newCService*(principal: string): CandidRecord =
+  ## Service CandidRecordを作成
+  CandidRecord(kind: ckService, serviceId: principal)
+
+# ===== Variant/Service用のビルダー型 =====
+
+type
+  VariantBuilder* = object
+  ServiceBuilder* = object
+
+proc new*(_: type VariantBuilder, tag: string, value: CandidRecord = newCNull()): CandidRecord =
+  ## Variant.new()構文用
+  newCVariant(tag, value)
+
+proc new*(_: type ServiceBuilder, principal: string): CandidRecord =
+  ## Service.new()構文用
+  newCService(principal)
+
+# グローバル変数として使用できるようにする
+let Variant* = VariantBuilder()
+let Service* = ServiceBuilder()
 
 # ===== フィールド名のハッシュ化関数 =====
 
@@ -428,203 +620,49 @@ proc `$`*(cv: CandidRecord): string =
 
 # ===== 便利マクロ（JsonNodeの %* に相当） =====
 
-macro candidLit*(x: untyped): CandidRecord =
-  ## CandidRecordリテラル構築マクロ
-  ## 
-  ## サポートする構文:
-  ## - 基本型: bool, 整数, 浮動小数点, string
-  ## - Principal: Principal型の変数
-  ## - Blob: seq[uint8]型の変数
-  ## - Array: [elem1, elem2, ...]
-  ## - Record: {key1: value1, key2: value2, ...}
-  ## - Option: some(value) または none(Type)
-  ## - 明示的構築: newCNull(), newCArray(), newCRecord(), newCBlob(), newCPrincipal(), newCVariant(), newCFunc(), newCService()
-  ## - Null: nil または newCNull()
-  
-  proc buildCandidValue(node: NimNode): NimNode =
-    case node.kind:
-    # リテラル値
-    of nnkIntLit, nnkInt8Lit, nnkInt16Lit, nnkInt32Lit, nnkInt64Lit,
-       nnkUIntLit, nnkUInt8Lit, nnkUInt16Lit, nnkUInt32Lit, nnkUInt64Lit:
-      newCall(bindSym"newCIntRecord", node)
-    
-    of nnkFloatLit, nnkFloat32Lit, nnkFloat64Lit:
-      newCall(bindSym"newCFloat64Record", node)
-    
-    of nnkStrLit:
-      newCall(bindSym"newCTextRecord", node)
-    
-    # nil値をnewCNull()として解釈
-    of nnkNilLit:
-      newCall(bindSym"newCNull")
-    
-    of nnkIdent:
-      if node.strVal == "true":
-        newCall(bindSym"newCBoolRecord", newLit(true))
-      elif node.strVal == "false":
-        newCall(bindSym"newCBoolRecord", newLit(false))
-      elif node.strVal == "cnull":
-        newCall(bindSym"newCNull")
-      else:
-        # 変数参照の場合は実行時に型チェック
-        let varName = node
-        quote do:
-          when `varName` is CandidRecord:
-            `varName`
-          elif `varName` is bool:
-            newCBoolRecord(`varName`)
-          elif `varName` is SomeInteger:
-            newCIntRecord(`varName`.int64)
-          elif `varName` is SomeFloat:
-            newCFloat64Record(`varName`.float)
-          elif `varName` is string:
-            newCTextRecord(`varName`)
-          elif `varName` is seq[uint8]:
-            newCBlobRecord(`varName`)
-          elif `varName` is Principal:
-            newCPrincipal(`varName`.value)
-          elif `varName` is enum:
-            newCVariantRecord($`varName`)
-          elif `varName` is Option:
-            if `varName`.isSome():
-              asSome(candidLit(`varName`.get()))
-            else:
-              newCOptionNone()
-          elif `varName` is type(nil):
-            newCNull()
-          else:
-            {.error: "Unsupported type for candidLit macro".}
-    
-    # 配列リテラル [elem1, elem2, ...]
-    of nnkBracket:
-      let arrayVar = genSym(nskVar, "arr")
-      result = newStmtList()
-      result.add(newVarStmt(arrayVar, newCall(bindSym"newCArrayRecord")))
-      for elem in node:
-        result.add(newCall(bindSym"add", arrayVar, buildCandidValue(elem)))
-      result.add(arrayVar)
-      return result
-    
-    # レコードリテラル {key1: value1, key2: value2, ...}
-    of nnkTableConstr:
-      let recordVar = genSym(nskVar, "rec")
-      result = newStmtList()
-      result.add(newVarStmt(recordVar, newCall(bindSym"newCRecordEmpty")))
-      for pair in node:
-        if pair.kind == nnkExprColonExpr and pair.len == 2:
-          let key = pair[0]
-          let value = pair[1]
-          # キーは文字列リテラルまたは識別子
-          let keyStr = if key.kind == nnkStrLit:
-                        key
-                       elif key.kind == nnkIdent:
-                        newLit(key.strVal)
-                       else:
-                        error("Record key must be string literal or identifier", key)
-                        newLit("")
-          result.add(newAssignment(
-            newNimNode(nnkBracketExpr).add(recordVar, keyStr),
-            buildCandidValue(value)
-          ))
-        else:
-          error("Invalid record syntax", pair)
-      result.add(recordVar)
-      return result
-
-    # 関数呼び出し（none(Type), some(value)など）
-    of nnkCall:
-      if node.len >= 1 and node[0].kind == nnkIdent:
-        if node[0].strVal == "none":
-          # none(Type)の場合
-          newCall(bindSym"newCOptionNone")
-        elif node[0].strVal == "some" and node.len == 2:
-          # some(value)の場合
-          newCall(bindSym"asSome", buildCandidValue(node[1]))
-        else:
-          # その他の関数呼び出しは実行時処理
-          quote do:
-            let val = `node`
-            when val is CandidRecord:
-              val
-            elif val is bool:
-              newCBoolRecord(val)
-            elif val is SomeInteger:
-              newCIntRecord(val.int64)
-            elif val is SomeFloat:
-              newCFloat64Record(val.float)
-            elif val is string:
-              newCTextRecord(val)
-            elif val is seq[uint8]:
-              newCBlobRecord(val)
-            elif val is Principal:
-              newCPrincipal(val.value)
-            elif val is enum:
-              newCVariantRecord($val)
-            elif val is Option:
-              if val.isSome():
-                asSome(candidLit(val.get()))
-              else:
-                newCOptionNone()
-            else:
-              {.error: "Unsupported type for candidLit macro".}
-      else:
-        # その他の複雑な式は実行時処理
-        quote do:
-          let val = `node`
-          when val is CandidRecord:
-            val
-          elif val is bool:
-            newCBool(val)
-          elif val is SomeInteger:
-            newCInt(val.int64)
-          elif val is SomeFloat:
-            newCFloat64(val.float)
-          elif val is string:
-            newCText(val)
-          elif val is seq[uint8]:
-            newCBlob(val)
-          elif val is Principal:
-            newCPrincipal(val.value)
-          elif val is enum:
-            newCVariant($val)
-          elif val is Option:
-            if val.isSome():
-              asSome(candidLit(val.get()))
-            else:
-              newCOptionNone()
-          else:
-            {.error: "Unsupported type for candidLit macro".}
-
-    # その他の式（変数参照、複雑な式など）
-    else:
-      # 実行時に型判定
-      quote do:
-        let val = `node`
-        when val is CandidRecord:
-          val
-        elif val is bool:
-          newCBool(val)
-        elif val is SomeInteger:
-          newCInt(val.int64)
-        elif val is SomeFloat:
-          newCFloat64(val.float)
-        elif val is string:
-          newCText(val)
-        elif val is seq[uint8]:
-          newCBlob(val)
-        elif val is Principal:
-          newCPrincipal(val.value)
-        elif val is enum:
-          newCVariant($val)
-        elif val is Option:
-          if val.isSome():
-            asSome(candidLit(val.get()))
-          else:
-            newCOptionNone()
-        else:
-          {.error: "Unsupported type for candidLit macro".}
-  
-  buildCandidValue(x)
+template candidLit*(x: untyped): CandidRecord =
+  ## CandidRecordリテラル構築テンプレート（シンプル版）
+  candidValueToCandidRecord(newCandidValue(x))
 
 # %C エイリアス（Nim 1.6+ では %演算子の定義にはspecial文字の組み合わせが必要）
 template `%*`*(x: untyped): CandidRecord = candidLit(x)
+
+# ===== 汎用seq処理のヘルパーマクロ =====
+
+macro processSeqValue*(seqVal: typed): CandidValue =
+  ## seq[T]型を汎用的に処理するヘルパーマクロ
+  let newCandidValueSym = bindSym"newCandidValue"
+  
+  quote do:
+    block:
+      var vecItems: seq[CandidValue] = @[]
+      for item in `seqVal`:
+        when item is seq[uint8]:
+          # seq[uint8]はblobとして処理
+          vecItems.add(`newCandidValueSym`(item))
+        elif item is seq:
+          # ネストしたseq[T]は再帰的に処理
+          vecItems.add(processSeqValue(item))
+        elif item is bool:
+          vecItems.add(`newCandidValueSym`(item))
+        elif item is SomeInteger:
+          vecItems.add(`newCandidValueSym`(item))
+        elif item is SomeFloat:
+          vecItems.add(`newCandidValueSym`(item))
+        elif item is string:
+          vecItems.add(`newCandidValueSym`(item))
+        elif item is Principal:
+          vecItems.add(`newCandidValueSym`(item))
+        elif item is enum:
+          vecItems.add(`newCandidValueSym`(item))
+        elif item is Option:
+          if item.isSome():
+            vecItems.add(`newCandidValueSym`(item.get()))
+          else:
+            vecItems.add(CandidValue(kind: ctOpt, optVal: none(CandidValue)))
+        else:
+          # 型が判明しない場合はテキストとして処理
+          vecItems.add(`newCandidValueSym`($item))
+      
+      # vec blob型として返す
+      CandidValue(kind: ctVec, vecVal: vecItems)
