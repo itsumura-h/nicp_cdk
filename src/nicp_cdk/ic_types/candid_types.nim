@@ -13,7 +13,7 @@ type
     ctNull, ctBool, ctNat, ctInt,
     ctNat8, ctNat16, ctNat32, ctNat64,
     ctInt8, ctInt16, ctInt32, ctInt64,
-    ctFloat32, ctFloat64,
+    ctFloat, ctFloat32, ctFloat64,
     ctText, ctReserved, ctEmpty, ctPrincipal,
     ctRecord, ctVariant, ctOpt, ctVec, ctBlob,
     ctFunc, ctService, ctQuery, ctOneway, ctCompositeQuery
@@ -30,6 +30,7 @@ type
     of ctInt16: int16Val*: int16
     of ctInt32: int32Val*: int32
     of ctInt64: int64Val*: int64
+    of ctFloat: floatVal*: float
     of ctFloat32: float32Val*: float32
     of ctFloat64: float64Val*: float64
     of ctText: textVal*: string
@@ -73,9 +74,11 @@ type
   # CandidRecord
   # ==================================================
   CandidRecordKind* = enum
-    ckNull, ckBool, ckInt, ckInt8, ckInt16, ckInt32, ckInt64, 
+    ckNull, ckBool,
+    ckInt, ckInt8, ckInt16, ckInt32, ckInt64, 
     ckNat, ckNat8, ckNat16, ckNat32, ckNat64,
-    ckFloat32, ckFloat64, ckText, ckBlob,
+    ckFloat, ckFloat32, ckFloat64,
+    ckText, ckBlob,
     ckRecord, ckVariant, ckOption, ckPrincipal, ckFunc, ckService, ckArray
 
   CandidRecord* = ref object
@@ -104,6 +107,8 @@ type
       nat32Val*: uint32
     of ckNat64:
       nat64Val*: uint64
+    of ckFloat:
+      fVal*: float
     of ckFloat32:
       f32Val*: float32
     of ckFloat64:
@@ -158,6 +163,8 @@ proc `$`*(value: CandidValue): string =
     result = $value.int32Val
   of ctInt64:
     result = $value.int64Val
+  of ctFloat:
+    result = $value.floatVal
   of ctFloat32:
     result = $value.float32Val
   of ctFloat64:
@@ -257,9 +264,11 @@ proc typeCodeFromCandidType*(candidType: CandidType): int =
 proc isPrimitiveType*(candidType: CandidType): bool =
   ## 基本型かどうかを判定
   case candidType:
-  of ctNull, ctBool, ctNat, ctInt, ctNat8, ctNat16, ctNat32, ctNat64,
-     ctInt8, ctInt16, ctInt32, ctInt64, ctFloat32, ctFloat64,
-     ctText, ctReserved, ctEmpty, ctPrincipal:
+  of ctNull, ctBool,
+    ctInt, ctInt8, ctInt16, ctInt32, ctInt64,
+    ctNat, ctNat8, ctNat16, ctNat32, ctNat64,
+    ctFloat, ctFloat32, ctFloat64,
+    ctText, ctReserved, ctEmpty, ctPrincipal:
     return true
   else:
     return false
@@ -304,6 +313,8 @@ proc newCandidValue*[T](value: T): CandidValue =
     CandidValue(kind: ctFloat64, float64Val: value)
   elif T is float or T is float32:
     CandidValue(kind: ctFloat32, float32Val: value.float32)
+  elif T is float:
+    CandidValue(kind: ctFloat, floatVal: value)
   elif T is string:
     CandidValue(kind: ctText, textVal: value)
   elif T is Principal:
@@ -351,9 +362,6 @@ proc newCandidNull*(): CandidValue =
 proc newCandidBool*(value: bool): CandidValue =
   CandidValue(kind: ctBool, boolVal: value)
 
-proc newCandidNat*(value: uint): CandidValue =
-  CandidValue(kind: ctNat, natVal: value)
-
 proc newCandidInt*(value: int): CandidValue =
   CandidValue(kind: ctInt, intVal: value)
 
@@ -369,11 +377,26 @@ proc newCandidInt32*(value: int32): CandidValue =
 proc newCandidInt64*(value: int64): CandidValue =
   CandidValue(kind: ctInt64, int64Val: value)
 
-proc newCandidFloat*(value: float32): CandidValue =
-  CandidValue(kind: ctFloat32, float32Val: value)
+proc newCandidNat*(value: uint): CandidValue =
+  CandidValue(kind: ctNat, natVal: value)
+
+proc newCandidNat8*(value: uint8): CandidValue =
+  CandidValue(kind: ctNat8, natVal: uint(value))
+
+proc newCandidNat16*(value: uint16): CandidValue =
+  CandidValue(kind: ctNat16, natVal: uint(value))
+
+proc newCandidNat32*(value: uint32): CandidValue =
+  CandidValue(kind: ctNat32, natVal: uint(value))
+
+proc newCandidNat64*(value: uint64): CandidValue =
+  CandidValue(kind: ctNat64, natVal: uint(value))
 
 proc newCandidFloat*(value: float): CandidValue =
-  newCandidFloat(value.float32)
+  CandidValue(kind: ctFloat, floatVal: value)
+
+proc newCandidFloat32*(value: float32): CandidValue =
+  CandidValue(kind: ctFloat32, float32Val: value)
 
 proc newCandidFloat64*(value: float64): CandidValue =
   CandidValue(kind: ctFloat64, float64Val: value)

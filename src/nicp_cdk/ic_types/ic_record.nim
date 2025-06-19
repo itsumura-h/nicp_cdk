@@ -114,6 +114,12 @@ proc getNat64*(cv: CandidRecord): uint64 =
     raise newException(ValueError, &"Expected Nat64, got {cv.kind}")
   cv.nat64Val
 
+proc getFloat*(cv: CandidRecord): float =
+  ## 浮動小数点値を取得
+  if cv.kind != ckFloat64:
+    raise newException(ValueError, &"Expected Float64, got {cv.kind}")
+  cv.f64Val
+
 proc getFloat32*(cv: CandidRecord): float32 =
   ## 単精度浮動小数点値を取得
   if cv.kind != ckFloat32:
@@ -666,6 +672,8 @@ proc candidValueToJsonString(cv: CandidRecord, indent: int = 0): string =
     $cv.nat32Val
   of ckNat64:
     $cv.nat64Val
+  of ckFloat:
+    $cv.fVal
   of ckFloat32:
     $cv.f32Val
   of ckFloat64:

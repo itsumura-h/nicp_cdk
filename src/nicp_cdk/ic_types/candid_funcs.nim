@@ -247,6 +247,8 @@ proc toCandidValue*(cr: CandidRecord): CandidValue =
     result = CandidValue(kind: ctNat32, natVal: uint(cr.nat32Val))
   of ckNat64:
     result = CandidValue(kind: ctNat64, natVal: uint(cr.nat64Val))
+  of ckFloat:
+    result = CandidValue(kind: ctFloat, floatVal: cr.fVal)
   of ckFloat32:
     result = CandidValue(kind: ctFloat32, float32Val: cr.f32Val)
   of ckFloat64:

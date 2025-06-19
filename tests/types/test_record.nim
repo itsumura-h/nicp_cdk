@@ -68,3 +68,31 @@ suite("record uint"):
       "version": 1.uint64
     }
     check record["version"].getNat64() == 1.uint64
+
+
+suite("record float"):
+  test "record float":
+    let record = %*{
+      "version": 1.23
+    }
+    check record["version"].getFloat() == 1.23
+
+  test "record float32":
+    let record = %*{
+      "version": 1.23.float32
+    }
+    check record["version"].getFloat32() == 1.23.float32
+
+  test "record float64":
+    let record = %*{
+      "version": 1.23.float64
+    }
+    check record["version"].getFloat64() == 1.23.float64
+
+
+suite("record text"):
+  test "record text":
+    let record = %*{
+      "message": "hello"
+    }
+    check record["message"].getStr() == "hello"
