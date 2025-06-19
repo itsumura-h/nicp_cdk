@@ -1,0 +1,147 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+19 Record
+===
+
+このブランチで実装することは以下の通りです。
+- NimのJsonNodeの実装を調査し、`%` と `%*` マクロの仕組みを理解する
+- ICPオリジナルのPrincipalやBlobといった型も扱えるRecord型の設計を行う
+- JsonNodeを参考にしつつ、Candidに特化した動的型システムの改善を実装する
+
+## 進捗
+- [ ] NimのJsonNodeの `%` と `%*` マクロの実装詳細を調査
+- [ ] 既存のCandidRecordとCandidValueの実装を分析
+- [ ] PrincipalやBlob型を含むCandid型システムの設計改善
+- [ ] %*マクロの機能拡張（型安全性とエラーハンドリングの向上）
+- [ ] テストケースの充実化
+
+## 参考資料
+- Nim標準ライブラリ json.html: https://nim-lang.org/docs/json.html
+- json実装: https://github.com/nim-lang/Nim/blob/version-2-2/lib/pure/json.nim
+- 既存実装: src/nicp_cdk/ic_types/ic_record.nim
+- 既存実装: src/nicp_cdk/ic_types/candid_types.nim
+- テスト: tests/types/test_ecdsa_public_key_args.nim
+- 設計ドキュメント: docs/ja/refarence/candid-record-as-jsonnode.md
+
+## 調査結果・設計まとめ
+
+### NimのJsonNodeの `%` と `%*` マクロの仕組み
+
+#### `%` 演算子（プロシージャ）
+Nim標準ライブラリでは、`%` は各型に対するオーバーロードされたプロシージャとして実装：
+```nim
+proc `%`(b: bool): JsonNode
+proc `%`(n: int): JsonNode  
+proc `%`(s: string): JsonNode
+proc `%`[T: object](mdc:o: T): JsonNode
+# など、各型に対して個別にオーバーロード
+```
+
+#### `%*` マクロ
+`%*` はマクロとして実装され、コンパイル時にASTを解析してリテラル構文を直接JsonNode構造に変換：
+```nim
+macro `%*`(x: untyped): untyped
+  # コンパイル時にx（ASTノード）を解析
+  # オブジェクトリテラル、配列リテラル等を認識
+  # 対応するJsonNode構築コードを生成
+```
+
+JsonNodeの参考実装
+```
+proc toJsonImpl(x: NimNode): NimNode =
+  case x.kind
+  of nnkBracket: # array
+    if x.len == 0: return newCall(bindSym"newJArray")
+    result = newNimNode(nnkBracket)
+    for i in 0 ..< x.len:
+      result.add(toJsonImpl(x[i]))
+    result = newCall(bindSym("%", brOpen), result)
+  of nnkTableConstr: # object
+    if x.len == 0: return newCall(bindSym"newJObject")
+    result = newNimNode(nnkTableConstr)
+    for i in 0 ..< x.len:
+      x[i].expectKind nnkExprColonExpr
+      result.add newTree(nnkExprColonExpr, x[i][0], toJsonImpl(x[i][1]))
+    result = newCall(bindSym("%", brOpen), result)
+  of nnkCurly: # empty object
+    x.expectLen(0)
+    result = newCall(bindSym"newJObject")
+  of nnkNilLit:
+    result = newCall(bindSym"newJNull")
+  of nnkPar:
+    if x.len == 1: result = toJsonImpl(x[0])
+    else: result = newCall(bindSym("%", brOpen), x)
+  else:
+    result = newCall(bindSym("%", brOpen), x)
+
+macro `%*`*(x: untyped): untyped =
+  ## Convert an expression to a JsonNode directly, without having to specify
+  ## `%` for every element.
+  result = toJsonImpl(x)
+```
+
+
+### 既存実装の分析
+
+**CandidRecord型**: JsonNodeと同様のvariant object構造
+**candidLit マクロ**: `%*`相当の機能、ただし配列処理やICP型の統合に改善余地
+**%* テンプレート**: 既存実装あり、Principal型の特別処理も含む
+
+### 設計改善提案
+
+#### 1. 統合的な%演算子の実装
+```nim
+proc `%`*(p: Principal): CandidRecord = 
+  CandidRecord(kind: ckPrincipal, principalId: $p)
+
+proc `%`*(blob: seq[uint8]): CandidRecord = 
+  CandidRecord(kind: ckBlob, bytesVal: blob)
+
+proc `%`*[T](mdc:opt: Option[T]): CandidRecord =
+  if opt.isSome(): CandidRecord(kind: ckOption, hasValue: true, optVal: %(opt.get()))
+  else: CandidRecord(kind: ckOption, hasValue: false)
+```
+
+#### 2. 強化された%*マクロ
+- 配列構造: `[1, 2, 3]` のサポート強化
+- 関数呼び出し: `some(value)`, `none(Type)` の認識
+- Principal/Blob型のリテラル構文: `principal("aaaaa-aa")`, `blob([0x41, 0x42])`
+
+#### 3. JsonNodeとの主な違い
+
+| 機能 | JsonNode | CandidRecord（提案） |
+|------|----------|-------------------|
+| **基本型** | Null, Bool, Int, Float, String, Array, Object | + Principal, Blob, Option, Variant |
+| **数値型** | Int, Float | Int8/16/32/64, Nat8/16/32/64, Float32/64 |
+| **配列** | 同種要素のみ | 異種要素対応 |
+| **Optional** | nil許可 | Option[T]型で明示的 |
+| **キーハッシュ** | 文字列のまま | 内部的にハッシュ化（Candid仕様） |
+
+### 実装目標
+
+1. **型安全性**: コンパイル時の型チェック強化
+2. **ICP型サポート**: Principal、Blob型のネイティブサポート  
+3. **直感的構文**: JSON風のリテラル記法
+4. **相互運用性**: 既存コードとの互換性維持
+5. **パフォーマンス**: マクロによるコンパイル時最適化
+
+### 使用例
+```nim
+let candidData = %* {
+  "user": {
+    "name": "Alice",
+    "id": principal("aaaaa-aa"),
+    "avatar": blob([0x89, 0x50, 0x4E, 0x47])
+  },
+  "permissions": ["read", "write", "admin"],
+  "metadata": {
+    "created": some("2023-01-01"),
+    "updated": none(string),
+    "version": 1
+  }
+}
+```
+

@@ -5,6 +5,7 @@ discard """
 
 import std/unittest
 import ../../src/nicp_cdk/ic_types/ic_record
+import ../../src/nicp_cdk/ic_types/ic_principal
 
 
 suite("record null"):
@@ -121,3 +122,16 @@ suite("record text"):
     check record["value"].getStr() == "hello"
 
 
+suite("record principal"):
+  test "record managementCanister 1":
+    let record = %*{
+      "value": Principal.managementCanister()
+    }
+    check record["value"].getPrincipal() == Principal.managementCanister()
+
+  test "record managementCanister 2":
+    let p = Principal.managementCanister()
+    let record = %*{
+      "value": p
+    }
+    check record["value"].getPrincipal() == p
