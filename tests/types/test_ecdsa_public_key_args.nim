@@ -93,6 +93,28 @@ suite "ECDSA Public Key Args tests (Motoko Style)":
     check ecdsaArgs.recordVal.fields.hasKey("key_id")
     check ecdsaArgs.recordVal.fields["key_id"].kind == ctRecord
 
+  test "enhanced %* macro functionality test":
+    # 拡張された%*マクロの基本機能テスト
+    let basicRecord = %*{
+      "name": "test_ecdsa",
+      "version": 1,
+      "active": true
+    }
+    
+    # 構造の検証
+    check basicRecord.kind == ckRecord
+    check basicRecord.fields.len == 3
+    
+    # 基本構造の検証
+    check basicRecord.fields.hasKey("name")
+    check basicRecord.fields.hasKey("version") 
+    check basicRecord.fields.hasKey("active")
+    
+    # 型の検証
+    check basicRecord.fields["name"].textVal == "test_ecdsa"
+    check basicRecord.fields["version"].intVal == 1
+    check basicRecord.fields["active"].boolVal == true
+
   test "key_id record structure (Motoko style)":
     # 明示的なkey_idレコード作成
     var keyIdFields = initTable[string, CandidValue]()
@@ -201,6 +223,86 @@ suite "ECDSA Public Key Args tests (Motoko Style)":
     check decodedRecord.recordVal.fields.hasKey(derivationPathHash)
     check decodedRecord.recordVal.fields.hasKey(keyIdHash)
 
+  test "enhanced %* macro encode/decode test":
+    # 拡張された%*マクロのエンコード・デコードテスト
+    let basicRecord = %*{
+      "message": "Hello ECDSA",
+      "count": 42,
+      "enabled": true
+    }
+    
+    # CandidRecordからCandidValueに変換してエンコード
+    let candidValue = newCandidValue(basicRecord)
+    
+    echo "Original basic record fields (%*): ", candidValue.recordVal.fields.keys.toSeq()
+    
+    let encoded = encodeCandidMessage(@[candidValue])
+    echo "Encoded message length (%*): ", encoded.len
+    
+    let decoded = decodeCandidMessage(encoded)
+    echo "Decoded values count (%*): ", decoded.values.len
+    
+    check decoded.values.len == 1
+    check decoded.values[0].kind == ctRecord
+    
+    # デコード後の構造確認
+    let decodedRecord = decoded.values[0]
+    echo "Decoded record type (%*): ", decodedRecord.kind
+    echo "Decoded record fields count (%*): ", decodedRecord.recordVal.fields.len
+    check decodedRecord.recordVal.fields.len == 3
+
+  test "nested records with %* macro":
+    # ネストしたRecordの%*マクロテスト
+    let nestedRecord = %*{
+      "outer": {
+        "inner": "nested_value",
+        "number": 123
+      },
+      "simple": "simple_value"
+    }
+    
+    # CandidRecordからCandidValueに変換してエンコード
+    let candidValue = newCandidValue(nestedRecord)
+    
+    check candidValue.kind == ctRecord
+    check candidValue.recordVal.fields.len == 2
+    
+    # ネストした構造の確認
+    check candidValue.recordVal.fields.hasKey("outer")
+    check candidValue.recordVal.fields.hasKey("simple")
+    
+    # エンコード・デコード往復テスト
+    let encoded = encodeCandidMessage(@[candidValue])
+    let decoded = decodeCandidMessage(encoded)
+    check decoded.values.len == 1
+    check decoded.values[0].kind == ctRecord
+
+  test "simplified ECDSA structure with %* macro":
+    # 簡単なECDSA構造の%*マクロテスト
+    let testPrincipal = Principal.governanceCanister()
+    let blobCaller = testPrincipal.bytes
+    
+    # key_idの部分を%*マクロで作成
+    let keyIdRecord = %*{
+      "curve": "secp256k1",
+      "name": "dfx_test_key"
+    }
+    
+    # メインのECDSA構造を%*マクロで作成（一部は明示的なCandidValue）
+    let mainRecord = %*{
+      "algorithm": "ECDSA",
+      "version": 1
+    }
+    
+    # 構造の検証
+    check keyIdRecord.kind == ckRecord
+    check keyIdRecord.fields.len == 2
+    check keyIdRecord.fields.hasKey("curve")
+    check keyIdRecord.fields.hasKey("name")
+    
+    check mainRecord.kind == ckRecord
+    check mainRecord.fields.len == 2
+
   test "Management Canister style ecdsa args":
     # Management CanisterでのECDSA呼び出しスタイル（明示的作成）
     let managementPrincipal = Principal.managementCanister()
@@ -307,3 +409,81 @@ suite "ECDSA Public Key Args tests (Motoko Style)":
     check ecdsaArgs.recordVal.fields.len == 3
     check ecdsaArgs.recordVal.fields.hasKey("derivation_path")
     check ecdsaArgs.recordVal.fields["derivation_path"].kind == ctVec 
+
+  test "advanced %* macro with ECDSA-like structure":
+    # より高度な%*マクロのテスト（ECDSA風構造）
+    let testPrincipal = Principal.governanceCanister()
+    let blobCaller = testPrincipal.bytes
+    
+    # %*マクロでネストした構造を作成（ECDSA風だが簡略化）
+    let ecdsaLikeRecord = %*{
+      "public_key_request": {
+        "key_type": "ECDSA",
+        "curve": "secp256k1",
+        "derivation": "test_derivation"
+      },
+      "metadata": {
+        "version": 1,
+        "timestamp": 1234567890,
+        "enabled": true
+      },
+      "security": {
+        "level": "high",
+        "auth_required": true
+      }
+    }
+    
+    # 構造の検証
+    check ecdsaLikeRecord.kind == ckRecord
+    check ecdsaLikeRecord.fields.len == 3
+    
+    # ネストした構造の確認
+    check ecdsaLikeRecord.fields.hasKey("public_key_request")
+    check ecdsaLikeRecord.fields.hasKey("metadata") 
+    check ecdsaLikeRecord.fields.hasKey("security")
+    
+    # CandidValueに変換してエンコード・デコードテスト
+    let candidValue = newCandidValue(ecdsaLikeRecord)
+    let encoded = encodeCandidMessage(@[candidValue])
+    let decoded = decodeCandidMessage(encoded)
+    
+    check decoded.values.len == 1
+    check decoded.values[0].kind == ctRecord
+    check decoded.values[0].recordVal.fields.len == 3
+
+  test "%* macro with mixed value types":
+    # %*マクロの混合データ型テスト
+    let mixedRecord = %*{
+      "text_field": "Hello World",
+      "number_field": 42,
+      "boolean_field": true,
+      "float_field": 3.14,
+      "nested_record": {
+        "inner_text": "Inner Value",
+        "inner_number": 100
+      }
+    }
+    
+    # 構造の検証
+    check mixedRecord.kind == ckRecord
+    check mixedRecord.fields.len == 5
+    
+    # 各フィールドの型検証
+    check mixedRecord.fields.hasKey("text_field")
+    check mixedRecord.fields.hasKey("number_field")
+    check mixedRecord.fields.hasKey("boolean_field")
+    check mixedRecord.fields.hasKey("float_field")
+    check mixedRecord.fields.hasKey("nested_record")
+    
+    # 値の検証
+    check mixedRecord.fields["text_field"].textVal == "Hello World"
+    check mixedRecord.fields["number_field"].intVal == 42
+    check mixedRecord.fields["boolean_field"].boolVal == true
+    
+    # エンコード・デコードテスト
+    let candidValue = newCandidValue(mixedRecord)
+    let encoded = encodeCandidMessage(@[candidValue])
+    let decoded = decodeCandidMessage(encoded)
+    
+    check decoded.values.len == 1
+    check decoded.values[0].kind == ctRecord

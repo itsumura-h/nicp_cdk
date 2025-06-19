@@ -7,11 +7,11 @@ discard """
 import std/unittest
 import std/options
 import std/strutils
-import ../../src/nicp_cdk/ic_types/candid_types
-import ../../src/nicp_cdk/ic_types/ic_record
-import ../../src/nicp_cdk/ic_types/ic_principal
-import ../../src/nicp_cdk/ic_types/ic_variant
-import ../../src/nicp_cdk/ic_types/ic_service
+import ../../../src/nicp_cdk/ic_types/candid_types
+import ../../../src/nicp_cdk/ic_types/ic_record
+import ../../../src/nicp_cdk/ic_types/ic_principal
+import ../../../src/nicp_cdk/ic_types/ic_variant
+import ../../../src/nicp_cdk/ic_types/ic_service
 # candid_funcsはic_recordに含まれているため除外
 # import ../../src/nicp_cdk/ic_types/candid_funcs
 

@@ -620,9 +620,78 @@ proc `$`*(cv: CandidRecord): string =
 
 # ===== 便利マクロ（JsonNodeの %* に相当） =====
 
-template candidLit*(x: untyped): CandidRecord =
-  ## CandidRecordリテラル構築テンプレート（シンプル版）
-  candidValueToCandidRecord(newCandidValue(x))
+macro candidLit*(x: untyped): CandidRecord =
+  ## CandidRecordリテラル構築マクロ（高機能版）
+  
+  proc buildRecord(node: NimNode): NimNode =
+    case node.kind:
+    of nnkCurly, nnkTableConstr:
+      # Record構造 { "key": value, ... }
+      let recordVar = genSym(nskVar, "record")
+      var stmts = newStmtList()
+      
+      # 空のRecordを作成
+      stmts.add quote do:
+        var `recordVar` = newCRecord()
+      
+      # 各フィールドを追加
+      for pair in node:
+        if pair.kind == nnkExprColonExpr:
+          let key = pair[0]
+          let value = pair[1]
+          
+          case value.kind:
+          of nnkStrLit:
+            # 文字列値
+            stmts.add quote do:
+              `recordVar`[`key`] = candid_funcs.newCText(`value`)
+          of nnkIntLit:
+            # 整数値
+            stmts.add quote do:
+              `recordVar`[`key`] = candid_funcs.newCInt(`value`)
+          of nnkFloat32Lit, nnkFloat64Lit, nnkFloatLit:
+            # 浮動小数点値
+            stmts.add quote do:
+              `recordVar`[`key`] = candid_funcs.newCFloat64(`value`)
+          of nnkIdent:
+            # 識別子（bool等）
+            if value.strVal == "true":
+              stmts.add quote do:
+                `recordVar`[`key`] = candid_funcs.newCBool(true)
+            elif value.strVal == "false":
+              stmts.add quote do:
+                `recordVar`[`key`] = candid_funcs.newCBool(false)
+            else:
+              # その他の識別子は文字列として扱う
+              stmts.add quote do:
+                `recordVar`[`key`] = candid_funcs.newCText($`value`)
+          of nnkCurly, nnkTableConstr:
+            # ネストしたRecord
+            let nestedRecord = buildRecord(value)
+            stmts.add quote do:
+              `recordVar`[`key`] = `nestedRecord`
+          else:
+            # その他の値は文字列に変換
+            stmts.add quote do:
+              `recordVar`[`key`] = candid_funcs.newCText($`value`)
+      
+      stmts.add(recordVar)
+      return newBlockStmt(stmts)
+    
+    of nnkStrLit:
+      # 単純な文字列
+      return quote do:
+        candid_funcs.newCText(`node`)
+    of nnkIntLit:
+      # 単純な整数
+      return quote do:
+        candid_funcs.newCInt(`node`)
+    else:
+      # その他の値は文字列に変換
+      return quote do:
+        candid_funcs.newCText($`node`)
+  
+  return buildRecord(x)
 
 # %C エイリアス（Nim 1.6+ では %演算子の定義にはspecial文字の組み合わせが必要）
 template `%*`*(x: untyped): CandidRecord = candidLit(x)

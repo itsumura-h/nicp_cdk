@@ -75,6 +75,8 @@ proc ecdsaArgs() {.query.} =
 - Record型とCandid messageとのencode、decodeができること
 を要件とします。
 
+実装が終わったら進捗を更新してください。
+
 - [ ] 単体テストで実装
   - [ ] Record型でOption型を扱えること
   - [ ] Record型でPrincipal型を扱えること
