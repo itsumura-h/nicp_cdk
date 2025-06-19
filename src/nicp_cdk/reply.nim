@@ -183,6 +183,13 @@ proc reply*(msg: CandidFunc) =
 # Enum型サポート関数
 # ================================================================================
 
+proc reply*(msg: CandidValue) =
+  ## Reply with a CandidValue directly
+  let encoded = encodeCandidMessage(@[msg])
+  ic0_msg_reply_data_append(ptrToInt(addr encoded[0]), encoded.len)
+  ic0_msg_reply()
+
+
 proc reply*[T: enum](enumValue: T) =
   ## Reply with an enum value (automatically converted to Variant)
   try:

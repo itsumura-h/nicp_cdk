@@ -213,7 +213,7 @@ proc typeCodeFromCandidType*(candidType: CandidType): int =
   of ctEmpty: -17
   of ctOpt: -18
   of ctVec: -19
-  of ctBlob: -19  # BlobはVecと同じ型コード
+  of ctBlob: -19  # Blobは実際にはvec nat8として扱われる
   of ctRecord: -20
   of ctVariant: -21
   of ctFunc: -22
@@ -278,6 +278,12 @@ proc newCandidValue*[T](value: T): CandidValue =
     CandidValue(kind: ctPrincipal, principalVal: value)
   elif T is seq[uint8]:
     CandidValue(kind: ctBlob, blobVal: value)
+  elif T is seq[seq[uint8]]:
+    # vec blob型のサポート - seq[uint8]要素をそれぞれblobとして処理
+    var vecElements = newSeq[CandidValue]()
+    for blob in value:
+      vecElements.add(CandidValue(kind: ctBlob, blobVal: blob))
+    CandidValue(kind: ctVec, vecVal: vecElements)
   elif T is seq[byte]:
     CandidValue(kind: ctVec, vecVal: value.mapIt(newCandidValue(it)))
   elif T is CandidRecord:
@@ -286,6 +292,12 @@ proc newCandidValue*[T](value: T): CandidValue =
     CandidValue(kind: ctVariant, variantVal: value)
   elif T is Option[CandidValue]:
     CandidValue(kind: ctOpt, optVal: value)
+  elif T is Option[Principal]:
+    # Option[Principal]型のサポート
+    if value.isSome():
+      CandidValue(kind: ctOpt, optVal: some(newCandidValue(value.get())))
+    else:
+      CandidValue(kind: ctOpt, optVal: none(CandidValue))
   elif T is seq[CandidValue]:
     CandidValue(kind: ctVec, vecVal: value)
   elif T is tuple[principal: Principal, methodName: string]:
@@ -507,3 +519,73 @@ proc isQuery*(f: CandidFunc): bool =
 proc isOneway*(f: CandidFunc): bool =
   ## func参照がoneway関数かどうか判定
   "oneway" in f.annotations
+
+proc newCandidVecBlob*(blobs: seq[seq[uint8]]): CandidValue =
+  ## seq[seq[uint8]]からvec blob型のCandidValueを作成
+  var vecElements = newSeq[CandidValue]()
+  for blob in blobs:
+    vecElements.add(CandidValue(kind: ctBlob, blobVal: blob))
+  CandidValue(kind: ctVec, vecVal: vecElements)
+
+# ================================================================================
+# Vec/Blob統一処理 - 動的型変換API
+# ================================================================================
+
+proc getItems*(cv: CandidValue): seq[CandidValue] =
+  ## CandidValueからVec型として要素を取得（統一内部表現から変換）
+  if cv.kind != ctVec:
+    raise newException(ValueError, "CandidValue is not a vector type, got: " & $cv.kind)
+  
+  # 統一内部表現のvecValから直接返す
+  return cv.vecVal
+
+proc getBlob*(cv: CandidValue): seq[uint8] =
+  ## CandidValueからBlob型として要素を取得（統一内部表現から変換）
+  if cv.kind != ctVec:
+    raise newException(ValueError, "CandidValue is not a vector type (or blob), got: " & $cv.kind)
+  
+  # 統一内部表現から uint8 seq に変換
+  var blobData = newSeq[uint8]()
+  for item in cv.vecVal:
+    if item.kind == ctNat8:
+      blobData.add(uint8(item.natVal))
+    else:
+      raise newException(ValueError, "Vector contains non-nat8 element, cannot convert to blob. Element type: " & $item.kind)
+  
+  return blobData
+
+proc asBlobValue*(data: seq[uint8]): CandidValue =
+  ## seq[uint8]を明示的にBlob用CandidValueとして作成（Record挿入用）
+  # 統一内部表現として vec nat8 で作成
+  var vecElements = newSeq[CandidValue]()
+  for byteVal in data:
+    vecElements.add(CandidValue(kind: ctNat8, natVal: uint(byteVal)))
+  
+  var result = CandidValue(kind: ctVec, vecVal: vecElements)
+  # Blob意図の記録用にメタ情報を設定（将来の拡張用）
+  # 注意: 現在はkind=ctVecで統一、実際の型判定はAPI使用時
+  return result
+
+proc asSeqValue*[T](data: seq[T]): CandidValue =
+  ## seq[T]を明示的にVector用CandidValueとして作成（Record挿入用）
+  var vecElements = newSeq[CandidValue]()
+  for item in data:
+    vecElements.add(newCandidValue(item))
+  
+  return CandidValue(kind: ctVec, vecVal: vecElements)
+
+proc isVecNat8*(cv: CandidValue): bool =
+  ## CandidValueがvec nat8型かどうか判定（統一内部表現での判定）
+  if cv.kind != ctVec:
+    return false
+  
+  # すべての要素がnat8かチェック
+  for item in cv.vecVal:
+    if item.kind != ctNat8:
+      return false
+  
+  return true
+
+proc canConvertToBlob*(cv: CandidValue): bool =
+  ## CandidValueがBlob型に変換可能かチェック
+  return isVecNat8(cv)
