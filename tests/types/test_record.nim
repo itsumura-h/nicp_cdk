@@ -150,3 +150,70 @@ suite("record blob"):
       "value": b.asBlob()
     }
     check record["value"].getBlob() == b
+
+
+suite("record variant"):
+  test "record variant":
+    type EcdsaCurve {.pure.} = enum
+      secp256k1
+      secp256r1
+      secp384r1
+      secp521r1
+
+    let record = %*{
+      "value": EcdsaCurve.secp256k1
+    }
+    check record["value"].getVariant(EcdsaCurve) == EcdsaCurve.secp256k1
+
+  test "record variant - different enum values":
+    type EcdsaCurve {.pure.} = enum
+      secp256k1
+      secp256r1
+      secp384r1
+      secp521r1
+
+    # 各Enum値をテスト
+    for curve in EcdsaCurve:
+      let record = %*{
+        "curve": curve
+      }
+      check record["curve"].getVariant(EcdsaCurve) == curve
+
+  test "record variant - multiple enum types":
+    type 
+      EcdsaCurve {.pure.} = enum
+        secp256k1
+        secp256r1
+      
+      SimpleStatus {.pure.} = enum
+        Active
+        Inactive
+
+    let record = %*{
+      "curve": EcdsaCurve.secp256r1,
+      "status": SimpleStatus.Active
+    }
+    
+    check record["curve"].getVariant(EcdsaCurve) == EcdsaCurve.secp256r1
+    check record["status"].getVariant(SimpleStatus) == SimpleStatus.Active
+
+  test "record variant - type mismatch error":
+    type 
+      EcdsaCurve {.pure.} = enum
+        secp256k1
+        secp256r1
+      
+      SimpleStatus {.pure.} = enum
+        Active
+        Inactive
+
+    let record = %*{
+      "curve": EcdsaCurve.secp256k1
+    }
+    
+    # 正しい型では成功
+    check record["curve"].getVariant(EcdsaCurve) == EcdsaCurve.secp256k1
+    
+    # 間違った型ではエラー
+    expect(ValueError):
+      discard record["curve"].getVariant(SimpleStatus)

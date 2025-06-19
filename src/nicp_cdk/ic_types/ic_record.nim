@@ -338,6 +338,10 @@ type
     tag*: string
     value*: CandidRecord
 
+proc `==`*[T: enum](vr: VariantResult, enumValue: T): bool =
+  ## VariantResultとEnum値の比較演算子
+  vr.tag == $enumValue
+
 proc isSome*(cv: CandidRecord): bool =
   ## Optionが値を持つかチェック
   cv.kind == ckOption and cv.optVal.isSome()
@@ -376,6 +380,33 @@ proc getVariant*(cv: CandidRecord): VariantResult =
     tag: tagStr,
     value: fromCandidValue(cv.variantVal.value)
   )
+
+proc getVariant*[T: enum](cv: CandidRecord, enumType: typedesc[T]): T =
+  ## Variant CandidRecordから指定されたEnum型の値を直接取得
+  if cv.kind != ckVariant:
+    raise newException(ValueError, &"Expected Variant, got {cv.kind}")
+  
+  let hashVal = cv.variantVal.tag
+  
+  # 指定されたEnum型の全ての値を試して、ハッシュが一致するものを探す
+  for enumValue in T:
+    if candidHash($enumValue) == hashVal:
+      return enumValue
+  
+  # 見つからない場合はエラー
+  var enumValuesStr = ""
+  var isFirst = true
+  for enumValue in T:
+    if not isFirst:
+      enumValuesStr.add(", ")
+    enumValuesStr.add($enumValue)
+    isFirst = false
+  
+  raise newException(ValueError, 
+    &"Cannot convert Variant tag hash {hashVal} to enum type {$T}. " &
+    &"Available enum values: {enumValuesStr}")
+
+
 
 # ===== 必要なヘルパー関数 =====
 
@@ -1022,3 +1053,9 @@ proc setField*[T](record: CandidRecord, key: string, value: T) =
     let candidValue = newCandidValue(value)
     validateRecordFieldType(candidValue, key)
     record.fields[key] = candidValue
+
+proc `%`*[T: enum](enumValue: T): CandidRecord =
+  ## Enum値をCandidRecord Variant型に変換
+  let enumStr = $enumValue
+  let variant = CandidVariant(tag: candidHash(enumStr), value: newCandidNull())
+  CandidRecord(kind: ckVariant, variantVal: variant)
