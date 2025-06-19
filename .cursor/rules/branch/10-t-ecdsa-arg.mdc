@@ -6,7 +6,11 @@ alwaysApply: true
 # ECDSA Public Key Args実装状況
 
 ## 目標
-ICPのManagement CanisterのECDSA Public Key関数を呼ぶために必要な引数を、Candidの仕様に基づいて正しくCandidメッセージに変換する機能を実装する。
+1. `%*`マクロで全ての型からRecord型を作れるようにする。
+
+2. `%*`マクロによって、ICPのManagement CanisterのECDSA Public Key関数を呼ぶために必要な引数を、Record型のオブジェクトとして作ることができる。
+
+3. ICPのManagement CanisterのECDSA Public Key関数を呼ぶために必要な引数を、Candidの仕様に基づいて正しくCandidメッセージに変換する機能を実装する。
 
 `/application/examples/ecdsa_args/src/ecdsa_args_backend/main.nim` をビルドする時は
 `cd /application/examples/ecdsa_args && dfx deploy -y` コマンドを実行すること。

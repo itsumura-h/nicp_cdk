@@ -744,7 +744,7 @@ macro candidLit*(x: untyped): CandidRecord =
       
       # 空のRecordを作成
       stmts.add quote do:
-        var `recordVar` = newCRecord()
+        var `recordVar` = candid_funcs.newCRecord()
       
       # 各フィールドを追加
       for pair in node:
@@ -753,6 +753,22 @@ macro candidLit*(x: untyped): CandidRecord =
           let value = pair[1]
           
           case value.kind:
+          of nnkNilLit:
+            # nilリテラルの処理（Nimの標準JSONライブラリと同じ方式）
+            stmts.add quote do:
+              `recordVar`[`key`] = candid_funcs.newCNull()
+          of nnkIdent:
+            # 識別子（bool等）
+            if value.strVal == "true":
+              stmts.add quote do:
+                `recordVar`[`key`] = candid_funcs.newCBool(true)
+            elif value.strVal == "false":
+              stmts.add quote do:
+                `recordVar`[`key`] = candid_funcs.newCBool(false)
+            else:
+              # その他の識別子は文字列として扱う
+              stmts.add quote do:
+                `recordVar`[`key`] = candid_funcs.newCText($`value`)
           of nnkStrLit:
             # 文字列値
             stmts.add quote do:
@@ -826,18 +842,6 @@ macro candidLit*(x: untyped): CandidRecord =
                   `recordVar`[`key`] = candid_funcs.newCText($`value`)
             else:
               # DotExprだが型名が識別子でない場合は文字列として扱う
-              stmts.add quote do:
-                `recordVar`[`key`] = candid_funcs.newCText($`value`)
-          of nnkIdent:
-            # 識別子（bool等）
-            if value.strVal == "true":
-              stmts.add quote do:
-                `recordVar`[`key`] = candid_funcs.newCBool(true)
-            elif value.strVal == "false":
-              stmts.add quote do:
-                `recordVar`[`key`] = candid_funcs.newCBool(false)
-            else:
-              # その他の識別子は文字列として扱う
               stmts.add quote do:
                 `recordVar`[`key`] = candid_funcs.newCText($`value`)
           of nnkCurly, nnkTableConstr:

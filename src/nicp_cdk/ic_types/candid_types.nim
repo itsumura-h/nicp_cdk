@@ -292,13 +292,13 @@ proc newCandidValue*[T](value: T): CandidValue =
   elif T is int:
     CandidValue(kind: ctInt, intVal: value)
   elif T is int8:
-    CandidValue(kind: ctInt8, intVal: int(value))
+    CandidValue(kind: ctInt8, int8Val: value)
   elif T is int16:
-    CandidValue(kind: ctInt16, intVal: int(value))
+    CandidValue(kind: ctInt16, int16Val: value)
   elif T is int32:
-    CandidValue(kind: ctInt32, intVal: int(value))
+    CandidValue(kind: ctInt32, int32Val: value)
   elif T is int64:
-    CandidValue(kind: ctInt64, intVal: int(value))
+    CandidValue(kind: ctInt64, int64Val: value)
   elif T is byte:
     CandidValue(kind: ctNat8, natVal: uint(value))
   elif T is uint16:
