@@ -25,7 +25,11 @@ type
     of ctNull: discard
     of ctBool: boolVal*: bool
     of ctNat,  ctNat8,  ctNat16,  ctNat32,  ctNat64: natVal*: uint
-    of ctInt,  ctInt8,  ctInt16,  ctInt32,  ctInt64: intVal*: int
+    of ctInt: intVal*: int
+    of ctInt8: int8Val*: int8
+    of ctInt16: int16Val*: int16
+    of ctInt32: int32Val*: int32
+    of ctInt64: int64Val*: int64
     of ctFloat32: float32Val*: float32
     of ctFloat64: float64Val*: float64
     of ctText: textVal*: string
@@ -69,7 +73,9 @@ type
   # CandidRecord
   # ==================================================
   CandidRecordKind* = enum
-    ckNull, ckBool, ckInt, ckFloat32, ckFloat64, ckText, ckBlob,
+    ckNull, ckBool, ckInt, ckInt8, ckInt16, ckInt32, ckInt64, 
+    ckNat, ckNat8, ckNat16, ckNat32, ckNat64,
+    ckFloat32, ckFloat64, ckText, ckBlob,
     ckRecord, ckVariant, ckOption, ckPrincipal, ckFunc, ckService, ckArray
 
   CandidRecord* = ref object
@@ -79,7 +85,25 @@ type
     of ckBool:
       boolVal*: bool
     of ckInt:
-      intVal*: int64  # TODO: BigIntサポート時は BigInt に変更
+      intVal*: int
+    of ckInt8:
+      int8Val*: int8
+    of ckInt16:
+      int16Val*: int16
+    of ckInt32:
+      int32Val*: int32
+    of ckInt64:
+      int64Val*: int64
+    of ckNat:
+      natVal*: uint
+    of ckNat8:
+      nat8Val*: uint8
+    of ckNat16:
+      nat16Val*: uint16
+    of ckNat32:
+      nat32Val*: uint32
+    of ckNat64:
+      nat64Val*: uint64
     of ckFloat32:
       f32Val*: float32
     of ckFloat64:
@@ -124,8 +148,16 @@ proc `$`*(value: CandidValue): string =
     result = $value.boolVal
   of ctNat, ctNat8, ctNat16, ctNat32, ctNat64:
     result = $value.natVal
-  of ctInt, ctInt8, ctInt16, ctInt32, ctInt64:
+  of ctInt:
     result = $value.intVal
+  of ctInt8:
+    result = $value.int8Val
+  of ctInt16:
+    result = $value.int16Val
+  of ctInt32:
+    result = $value.int32Val
+  of ctInt64:
+    result = $value.int64Val
   of ctFloat32:
     result = $value.float32Val
   of ctFloat64:
@@ -324,6 +356,18 @@ proc newCandidNat*(value: uint): CandidValue =
 
 proc newCandidInt*(value: int): CandidValue =
   CandidValue(kind: ctInt, intVal: value)
+
+proc newCandidInt8*(value: int8): CandidValue =
+  CandidValue(kind: ctInt8, int8Val: value)
+
+proc newCandidInt16*(value: int16): CandidValue =
+  CandidValue(kind: ctInt16, int16Val: value)
+
+proc newCandidInt32*(value: int32): CandidValue =
+  CandidValue(kind: ctInt32, int32Val: value)
+
+proc newCandidInt64*(value: int64): CandidValue =
+  CandidValue(kind: ctInt64, int64Val: value)
 
 proc newCandidFloat*(value: float32): CandidValue =
   CandidValue(kind: ctFloat32, float32Val: value)

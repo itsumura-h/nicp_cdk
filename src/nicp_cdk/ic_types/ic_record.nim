@@ -58,7 +58,61 @@ proc getInt*(cv: CandidRecord): int =
   ## 整数値を取得
   if cv.kind != ckInt:
     raise newException(ValueError, &"Expected Int, got {cv.kind}")
-  cv.intVal.int
+  cv.intVal
+
+proc getInt8*(cv: CandidRecord): int8 =
+  ## 整数値を取得
+  if cv.kind != ckInt8:
+    raise newException(ValueError, &"Expected Int8, got {cv.kind}")
+  cv.int8Val
+
+proc getInt16*(cv: CandidRecord): int16 =
+  ## 整数値を取得
+  if cv.kind != ckInt16:
+    raise newException(ValueError, &"Expected Int16, got {cv.kind}")
+  cv.int16Val
+
+proc getInt32*(cv: CandidRecord): int32 =
+  ## 整数値を取得
+  if cv.kind != ckInt32:
+    raise newException(ValueError, &"Expected Int32, got {cv.kind}")
+  cv.int32Val
+
+proc getInt64*(cv: CandidRecord): int64 =
+  ## 整数値を取得
+  if cv.kind != ckInt64:
+    raise newException(ValueError, &"Expected Int64, got {cv.kind}")
+  cv.int64Val
+
+proc getNat*(cv: CandidRecord): uint =
+  ## 自然数値を取得
+  if cv.kind != ckNat:
+    raise newException(ValueError, &"Expected Nat, got {cv.kind}")
+  cv.natVal
+
+proc getNat8*(cv: CandidRecord): uint8 =
+  ## 8bit自然数値を取得
+  if cv.kind != ckNat8:
+    raise newException(ValueError, &"Expected Nat8, got {cv.kind}")
+  cv.nat8Val
+
+proc getNat16*(cv: CandidRecord): uint16 =
+  ## 16bit自然数値を取得
+  if cv.kind != ckNat16:
+    raise newException(ValueError, &"Expected Nat16, got {cv.kind}")
+  cv.nat16Val
+
+proc getNat32*(cv: CandidRecord): uint32 =
+  ## 32bit自然数値を取得
+  if cv.kind != ckNat32:
+    raise newException(ValueError, &"Expected Nat32, got {cv.kind}")
+  cv.nat32Val
+
+proc getNat64*(cv: CandidRecord): uint64 =
+  ## 64bit自然数値を取得
+  if cv.kind != ckNat64:
+    raise newException(ValueError, &"Expected Nat64, got {cv.kind}")
+  cv.nat64Val
 
 proc getFloat32*(cv: CandidRecord): float32 =
   ## 単精度浮動小数点値を取得
@@ -374,12 +428,26 @@ proc candidValueToCandidRecord*(cv: CandidValue): CandidRecord =
     newCNull()
   of ctBool:
     newCBoolRecord(cv.boolVal)
-  of ctNat, ctInt:
-    newCIntRecord(cv.natVal.int64)
-  of ctNat8, ctNat16, ctNat32, ctNat64:
-    newCIntRecord(cv.natVal.int64)
-  of ctInt8, ctInt16, ctInt32, ctInt64:
+  of ctNat:
+    CandidRecord(kind: ckNat, natVal: cv.natVal)
+  of ctInt:
     newCIntRecord(cv.intVal)
+  of ctNat8:
+    CandidRecord(kind: ckNat8, nat8Val: uint8(cv.natVal))
+  of ctNat16:
+    CandidRecord(kind: ckNat16, nat16Val: uint16(cv.natVal))
+  of ctNat32:
+    CandidRecord(kind: ckNat32, nat32Val: uint32(cv.natVal))
+  of ctNat64:
+    CandidRecord(kind: ckNat64, nat64Val: uint64(cv.natVal))
+  of ctInt8:
+    CandidRecord(kind: ckInt8, int8Val: cv.int8Val)
+  of ctInt16:
+    CandidRecord(kind: ckInt16, int16Val: cv.int16Val)
+  of ctInt32:
+    CandidRecord(kind: ckInt32, int32Val: cv.int32Val)
+  of ctInt64:
+    CandidRecord(kind: ckInt64, int64Val: cv.int64Val)
   of ctFloat32:
     CandidRecord(kind: ckFloat32, f32Val: cv.float32Val)
   of ctFloat64:
@@ -423,6 +491,24 @@ proc toCandidValue*(cr: CandidRecord): CandidValue =
     newCandidValue(cr.boolVal)
   of ckInt:
     newCandidValue(cr.intVal)
+  of ckInt8:
+    CandidValue(kind: ctInt8, int8Val: cr.int8Val)
+  of ckInt16:
+    CandidValue(kind: ctInt16, int16Val: cr.int16Val)
+  of ckInt32:
+    CandidValue(kind: ctInt32, int32Val: cr.int32Val)
+  of ckInt64:
+    CandidValue(kind: ctInt64, int64Val: cr.int64Val)
+  of ckNat:
+    CandidValue(kind: ctNat, natVal: cr.natVal)
+  of ckNat8:
+    CandidValue(kind: ctNat8, natVal: uint(cr.nat8Val))
+  of ckNat16:
+    CandidValue(kind: ctNat16, natVal: uint(cr.nat16Val))
+  of ckNat32:
+    CandidValue(kind: ctNat32, natVal: uint(cr.nat32Val))
+  of ckNat64:
+    CandidValue(kind: ctNat64, natVal: uint(cr.nat64Val))
   of ckFloat32:
     CandidValue(kind: ctFloat32, float32Val: cr.f32Val)
   of ckFloat64:
@@ -562,6 +648,24 @@ proc candidValueToJsonString(cv: CandidRecord, indent: int = 0): string =
     if cv.boolVal: "true" else: "false"
   of ckInt:
     $cv.intVal
+  of ckInt8:
+    $cv.int8Val
+  of ckInt16:
+    $cv.int16Val
+  of ckInt32:
+    $cv.int32Val
+  of ckInt64:
+    $cv.int64Val
+  of ckNat:
+    $cv.natVal
+  of ckNat8:
+    $cv.nat8Val
+  of ckNat16:
+    $cv.nat16Val
+  of ckNat32:
+    $cv.nat32Val
+  of ckNat64:
+    $cv.nat64Val
   of ckFloat32:
     $cv.f32Val
   of ckFloat64:
@@ -649,10 +753,73 @@ macro candidLit*(x: untyped): CandidRecord =
             # 整数値
             stmts.add quote do:
               `recordVar`[`key`] = candid_funcs.newCInt(`value`)
+          of nnkInt8Lit:
+            # 整数値
+            stmts.add quote do:
+              `recordVar`[`key`] = candid_funcs.newCInt8(`value`)
+          of nnkInt16Lit:
+            # 整数値
+            stmts.add quote do:
+              `recordVar`[`key`] = candid_funcs.newCInt16(`value`)
+          of nnkInt32Lit:
+            # 整数値
+            stmts.add quote do:
+              `recordVar`[`key`] = candid_funcs.newCInt32(`value`)
+          of nnkInt64Lit:
+            # 整数値
+            stmts.add quote do:
+              `recordVar`[`key`] = candid_funcs.newCInt64(`value`)
           of nnkFloat32Lit, nnkFloat64Lit, nnkFloatLit:
             # 浮動小数点値
             stmts.add quote do:
               `recordVar`[`key`] = candid_funcs.newCFloat64(`value`)
+          of nnkDotExpr:
+            # 型付きリテラル（例：1.int8, 1.int16, 1.int32, 1.int64）の処理
+            if value[1].kind == nnkIdent:
+              let typeName = value[1].strVal
+              let val = value[0]
+              case typeName:
+              of "int8":
+                stmts.add quote do:
+                  `recordVar`[`key`] = CandidRecord(kind: ckInt8, int8Val: int8(`val`))
+              of "int16":
+                stmts.add quote do:
+                  `recordVar`[`key`] = CandidRecord(kind: ckInt16, int16Val: int16(`val`))
+              of "int32":
+                stmts.add quote do:
+                  `recordVar`[`key`] = CandidRecord(kind: ckInt32, int32Val: int32(`val`))
+              of "int64":
+                stmts.add quote do:
+                  `recordVar`[`key`] = CandidRecord(kind: ckInt64, int64Val: int64(`val`))
+              of "uint", "nat":
+                stmts.add quote do:
+                  `recordVar`[`key`] = CandidRecord(kind: ckNat, natVal: uint(`val`))
+              of "uint8", "nat8":
+                stmts.add quote do:
+                  `recordVar`[`key`] = CandidRecord(kind: ckNat8, nat8Val: uint8(`val`))
+              of "uint16", "nat16":
+                stmts.add quote do:
+                  `recordVar`[`key`] = CandidRecord(kind: ckNat16, nat16Val: uint16(`val`))
+              of "uint32", "nat32":
+                stmts.add quote do:
+                  `recordVar`[`key`] = CandidRecord(kind: ckNat32, nat32Val: uint32(`val`))
+              of "uint64", "nat64":
+                stmts.add quote do:
+                  `recordVar`[`key`] = CandidRecord(kind: ckNat64, nat64Val: uint64(`val`))
+              of "float32":
+                stmts.add quote do:
+                  `recordVar`[`key`] = CandidRecord(kind: ckFloat32, f32Val: float32(`val`))
+              of "float64", "float":
+                stmts.add quote do:
+                  `recordVar`[`key`] = CandidRecord(kind: ckFloat64, f64Val: float64(`val`))
+              else:
+                # 未知の型付きリテラルは文字列として扱う
+                stmts.add quote do:
+                  `recordVar`[`key`] = candid_funcs.newCText($`value`)
+            else:
+              # DotExprだが型名が識別子でない場合は文字列として扱う
+              stmts.add quote do:
+                `recordVar`[`key`] = candid_funcs.newCText($`value`)
           of nnkIdent:
             # 識別子（bool等）
             if value.strVal == "true":
