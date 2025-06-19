@@ -147,11 +147,11 @@ proc getStr*(cv: CandidRecord): string =
     raise newException(ValueError, &"Expected Text, got {cv.kind}")
   cv.strVal
 
-proc getBytes*(cv: CandidRecord): seq[uint8] =
+proc getBlob*(cv: CandidRecord): seq[uint8] =
   ## バイト列を取得
   if cv.kind != ckBlob:
     raise newException(ValueError, &"Expected Blob, got {cv.kind}")
-  cv.bytesVal
+  cv.blobVal
 
 proc getArray*(cv: CandidRecord): seq[CandidRecord] =
   ## 配列の要素を取得
@@ -401,7 +401,7 @@ proc newCTextRecord*(value: string): CandidRecord =
 
 proc newCBlobRecord*(value: seq[uint8]): CandidRecord =
   ## Blob値のCandidRecordを作成
-  CandidRecord(kind: ckBlob, bytesVal: value)
+  CandidRecord(kind: ckBlob, blobVal: value)
 
 proc newCRecordEmpty*(): CandidRecord =
   ## 空のRecord CandidRecordを作成
@@ -525,7 +525,7 @@ proc recordToCandidValue*(cr: CandidRecord): CandidValue =
   of ckText:
     newCandidValue(cr.strVal)
   of ckBlob:
-    newCandidValue(cr.bytesVal)
+    newCandidValue(cr.blobVal)
   of ckPrincipal:
     newCandidValue(Principal.fromText(cr.principalId))
   of ckArray:
@@ -591,9 +591,9 @@ proc isArray*(cv: CandidRecord): bool =
 
 # ===== 拡張メソッド =====
 
-proc asBlob*(data: seq[uint8]): seq[uint8] =
-  ## seq[uint8]をBlob型として明示的に標識（実際は同じ型を返す）
-  data
+proc asBlob*(data: seq[uint8]): CandidRecord =
+  ## Recordの中で配列をBlobとして明示
+  CandidRecord(kind: ckBlob, blobVal: data)
 
 # ===== テスト用ヘルパー関数 =====
 
@@ -685,7 +685,7 @@ proc candidValueToJsonString(cv: CandidRecord, indent: int = 0): string =
     "\"" & cv.strVal.replace("\"", "\\\"") & "\""
   of ckBlob:
     # Base64エンコードして文字列として出力
-    "\"base64:" & encode(cv.bytesVal) & "\""
+    "\"base64:" & encode(cv.blobVal) & "\""
   of ckRecord:
     if cv.fields.len == 0:
       "{}"
@@ -788,16 +788,20 @@ proc `%`*(f: float): CandidRecord =
   CandidRecord(kind: ckFloat64, f64Val: f)
 
 proc `%`*(s: string): CandidRecord =
-  ## string値をCandidRecordに変換
+  ## 文字列値をCandidRecordに変換
   CandidRecord(kind: ckText, strVal: s)
 
 proc `%`*(blob: seq[uint8]): CandidRecord =
-  ## Blob値をCandidRecordに変換
-  CandidRecord(kind: ckBlob, bytesVal: blob)
+  ## バイト列をCandidRecordに変換
+  CandidRecord(kind: ckBlob, blobVal: blob)
 
 proc `%`*(p: Principal): CandidRecord =
   ## Principal値をCandidRecordに変換
   CandidRecord(kind: ckPrincipal, principalId: p.value)
+
+proc `%`*(cr: CandidRecord): CandidRecord =
+  ## CandidRecord自身をそのまま返す（asBlob()などの戻り値に対する%演算子対応）
+  cr
 
 proc `%`*[T](opt: Option[T]): CandidRecord =
   ## Option値をCandidRecordに変換
@@ -902,7 +906,7 @@ proc toCandidRecordImpl(x: NimNode): NimNode =
         if x.len == 2:
           let blobData = x[1]
           result = quote do:
-            CandidRecord(kind: ckBlob, bytesVal: `blobData`)
+            CandidRecord(kind: ckBlob, blobVal: `blobData`)
         else:
           result = newCall(bindSym("%", brOpen), x)
       else:
@@ -942,7 +946,7 @@ proc principal*(text: string): CandidRecord =
 
 proc blob*(data: seq[uint8]): CandidRecord =
   ## blob([...])構文用ヘルパー関数  
-  CandidRecord(kind: ckBlob, bytesVal: data)
+  CandidRecord(kind: ckBlob, blobVal: data)
 
 proc some*[T](value: T): CandidRecord =
   ## some(value)構文用ヘルパー関数

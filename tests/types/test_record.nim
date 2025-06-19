@@ -135,3 +135,18 @@ suite("record principal"):
       "value": p
     }
     check record["value"].getPrincipal() == p
+
+
+suite("record blob"):
+  test "record blob":
+    let record = %*{
+      "value": @[1'u8, 2'u8, 3'u8].asBlob()
+    }
+    check record["value"].getBlob() == @[1'u8, 2'u8, 3'u8]
+
+  test "record blob 2":
+    let b:seq[uint8] = @[1, 2, 3]
+    let record = %*{
+      "value": b.asBlob()
+    }
+    check record["value"].getBlob() == b

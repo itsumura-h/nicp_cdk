@@ -116,7 +116,7 @@ type
     of ckText:
       strVal*: string
     of ckBlob:
-      bytesVal*: seq[uint8]
+      blobVal*: seq[uint8]
     of ckRecord:
       fields*: OrderedTable[string, CandidValue]
     of ckVariant:

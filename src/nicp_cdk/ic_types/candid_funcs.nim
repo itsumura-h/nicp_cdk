@@ -193,7 +193,7 @@ proc fromCandidValue*(cv: CandidValue): CandidRecord =
   of ctText:
     result = CandidRecord(kind: ckText, strVal: cv.textVal)
   of ctBlob:
-    result = CandidRecord(kind: ckBlob, bytesVal: cv.blobVal)
+    result = CandidRecord(kind: ckBlob, blobVal: cv.blobVal)
   of ctPrincipal:
     result = CandidRecord(kind: ckPrincipal, principalId: cv.principalVal.value)
   of ctRecord:
@@ -256,7 +256,7 @@ proc toCandidValue*(cr: CandidRecord): CandidValue =
   of ckText:
     result = CandidValue(kind: ctText, textVal: cr.strVal)
   of ckBlob:
-    result = CandidValue(kind: ctBlob, blobVal: cr.bytesVal)
+    result = CandidValue(kind: ctBlob, blobVal: cr.blobVal)
   of ckRecord:
     # OrderedTableを普通のTableに変換し、ネストしたCandidRecordも正しく変換
     var tableData = initTable[string, CandidValue]()
@@ -443,7 +443,7 @@ proc newCText*(s: string): CandidRecord =
 
 proc newCBlob*(bytes: seq[uint8]): CandidRecord =
   ## バイト列からCandidRecordを生成
-  CandidRecord(kind: ckBlob, bytesVal: bytes)
+  CandidRecord(kind: ckBlob, blobVal: bytes)
 
 proc newCRecord*(): CandidRecord =
   ## 空のレコードを生成
