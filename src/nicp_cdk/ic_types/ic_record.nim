@@ -758,7 +758,7 @@ macro candidLit*(x: untyped): CandidRecord =
             stmts.add quote do:
               `recordVar`[`key`] = candid_funcs.newCNull()
           of nnkIdent:
-            # 識別子（bool等）
+            # 識別子（bool、変数等）
             if value.strVal == "true":
               stmts.add quote do:
                 `recordVar`[`key`] = candid_funcs.newCBool(true)
@@ -766,9 +766,17 @@ macro candidLit*(x: untyped): CandidRecord =
               stmts.add quote do:
                 `recordVar`[`key`] = candid_funcs.newCBool(false)
             else:
-              # その他の識別子は文字列として扱う
+              # その他の識別子は実行時に型チェック
               stmts.add quote do:
-                `recordVar`[`key`] = candid_funcs.newCText($`value`)
+                block:
+                  let val = `value`
+                  try:
+                    # まずCandidValueとして処理を試す
+                    let candidVal = newCandidValue(val)
+                    `recordVar`[`key`] = fromCandidValue(candidVal)
+                  except:
+                    # 失敗した場合は文字列として処理
+                    `recordVar`[`key`] = candid_funcs.newCText($val)
           of nnkStrLit:
             # 文字列値
             stmts.add quote do:
@@ -872,7 +880,15 @@ macro candidLit*(x: untyped): CandidRecord =
   
   return buildRecord(x)
 
-# %C エイリアス（Nim 1.6+ では %演算子の定義にはspecial文字の組み合わせが必要）
+# Principal型専用の関数を追加
+proc toCandidRecord*(p: Principal): CandidRecord =
+  ## Principal型をCandidRecordに変換
+  fromCandidValue(newCandidValue(p))
+
+# Principal型専用の %* オーバーロード  
+template `%*`*(x: Principal): CandidRecord = toCandidRecord(x)
+
+# 汎用版 %* template
 template `%*`*(x: untyped): CandidRecord = candidLit(x)
 
 # ===== 汎用seq処理のヘルパーマクロ =====
@@ -914,3 +930,30 @@ macro processSeqValue*(seqVal: typed): CandidValue =
       
       # vec blob型として返す
       CandidValue(kind: ctVec, vecVal: vecItems)
+
+# ===== Record作成用ヘルパー関数 =====
+
+proc newRecord*(): CandidRecord =
+  ## 新しい空のRecordを作成
+  CandidRecord(kind: ckRecord, fields: initOrderedTable[string, CandidValue]())
+
+proc setField*[T](record: CandidRecord, key: string, value: T) =
+  ## Recordにフィールドを設定（汎用版）
+  if record.kind != ckRecord:
+    raise newException(ValueError, "Cannot set field on non-record type")
+  
+  when T is Principal:
+    let candidValue = newCandidValue(value)
+    validateRecordFieldType(candidValue, key)
+    record.fields[key] = candidValue
+  elif T is CandidValue:
+    validateRecordFieldType(value, key)
+    record.fields[key] = value
+  elif T is CandidRecord:
+    let candidValue = toCandidValue(value)
+    validateRecordFieldType(candidValue, key)
+    record.fields[key] = candidValue
+  else:
+    let candidValue = newCandidValue(value)
+    validateRecordFieldType(candidValue, key)
+    record.fields[key] = candidValue
