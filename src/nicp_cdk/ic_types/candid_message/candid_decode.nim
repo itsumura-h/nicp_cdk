@@ -316,19 +316,36 @@ proc decodeValue(data: seq[byte], offset: var int, typeRef: int, typeTable: seq[
       else:
         raise newException(CandidDecodeError, "Invalid optional tag: " & $hasValue)
     of ctVec:
+      # Vec/Blob統一処理: vec nat8とblobを同一内部表現として処理
       let elementCount = decodeULEB128(data, offset)
-      result.vecVal = newSeq[CandidValue](int(elementCount))
-      for i in 0..<int(elementCount):
-        result.vecVal[i] = decodeValue(data, offset, typeEntry.vecElementType, typeTable)
+      
+      # 要素型がnat8かつ、型がCtVecの場合は統一処理
+      if typeEntry.vecElementType == typeCodeFromCandidType(ctNat8):
+        # Vec nat8 / Blob 統一内部表現: vecValに統一的に格納
+        result.vecVal = newSeq[CandidValue](int(elementCount))
+        for i in 0..<int(elementCount):
+          if offset >= data.len:
+            raise newException(CandidDecodeError, "Unexpected end of data in vec")
+          # nat8値をCandidValueとして格納
+          result.vecVal[i] = CandidValue(kind: ctNat8, natVal: uint(data[offset]))
+          offset += 1
+      else:
+        # 通常のvec処理（非nat8要素）
+        result.vecVal = newSeq[CandidValue](int(elementCount))
+        for i in 0..<int(elementCount):
+          result.vecVal[i] = decodeValue(data, offset, typeEntry.vecElementType, typeTable)
     
     of ctBlob:
-      # Blobはvec nat8として処理されるが、結果はblobValフィールドに格納
+      # Vec/Blob統一処理: ctBlobケースもvec nat8として統一処理
       let elementCount = decodeULEB128(data, offset)
-      result.blobVal = newSeq[uint8](int(elementCount))
+      # blobもvecValに統一的に格納（後でgetBlob()で適切に変換）
+      result.kind = ctVec  # 内部的にはvecとして処理
+      result.vecVal = newSeq[CandidValue](int(elementCount))
       for i in 0..<int(elementCount):
         if offset >= data.len:
           raise newException(CandidDecodeError, "Unexpected end of data in blob")
-        result.blobVal[i] = data[offset]
+        # nat8値をCandidValueとして格納
+        result.vecVal[i] = CandidValue(kind: ctNat8, natVal: uint(data[offset]))
         offset += 1
     of ctFunc:
       # 関数参照: principal + method name

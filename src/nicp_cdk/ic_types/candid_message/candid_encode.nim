@@ -79,7 +79,12 @@ proc inferTypeDescriptor(value: CandidValue): TypeDescriptor =
       result.optInnerType = TypeDescriptor(kind: ctNull)
   of ctVec:
     if value.vecVal.len > 0:
-      result.vecElementType = inferTypeDescriptor(value.vecVal[0])
+      let firstElement = value.vecVal[0]
+      if firstElement.kind == ctBlob:
+        # vec blob の場合、要素はblob型（これはvec nat8として扱われる）
+        result.vecElementType = TypeDescriptor(kind: ctVec, vecElementType: TypeDescriptor(kind: ctNat8))
+      else:
+        result.vecElementType = inferTypeDescriptor(firstElement)
     else:
       # 空ベクタの場合、要素型を推論できないため、emptyとする
       result.vecElementType = TypeDescriptor(kind: ctEmpty)
@@ -100,7 +105,12 @@ proc addTypeToTable(builder: var TypeBuilder, typeDesc: TypeDescriptor): int =
   let newIndex = builder.typeTable.len
   builder.typeIndexMap[signature] = newIndex
   
+  # まず空のエントリを追加してインデックスを確保
   var entry = TypeTableEntry(kind: typeDesc.kind)
+  builder.typeTable.add(entry)
+  
+  # その後詳細を設定
+  entry = TypeTableEntry(kind: typeDesc.kind)
   
   case typeDesc.kind:
   of ctRecord:
@@ -175,7 +185,8 @@ proc addTypeToTable(builder: var TypeBuilder, typeDesc: TypeDescriptor): int =
   else:
     discard
   
-  builder.typeTable.add(entry)
+  # エントリの詳細を更新
+  builder.typeTable[newIndex] = entry
   return newIndex
 
 
@@ -304,6 +315,12 @@ proc encodePrimitiveValue(value: CandidValue): seq[byte] =
     result.add(encodeULEB128(uint(principalBytes.len)))
     result.add(principalBytes)
   
+  of ctBlob:
+    # Blobはvec nat8として処理される
+    result.add(encodeULEB128(uint(value.blobVal.len)))
+    for byteVal in value.blobVal:
+      result.add(byteVal)
+  
   of ctReserved:
     discard  # reservedは値を持たない
   
@@ -344,18 +361,23 @@ proc encodeValue(value: CandidValue, typeRef: int, typeTable: seq[TypeTableEntry
           raise newException(ValueError, "Missing field in record: " & $fieldInfo.hash)
     
     of ctVariant:
-      # 選択されたタグのインデックスを探す
-      var tagIndex = -1
-      for i, fieldInfo in typeEntry.variantFields:
-        if fieldInfo.hash == value.variantVal.tag:
-          tagIndex = i
-          break
-      
-      if tagIndex == -1:
-        raise newException(ValueError, "Invalid variant tag: " & $value.variantVal.tag)
-      
-      result.add(encodeULEB128(uint(tagIndex)))
-      result.add(encodeValue(value.variantVal.value, typeEntry.variantFields[tagIndex].fieldType, typeTable))
+      # valueの種類を確認してからvariantVal にアクセス
+      if value.kind == ctVariant:
+        # 選択されたタグのインデックスを探す
+        var tagIndex = -1
+        for i, fieldInfo in typeEntry.variantFields:
+          if fieldInfo.hash == value.variantVal.tag:
+            tagIndex = i
+            break
+        
+        if tagIndex == -1:
+          raise newException(ValueError, "Invalid variant tag: " & $value.variantVal.tag)
+        
+        result.add(encodeULEB128(uint(tagIndex)))
+        result.add(encodeValue(value.variantVal.value, typeEntry.variantFields[tagIndex].fieldType, typeTable))
+      else:
+        raise newException(ValueError, "Type mismatch: expected variant value but got " & $value.kind & 
+                          ". TypeRef: " & $typeRef & ", TypeEntry: " & $typeEntry.kind)
     
     of ctOpt:
       if value.optVal.isSome:
@@ -365,12 +387,19 @@ proc encodeValue(value: CandidValue, typeRef: int, typeTable: seq[TypeTableEntry
         result.add(encodeULEB128(0))  # no value
     
     of ctVec:
-      result.add(encodeULEB128(uint(value.vecVal.len)))
-      for element in value.vecVal:
-        result.add(encodeValue(element, typeEntry.vecElementType, typeTable))
+      if value.kind == ctBlob:
+        # ctBlobの場合は特別処理（vec nat8として処理）
+        result.add(encodeULEB128(uint(value.blobVal.len)))
+        for byteVal in value.blobVal:
+          result.add(byteVal)
+      else:
+        # 通常のvec処理
+        result.add(encodeULEB128(uint(value.vecVal.len)))
+        for element in value.vecVal:
+          result.add(encodeValue(element, typeEntry.vecElementType, typeTable))
     
     of ctBlob:
-      # Blobは実際にはvec nat8として処理される
+      # ctBlobケースを復活 - vec blob対応のため必要
       result.add(encodeULEB128(uint(value.blobVal.len)))
       for byteVal in value.blobVal:
         result.add(byteVal)
@@ -415,14 +444,19 @@ proc encodeCandidMessage*(values: seq[CandidValue]): seq[byte] =
   
   # 各値の型を分析して型テーブルに追加
   for value in values:
-    let typeDesc = inferTypeDescriptor(value)
-    let typeRef = if isPrimitiveType(value.kind):
-      typeCodeFromCandidType(value.kind)
-    elif value.kind == ctBlob:
-      # Blobはvec nat8として型テーブルに追加
+    let typeRef = if value.kind == ctBlob:
+      # Blobはvec nat8として型テーブルに追加（基本型でなく複合型として扱う）
       let vecTypeDesc = TypeDescriptor(kind: ctVec, vecElementType: TypeDescriptor(kind: ctNat8))
       addTypeToTable(builder, vecTypeDesc)
+    elif value.kind == ctVec and value.vecVal.len > 0 and value.vecVal[0].kind == ctBlob:
+      # vec blob (seq[seq[uint8]]) の場合の特別処理
+      let blobTypeDesc = TypeDescriptor(kind: ctVec, vecElementType: TypeDescriptor(kind: ctNat8))
+      let vecBlobTypeDesc = TypeDescriptor(kind: ctVec, vecElementType: blobTypeDesc)
+      addTypeToTable(builder, vecBlobTypeDesc)
+    elif isPrimitiveType(value.kind):
+      typeCodeFromCandidType(value.kind)
     else:
+      let typeDesc = inferTypeDescriptor(value)
       addTypeToTable(builder, typeDesc)
     valueTypes.add(typeRef)
   
@@ -438,11 +472,4 @@ proc encodeCandidMessage*(values: seq[CandidValue]): seq[byte] =
   
   # 5. 値シーケンスをエンコード
   for i, value in values:
-    if value.kind == ctBlob:
-      # Blobはvec nat8として処理 - 長さ + 各バイトをnat8として
-      result.add(encodeULEB128(uint(value.blobVal.len)))
-      for byteVal in value.blobVal:
-        # 各バイトをnat8値として直接出力（nat8は1バイト固定）
-        result.add(byteVal)
-    else:
-      result.add(encodeValue(value, valueTypes[i], builder.typeTable)) 
+    result.add(encodeValue(value, valueTypes[i], builder.typeTable))

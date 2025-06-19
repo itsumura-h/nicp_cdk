@@ -168,6 +168,24 @@ proc fromCandidValue*(cv: CandidValue): CandidRecord =
     result = CandidRecord(kind: ckBool, boolVal: cv.boolVal)
   of ctInt:
     result = CandidRecord(kind: ckInt, intVal: cv.intVal.int64)
+  of ctInt8:
+    result = CandidRecord(kind: ckInt8, int8Val: cv.int8Val)
+  of ctInt16:
+    result = CandidRecord(kind: ckInt16, int16Val: cv.int16Val)
+  of ctInt32:
+    result = CandidRecord(kind: ckInt32, int32Val: cv.int32Val)
+  of ctInt64:
+    result = CandidRecord(kind: ckInt64, int64Val: cv.int64Val)
+  of ctNat:
+    result = CandidRecord(kind: ckNat, natVal: cv.natVal)
+  of ctNat8:
+    result = CandidRecord(kind: ckNat8, nat8Val: uint8(cv.natVal))
+  of ctNat16:
+    result = CandidRecord(kind: ckNat16, nat16Val: uint16(cv.natVal))
+  of ctNat32:
+    result = CandidRecord(kind: ckNat32, nat32Val: uint32(cv.natVal))
+  of ctNat64:
+    result = CandidRecord(kind: ckNat64, nat64Val: uint64(cv.natVal))
   of ctFloat32:
     result = CandidRecord(kind: ckFloat32, f32Val: cv.float32Val)
   of ctFloat64:
@@ -211,6 +229,26 @@ proc toCandidValue*(cr: CandidRecord): CandidValue =
     result = CandidValue(kind: ctBool, boolVal: cr.boolVal)
   of ckInt:
     result = CandidValue(kind: ctInt, intVal: cr.intVal.int)
+  of ckInt8:
+    result = CandidValue(kind: ctInt8, int8Val: cr.int8Val)
+  of ckInt16:
+    result = CandidValue(kind: ctInt16, int16Val: cr.int16Val)
+  of ckInt32:
+    result = CandidValue(kind: ctInt32, int32Val: cr.int32Val)
+  of ckInt64:
+    result = CandidValue(kind: ctInt64, int64Val: cr.int64Val)
+  of ckNat:
+    result = CandidValue(kind: ctNat, natVal: cr.natVal)
+  of ckNat8:
+    result = CandidValue(kind: ctNat8, natVal: uint(cr.nat8Val))
+  of ckNat16:
+    result = CandidValue(kind: ctNat16, natVal: uint(cr.nat16Val))
+  of ckNat32:
+    result = CandidValue(kind: ctNat32, natVal: uint(cr.nat32Val))
+  of ckNat64:
+    result = CandidValue(kind: ctNat64, natVal: uint(cr.nat64Val))
+  of ckFloat:
+    result = CandidValue(kind: ctFloat, floatVal: cr.fVal)
   of ckFloat32:
     result = CandidValue(kind: ctFloat32, float32Val: cr.f32Val)
   of ckFloat64:
@@ -354,6 +392,42 @@ proc newCInt*(i: int64): CandidRecord =
 proc newCInt*(i: int): CandidRecord =
   ## 整数からCandidRecordを生成
   CandidRecord(kind: ckInt, intVal: i.int64)
+
+proc newCInt8*(i: int8): CandidRecord =
+  ## 8bit整数からCandidRecordを生成
+  CandidRecord(kind: ckInt8, int8Val: i)
+
+proc newCInt16*(i: int16): CandidRecord =
+  ## 16bit整数からCandidRecordを生成
+  CandidRecord(kind: ckInt16, int16Val: i)
+
+proc newCInt32*(i: int32): CandidRecord =
+  ## 32bit整数からCandidRecordを生成
+  CandidRecord(kind: ckInt32, int32Val: i)
+
+proc newCInt64*(i: int64): CandidRecord =
+  ## 64bit整数からCandidRecordを生成
+  CandidRecord(kind: ckInt64, int64Val: i)
+
+proc newCNat*(n: uint): CandidRecord =
+  ## 自然数からCandidRecordを生成
+  CandidRecord(kind: ckNat, natVal: n)
+
+proc newCNat8*(n: uint8): CandidRecord =
+  ## 8bit自然数からCandidRecordを生成
+  CandidRecord(kind: ckNat8, nat8Val: n)
+
+proc newCNat16*(n: uint16): CandidRecord =
+  ## 16bit自然数からCandidRecordを生成
+  CandidRecord(kind: ckNat16, nat16Val: n)
+
+proc newCNat32*(n: uint32): CandidRecord =
+  ## 32bit自然数からCandidRecordを生成
+  CandidRecord(kind: ckNat32, nat32Val: n)
+
+proc newCNat64*(n: uint64): CandidRecord =
+  ## 64bit自然数からCandidRecordを生成
+  CandidRecord(kind: ckNat64, nat64Val: n)
 
 proc newCFloat32*(f: float32): CandidRecord =
   ## 単精度浮動小数点からCandidRecordを生成

@@ -58,7 +58,67 @@ proc getInt*(cv: CandidRecord): int =
   ## 整数値を取得
   if cv.kind != ckInt:
     raise newException(ValueError, &"Expected Int, got {cv.kind}")
-  cv.intVal.int
+  cv.intVal
+
+proc getInt8*(cv: CandidRecord): int8 =
+  ## 整数値を取得
+  if cv.kind != ckInt8:
+    raise newException(ValueError, &"Expected Int8, got {cv.kind}")
+  cv.int8Val
+
+proc getInt16*(cv: CandidRecord): int16 =
+  ## 整数値を取得
+  if cv.kind != ckInt16:
+    raise newException(ValueError, &"Expected Int16, got {cv.kind}")
+  cv.int16Val
+
+proc getInt32*(cv: CandidRecord): int32 =
+  ## 整数値を取得
+  if cv.kind != ckInt32:
+    raise newException(ValueError, &"Expected Int32, got {cv.kind}")
+  cv.int32Val
+
+proc getInt64*(cv: CandidRecord): int64 =
+  ## 整数値を取得
+  if cv.kind != ckInt64:
+    raise newException(ValueError, &"Expected Int64, got {cv.kind}")
+  cv.int64Val
+
+proc getNat*(cv: CandidRecord): uint =
+  ## 自然数値を取得
+  if cv.kind != ckNat:
+    raise newException(ValueError, &"Expected Nat, got {cv.kind}")
+  cv.natVal
+
+proc getNat8*(cv: CandidRecord): uint8 =
+  ## 8bit自然数値を取得
+  if cv.kind != ckNat8:
+    raise newException(ValueError, &"Expected Nat8, got {cv.kind}")
+  cv.nat8Val
+
+proc getNat16*(cv: CandidRecord): uint16 =
+  ## 16bit自然数値を取得
+  if cv.kind != ckNat16:
+    raise newException(ValueError, &"Expected Nat16, got {cv.kind}")
+  cv.nat16Val
+
+proc getNat32*(cv: CandidRecord): uint32 =
+  ## 32bit自然数値を取得
+  if cv.kind != ckNat32:
+    raise newException(ValueError, &"Expected Nat32, got {cv.kind}")
+  cv.nat32Val
+
+proc getNat64*(cv: CandidRecord): uint64 =
+  ## 64bit自然数値を取得
+  if cv.kind != ckNat64:
+    raise newException(ValueError, &"Expected Nat64, got {cv.kind}")
+  cv.nat64Val
+
+proc getFloat*(cv: CandidRecord): float =
+  ## 浮動小数点値を取得
+  if cv.kind != ckFloat64:
+    raise newException(ValueError, &"Expected Float64, got {cv.kind}")
+  cv.f64Val
 
 proc getFloat32*(cv: CandidRecord): float32 =
   ## 単精度浮動小数点値を取得
@@ -251,6 +311,22 @@ proc `[]=`*[T: enum](cv: CandidRecord, key: string, enumValue: T) =
     raise newException(ValueError, 
       &"Failed to set enum value at field '{key}': {e.msg}")
 
+proc `[]=`*(cv: CandidRecord, key: string, value: CandidValue) =
+  ## CandidValueを直接CandidRecordのフィールドとして設定
+  if cv.kind != ckRecord:
+    raise newException(ValueError, &"Cannot set field on {cv.kind}, expected record")
+  
+  try:
+    # CandidValueのバリデーションを実行
+    validateRecordFieldType(value, key)
+    
+    # フィールドに設定
+    cv.fields[key] = value
+    
+  except ValueError as e:
+    raise newException(ValueError, 
+      &"Failed to set CandidValue at field '{key}': {e.msg}")
+
 # ===== Option/Variant専用ヘルパー =====
 
 # テスト用のVariantラッパー型
@@ -337,7 +413,7 @@ proc newCVariantRecord*(tag: string): CandidRecord =
   let variant = CandidVariant(tag: candidHash(tag), value: newCandidNull())
   CandidRecord(kind: ckVariant, variantVal: variant)
 
-proc newCPrincipal*(principalId: string): CandidRecord =
+proc newCPrincipalRecord*(principalId: string): CandidRecord =
   ## Principal CandidRecordを作成
   CandidRecord(kind: ckPrincipal, principalId: principalId)
 
@@ -348,6 +424,214 @@ proc newCOptionNone*(): CandidRecord =
 proc asSome*(value: CandidRecord): CandidRecord =
   ## Some Option CandidRecordを作成
   CandidRecord(kind: ckOption, optVal: some(value))
+
+# ===== CandidValue ⇔ CandidRecord 変換関数 =====
+
+proc candidValueToCandidRecord*(cv: CandidValue): CandidRecord =
+  ## CandidValueからCandidRecordに変換
+  case cv.kind:
+  of ctNull:
+    newCNull()
+  of ctBool:
+    newCBoolRecord(cv.boolVal)
+  of ctNat:
+    CandidRecord(kind: ckNat, natVal: cv.natVal)
+  of ctInt:
+    newCIntRecord(cv.intVal)
+  of ctNat8:
+    CandidRecord(kind: ckNat8, nat8Val: uint8(cv.natVal))
+  of ctNat16:
+    CandidRecord(kind: ckNat16, nat16Val: uint16(cv.natVal))
+  of ctNat32:
+    CandidRecord(kind: ckNat32, nat32Val: uint32(cv.natVal))
+  of ctNat64:
+    CandidRecord(kind: ckNat64, nat64Val: uint64(cv.natVal))
+  of ctInt8:
+    CandidRecord(kind: ckInt8, int8Val: cv.int8Val)
+  of ctInt16:
+    CandidRecord(kind: ckInt16, int16Val: cv.int16Val)
+  of ctInt32:
+    CandidRecord(kind: ckInt32, int32Val: cv.int32Val)
+  of ctInt64:
+    CandidRecord(kind: ckInt64, int64Val: cv.int64Val)
+  of ctFloat32:
+    CandidRecord(kind: ckFloat32, f32Val: cv.float32Val)
+  of ctFloat64:
+    newCFloat64Record(cv.float64Val)
+  of ctText:
+    newCTextRecord(cv.textVal)
+  of ctBlob:
+    newCBlobRecord(cv.blobVal)
+  of ctPrincipal:
+    newCPrincipalRecord(cv.principalVal.value)
+  of ctVec:
+    var arrayRecord = newCArrayRecord()
+    for elem in cv.vecVal:
+      arrayRecord.add(fromCandidValue(elem))
+    arrayRecord
+  of ctRecord:
+    var recordRecord = newCRecordEmpty()
+    for key, value in cv.recordVal.fields:
+      recordRecord.fields[key] = value
+    recordRecord
+  of ctOpt:
+    if cv.optVal.isSome():
+      asSome(fromCandidValue(cv.optVal.get()))
+    else:
+      newCOptionNone()
+  of ctVariant:
+    CandidRecord(kind: ckVariant, variantVal: cv.variantVal)
+  of ctFunc:
+    CandidRecord(kind: ckFunc, funcRef: (cv.funcVal.principal.value, cv.funcVal.methodName))
+  of ctService:
+    CandidRecord(kind: ckService, serviceId: cv.serviceVal.value)
+  else:
+    newCNull()  # 未対応の型はnullとして扱う
+
+proc toCandidValue*(cr: CandidRecord): CandidValue =
+  ## CandidRecordからCandidValueに変換
+  case cr.kind:
+  of ckNull:
+    newCandidNull()
+  of ckBool:
+    newCandidValue(cr.boolVal)
+  of ckInt:
+    newCandidValue(cr.intVal)
+  of ckInt8:
+    CandidValue(kind: ctInt8, int8Val: cr.int8Val)
+  of ckInt16:
+    CandidValue(kind: ctInt16, int16Val: cr.int16Val)
+  of ckInt32:
+    CandidValue(kind: ctInt32, int32Val: cr.int32Val)
+  of ckInt64:
+    CandidValue(kind: ctInt64, int64Val: cr.int64Val)
+  of ckNat:
+    CandidValue(kind: ctNat, natVal: cr.natVal)
+  of ckNat8:
+    CandidValue(kind: ctNat8, natVal: uint(cr.nat8Val))
+  of ckNat16:
+    CandidValue(kind: ctNat16, natVal: uint(cr.nat16Val))
+  of ckNat32:
+    CandidValue(kind: ctNat32, natVal: uint(cr.nat32Val))
+  of ckNat64:
+    CandidValue(kind: ctNat64, natVal: uint(cr.nat64Val))
+  of ckFloat32:
+    CandidValue(kind: ctFloat32, float32Val: cr.f32Val)
+  of ckFloat64:
+    newCandidValue(cr.f64Val)
+  of ckText:
+    newCandidValue(cr.strVal)
+  of ckBlob:
+    newCandidValue(cr.bytesVal)
+  of ckPrincipal:
+    newCandidValue(Principal.fromText(cr.principalId))
+  of ckArray:
+    var vecItems: seq[CandidValue] = @[]
+    for elem in cr.elems:
+      vecItems.add(toCandidValue(elem))
+    CandidValue(kind: ctVec, vecVal: vecItems)
+  of ckRecord:
+    var candidRecord = CandidRecord(kind: ckRecord, fields: initOrderedTable[string, CandidValue]())
+    for key, value in cr.fields:
+      candidRecord.fields[key] = value
+    toCandidValue(candidRecord)
+  of ckOption:
+    if cr.optVal.isSome():
+      CandidValue(kind: ctOpt, optVal: some(toCandidValue(cr.optVal.get())))
+    else:
+      CandidValue(kind: ctOpt, optVal: none(CandidValue))
+  of ckVariant:
+    CandidValue(kind: ctVariant, variantVal: cr.variantVal)
+  of ckFunc:
+    let funcValue = CandidFunc(
+      principal: Principal.fromText(cr.funcRef.principal),
+      methodName: cr.funcRef.methodName,
+      args: @[],
+      returns: @[],
+      annotations: @[]
+    )
+    CandidValue(kind: ctFunc, funcVal: funcValue)
+  of ckService:
+    newCandidValue(Principal.fromText(cr.serviceId))
+  else:
+    newCandidNull()
+
+# ===== 型チェック関数 =====
+
+proc isNull*(cv: CandidRecord): bool =
+  ## レコードがNull型かチェック
+  cv.kind == ckNull
+
+proc isPrincipal*(cv: CandidRecord): bool =
+  ## レコードがPrincipal型かチェック
+  cv.kind == ckPrincipal
+
+proc isBlob*(cv: CandidRecord): bool =
+  ## レコードがBlob型かチェック
+  cv.kind == ckBlob
+
+proc isFloat32*(cv: CandidRecord): bool =
+  ## レコードがFloat32型かチェック
+  cv.kind == ckFloat32
+
+proc isFloat64*(cv: CandidRecord): bool =
+  ## レコードがFloat64型かチェック
+  cv.kind == ckFloat64
+
+proc isVariant*(cv: CandidRecord): bool =
+  ## レコードがVariant型かチェック
+  cv.kind == ckVariant
+
+proc isArray*(cv: CandidRecord): bool =
+  ## レコードがArray型かチェック
+  cv.kind == ckArray
+
+# ===== 拡張メソッド =====
+
+proc asBlob*(data: seq[uint8]): seq[uint8] =
+  ## seq[uint8]をBlob型として明示的に標識（実際は同じ型を返す）
+  data
+
+# ===== テスト用ヘルパー関数 =====
+
+proc newCFloat32*(value: float32): CandidRecord =
+  ## Float32値のCandidRecordを作成
+  CandidRecord(kind: ckFloat32, f32Val: value)
+
+proc newCText*(value: string): CandidRecord =
+  ## Text値のCandidRecordを作成
+  CandidRecord(kind: ckText, strVal: value)
+
+proc newCVariant*(tag: string, value: CandidRecord = newCNull()): CandidRecord =
+  ## Variant CandidRecordを作成
+  let variant = CandidVariant(tag: candidHash(tag), value: value.toCandidValue())
+  CandidRecord(kind: ckVariant, variantVal: variant)
+
+proc newCFunc*(principal: string, methodName: string): CandidRecord =
+  ## Func CandidRecordを作成
+  CandidRecord(kind: ckFunc, funcRef: (principal, methodName))
+
+proc newCService*(principal: string): CandidRecord =
+  ## Service CandidRecordを作成
+  CandidRecord(kind: ckService, serviceId: principal)
+
+# ===== Variant/Service用のビルダー型 =====
+
+type
+  VariantBuilder* = object
+  ServiceBuilder* = object
+
+proc new*(_: type VariantBuilder, tag: string, value: CandidRecord = newCNull()): CandidRecord =
+  ## Variant.new()構文用
+  newCVariant(tag, value)
+
+proc new*(_: type ServiceBuilder, principal: string): CandidRecord =
+  ## Service.new()構文用
+  newCService(principal)
+
+# グローバル変数として使用できるようにする
+let Variant* = VariantBuilder()
+let Service* = ServiceBuilder()
 
 # ===== フィールド名のハッシュ化関数 =====
 
@@ -370,6 +654,26 @@ proc candidValueToJsonString(cv: CandidRecord, indent: int = 0): string =
     if cv.boolVal: "true" else: "false"
   of ckInt:
     $cv.intVal
+  of ckInt8:
+    $cv.int8Val
+  of ckInt16:
+    $cv.int16Val
+  of ckInt32:
+    $cv.int32Val
+  of ckInt64:
+    $cv.int64Val
+  of ckNat:
+    $cv.natVal
+  of ckNat8:
+    $cv.nat8Val
+  of ckNat16:
+    $cv.nat16Val
+  of ckNat32:
+    $cv.nat32Val
+  of ckNat64:
+    $cv.nat64Val
+  of ckFloat:
+    $cv.fVal
   of ckFloat32:
     $cv.f32Val
   of ckFloat64:
@@ -429,202 +733,227 @@ proc `$`*(cv: CandidRecord): string =
 # ===== 便利マクロ（JsonNodeの %* に相当） =====
 
 macro candidLit*(x: untyped): CandidRecord =
-  ## CandidRecordリテラル構築マクロ
-  ## 
-  ## サポートする構文:
-  ## - 基本型: bool, 整数, 浮動小数点, string
-  ## - Principal: Principal型の変数
-  ## - Blob: seq[uint8]型の変数
-  ## - Array: [elem1, elem2, ...]
-  ## - Record: {key1: value1, key2: value2, ...}
-  ## - Option: some(value) または none(Type)
-  ## - 明示的構築: newCNull(), newCArray(), newCRecord(), newCBlob(), newCPrincipal(), newCVariant(), newCFunc(), newCService()
-  ## - Null: nil または newCNull()
+  ## CandidRecordリテラル構築マクロ（高機能版）
   
-  proc buildCandidValue(node: NimNode): NimNode =
+  proc buildRecord(node: NimNode): NimNode =
     case node.kind:
-    # リテラル値
-    of nnkIntLit, nnkInt8Lit, nnkInt16Lit, nnkInt32Lit, nnkInt64Lit,
-       nnkUIntLit, nnkUInt8Lit, nnkUInt16Lit, nnkUInt32Lit, nnkUInt64Lit:
-      newCall(bindSym"newCIntRecord", node)
-    
-    of nnkFloatLit, nnkFloat32Lit, nnkFloat64Lit:
-      newCall(bindSym"newCFloat64Record", node)
-    
-    of nnkStrLit:
-      newCall(bindSym"newCTextRecord", node)
-    
-    # nil値をnewCNull()として解釈
-    of nnkNilLit:
-      newCall(bindSym"newCNull")
-    
-    of nnkIdent:
-      if node.strVal == "true":
-        newCall(bindSym"newCBoolRecord", newLit(true))
-      elif node.strVal == "false":
-        newCall(bindSym"newCBoolRecord", newLit(false))
-      elif node.strVal == "cnull":
-        newCall(bindSym"newCNull")
-      else:
-        # 変数参照の場合は実行時に型チェック
-        let varName = node
-        quote do:
-          when `varName` is CandidRecord:
-            `varName`
-          elif `varName` is bool:
-            newCBoolRecord(`varName`)
-          elif `varName` is SomeInteger:
-            newCIntRecord(`varName`.int64)
-          elif `varName` is SomeFloat:
-            newCFloat64Record(`varName`.float)
-          elif `varName` is string:
-            newCTextRecord(`varName`)
-          elif `varName` is seq[uint8]:
-            newCBlobRecord(`varName`)
-          elif `varName` is Principal:
-            newCPrincipal(`varName`.value)
-          elif `varName` is enum:
-            newCVariantRecord($`varName`)
-          elif `varName` is Option:
-            if `varName`.isSome():
-              asSome(candidLit(`varName`.get()))
-            else:
-              newCOptionNone()
-          elif `varName` is type(nil):
-            newCNull()
-          else:
-            {.error: "Unsupported type for candidLit macro".}
-    
-    # 配列リテラル [elem1, elem2, ...]
-    of nnkBracket:
-      let arrayVar = genSym(nskVar, "arr")
-      result = newStmtList()
-      result.add(newVarStmt(arrayVar, newCall(bindSym"newCArrayRecord")))
-      for elem in node:
-        result.add(newCall(bindSym"add", arrayVar, buildCandidValue(elem)))
-      result.add(arrayVar)
-      return result
-    
-    # レコードリテラル {key1: value1, key2: value2, ...}
-    of nnkTableConstr:
-      let recordVar = genSym(nskVar, "rec")
-      result = newStmtList()
-      result.add(newVarStmt(recordVar, newCall(bindSym"newCRecordEmpty")))
+    of nnkCurly, nnkTableConstr:
+      # Record構造 { "key": value, ... }
+      let recordVar = genSym(nskVar, "record")
+      var stmts = newStmtList()
+      
+      # 空のRecordを作成
+      stmts.add quote do:
+        var `recordVar` = candid_funcs.newCRecord()
+      
+      # 各フィールドを追加
       for pair in node:
-        if pair.kind == nnkExprColonExpr and pair.len == 2:
+        if pair.kind == nnkExprColonExpr:
           let key = pair[0]
           let value = pair[1]
-          # キーは文字列リテラルまたは識別子
-          let keyStr = if key.kind == nnkStrLit:
-                        key
-                       elif key.kind == nnkIdent:
-                        newLit(key.strVal)
-                       else:
-                        error("Record key must be string literal or identifier", key)
-                        newLit("")
-          result.add(newAssignment(
-            newNimNode(nnkBracketExpr).add(recordVar, keyStr),
-            buildCandidValue(value)
-          ))
-        else:
-          error("Invalid record syntax", pair)
-      result.add(recordVar)
-      return result
-
-    # 関数呼び出し（none(Type), some(value)など）
-    of nnkCall:
-      if node.len >= 1 and node[0].kind == nnkIdent:
-        if node[0].strVal == "none":
-          # none(Type)の場合
-          newCall(bindSym"newCOptionNone")
-        elif node[0].strVal == "some" and node.len == 2:
-          # some(value)の場合
-          newCall(bindSym"asSome", buildCandidValue(node[1]))
-        else:
-          # その他の関数呼び出しは実行時処理
-          quote do:
-            let val = `node`
-            when val is CandidRecord:
-              val
-            elif val is bool:
-              newCBoolRecord(val)
-            elif val is SomeInteger:
-              newCIntRecord(val.int64)
-            elif val is SomeFloat:
-              newCFloat64Record(val.float)
-            elif val is string:
-              newCTextRecord(val)
-            elif val is seq[uint8]:
-              newCBlobRecord(val)
-            elif val is Principal:
-              newCPrincipal(val.value)
-            elif val is enum:
-              newCVariantRecord($val)
-            elif val is Option:
-              if val.isSome():
-                asSome(candidLit(val.get()))
+          
+          case value.kind:
+          of nnkNilLit:
+            # nilリテラルの処理（Nimの標準JSONライブラリと同じ方式）
+            stmts.add quote do:
+              `recordVar`[`key`] = candid_funcs.newCNull()
+          of nnkIdent:
+            # 識別子（bool、変数等）
+            if value.strVal == "true":
+              stmts.add quote do:
+                `recordVar`[`key`] = candid_funcs.newCBool(true)
+            elif value.strVal == "false":
+              stmts.add quote do:
+                `recordVar`[`key`] = candid_funcs.newCBool(false)
+            else:
+              # その他の識別子は実行時に型チェック
+              stmts.add quote do:
+                block:
+                  let val = `value`
+                  try:
+                    # まずCandidValueとして処理を試す
+                    let candidVal = newCandidValue(val)
+                    `recordVar`[`key`] = fromCandidValue(candidVal)
+                  except:
+                    # 失敗した場合は文字列として処理
+                    `recordVar`[`key`] = candid_funcs.newCText($val)
+          of nnkStrLit:
+            # 文字列値
+            stmts.add quote do:
+              `recordVar`[`key`] = candid_funcs.newCText(`value`)
+          of nnkIntLit:
+            # 整数値
+            stmts.add quote do:
+              `recordVar`[`key`] = candid_funcs.newCInt(`value`)
+          of nnkInt8Lit:
+            # 整数値
+            stmts.add quote do:
+              `recordVar`[`key`] = candid_funcs.newCInt8(`value`)
+          of nnkInt16Lit:
+            # 整数値
+            stmts.add quote do:
+              `recordVar`[`key`] = candid_funcs.newCInt16(`value`)
+          of nnkInt32Lit:
+            # 整数値
+            stmts.add quote do:
+              `recordVar`[`key`] = candid_funcs.newCInt32(`value`)
+          of nnkInt64Lit:
+            # 整数値
+            stmts.add quote do:
+              `recordVar`[`key`] = candid_funcs.newCInt64(`value`)
+          of nnkFloat32Lit, nnkFloat64Lit, nnkFloatLit:
+            # 浮動小数点値
+            stmts.add quote do:
+              `recordVar`[`key`] = candid_funcs.newCFloat64(`value`)
+          of nnkDotExpr:
+            # 型付きリテラル（例：1.int8, 1.int16, 1.int32, 1.int64）の処理
+            if value[1].kind == nnkIdent:
+              let typeName = value[1].strVal
+              let val = value[0]
+              case typeName:
+              of "int8":
+                stmts.add quote do:
+                  `recordVar`[`key`] = CandidRecord(kind: ckInt8, int8Val: int8(`val`))
+              of "int16":
+                stmts.add quote do:
+                  `recordVar`[`key`] = CandidRecord(kind: ckInt16, int16Val: int16(`val`))
+              of "int32":
+                stmts.add quote do:
+                  `recordVar`[`key`] = CandidRecord(kind: ckInt32, int32Val: int32(`val`))
+              of "int64":
+                stmts.add quote do:
+                  `recordVar`[`key`] = CandidRecord(kind: ckInt64, int64Val: int64(`val`))
+              of "uint", "nat":
+                stmts.add quote do:
+                  `recordVar`[`key`] = CandidRecord(kind: ckNat, natVal: uint(`val`))
+              of "uint8", "nat8":
+                stmts.add quote do:
+                  `recordVar`[`key`] = CandidRecord(kind: ckNat8, nat8Val: uint8(`val`))
+              of "uint16", "nat16":
+                stmts.add quote do:
+                  `recordVar`[`key`] = CandidRecord(kind: ckNat16, nat16Val: uint16(`val`))
+              of "uint32", "nat32":
+                stmts.add quote do:
+                  `recordVar`[`key`] = CandidRecord(kind: ckNat32, nat32Val: uint32(`val`))
+              of "uint64", "nat64":
+                stmts.add quote do:
+                  `recordVar`[`key`] = CandidRecord(kind: ckNat64, nat64Val: uint64(`val`))
+              of "float32":
+                stmts.add quote do:
+                  `recordVar`[`key`] = CandidRecord(kind: ckFloat32, f32Val: float32(`val`))
+              of "float64", "float":
+                stmts.add quote do:
+                  `recordVar`[`key`] = CandidRecord(kind: ckFloat64, f64Val: float64(`val`))
               else:
-                newCOptionNone()
+                # 未知の型付きリテラルは文字列として扱う
+                stmts.add quote do:
+                  `recordVar`[`key`] = candid_funcs.newCText($`value`)
             else:
-              {.error: "Unsupported type for candidLit macro".}
-      else:
-        # その他の複雑な式は実行時処理
-        quote do:
-          let val = `node`
-          when val is CandidRecord:
-            val
-          elif val is bool:
-            newCBool(val)
-          elif val is SomeInteger:
-            newCInt(val.int64)
-          elif val is SomeFloat:
-            newCFloat64(val.float)
-          elif val is string:
-            newCText(val)
-          elif val is seq[uint8]:
-            newCBlob(val)
-          elif val is Principal:
-            newCPrincipal(val.value)
-          elif val is enum:
-            newCVariant($val)
-          elif val is Option:
-            if val.isSome():
-              asSome(candidLit(val.get()))
-            else:
-              newCOptionNone()
+              # DotExprだが型名が識別子でない場合は文字列として扱う
+              stmts.add quote do:
+                `recordVar`[`key`] = candid_funcs.newCText($`value`)
+          of nnkCurly, nnkTableConstr:
+            # ネストしたRecord
+            let nestedRecord = buildRecord(value)
+            stmts.add quote do:
+              `recordVar`[`key`] = `nestedRecord`
           else:
-            {.error: "Unsupported type for candidLit macro".}
-
-    # その他の式（変数参照、複雑な式など）
+            # その他の値は文字列に変換
+            stmts.add quote do:
+              `recordVar`[`key`] = candid_funcs.newCText($`value`)
+      
+      stmts.add(recordVar)
+      return newBlockStmt(stmts)
+    
+    of nnkStrLit:
+      # 単純な文字列
+      return quote do:
+        candid_funcs.newCText(`node`)
+    of nnkIntLit:
+      # 単純な整数
+      return quote do:
+        candid_funcs.newCInt(`node`)
     else:
-      # 実行時に型判定
-      quote do:
-        let val = `node`
-        when val is CandidRecord:
-          val
-        elif val is bool:
-          newCBool(val)
-        elif val is SomeInteger:
-          newCInt(val.int64)
-        elif val is SomeFloat:
-          newCFloat64(val.float)
-        elif val is string:
-          newCText(val)
-        elif val is seq[uint8]:
-          newCBlob(val)
-        elif val is Principal:
-          newCPrincipal(val.value)
-        elif val is enum:
-          newCVariant($val)
-        elif val is Option:
-          if val.isSome():
-            asSome(candidLit(val.get()))
-          else:
-            newCOptionNone()
-        else:
-          {.error: "Unsupported type for candidLit macro".}
+      # その他の値は文字列に変換
+      return quote do:
+        candid_funcs.newCText($`node`)
   
-  buildCandidValue(x)
+  return buildRecord(x)
 
-# %C エイリアス（Nim 1.6+ では %演算子の定義にはspecial文字の組み合わせが必要）
+# Principal型専用の関数を追加
+proc toCandidRecord*(p: Principal): CandidRecord =
+  ## Principal型をCandidRecordに変換
+  fromCandidValue(newCandidValue(p))
+
+# Principal型専用の %* オーバーロード  
+template `%*`*(x: Principal): CandidRecord = toCandidRecord(x)
+
+# 汎用版 %* template
 template `%*`*(x: untyped): CandidRecord = candidLit(x)
+
+# ===== 汎用seq処理のヘルパーマクロ =====
+
+macro processSeqValue*(seqVal: typed): CandidValue =
+  ## seq[T]型を汎用的に処理するヘルパーマクロ
+  let newCandidValueSym = bindSym"newCandidValue"
+  
+  quote do:
+    block:
+      var vecItems: seq[CandidValue] = @[]
+      for item in `seqVal`:
+        when item is seq[uint8]:
+          # seq[uint8]はblobとして処理
+          vecItems.add(`newCandidValueSym`(item))
+        elif item is seq:
+          # ネストしたseq[T]は再帰的に処理
+          vecItems.add(processSeqValue(item))
+        elif item is bool:
+          vecItems.add(`newCandidValueSym`(item))
+        elif item is SomeInteger:
+          vecItems.add(`newCandidValueSym`(item))
+        elif item is SomeFloat:
+          vecItems.add(`newCandidValueSym`(item))
+        elif item is string:
+          vecItems.add(`newCandidValueSym`(item))
+        elif item is Principal:
+          vecItems.add(`newCandidValueSym`(item))
+        elif item is enum:
+          vecItems.add(`newCandidValueSym`(item))
+        elif item is Option:
+          if item.isSome():
+            vecItems.add(`newCandidValueSym`(item.get()))
+          else:
+            vecItems.add(CandidValue(kind: ctOpt, optVal: none(CandidValue)))
+        else:
+          # 型が判明しない場合はテキストとして処理
+          vecItems.add(`newCandidValueSym`($item))
+      
+      # vec blob型として返す
+      CandidValue(kind: ctVec, vecVal: vecItems)
+
+# ===== Record作成用ヘルパー関数 =====
+
+proc newRecord*(): CandidRecord =
+  ## 新しい空のRecordを作成
+  CandidRecord(kind: ckRecord, fields: initOrderedTable[string, CandidValue]())
+
+proc setField*[T](record: CandidRecord, key: string, value: T) =
+  ## Recordにフィールドを設定（汎用版）
+  if record.kind != ckRecord:
+    raise newException(ValueError, "Cannot set field on non-record type")
+  
+  when T is Principal:
+    let candidValue = newCandidValue(value)
+    validateRecordFieldType(candidValue, key)
+    record.fields[key] = candidValue
+  elif T is CandidValue:
+    validateRecordFieldType(value, key)
+    record.fields[key] = value
+  elif T is CandidRecord:
+    let candidValue = toCandidValue(value)
+    validateRecordFieldType(candidValue, key)
+    record.fields[key] = candidValue
+  else:
+    let candidValue = newCandidValue(value)
+    validateRecordFieldType(candidValue, key)
+    record.fields[key] = candidValue

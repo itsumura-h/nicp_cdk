@@ -13,7 +13,7 @@ type
     ctNull, ctBool, ctNat, ctInt,
     ctNat8, ctNat16, ctNat32, ctNat64,
     ctInt8, ctInt16, ctInt32, ctInt64,
-    ctFloat32, ctFloat64,
+    ctFloat, ctFloat32, ctFloat64,
     ctText, ctReserved, ctEmpty, ctPrincipal,
     ctRecord, ctVariant, ctOpt, ctVec, ctBlob,
     ctFunc, ctService, ctQuery, ctOneway, ctCompositeQuery
@@ -25,7 +25,12 @@ type
     of ctNull: discard
     of ctBool: boolVal*: bool
     of ctNat,  ctNat8,  ctNat16,  ctNat32,  ctNat64: natVal*: uint
-    of ctInt,  ctInt8,  ctInt16,  ctInt32,  ctInt64: intVal*: int
+    of ctInt: intVal*: int
+    of ctInt8: int8Val*: int8
+    of ctInt16: int16Val*: int16
+    of ctInt32: int32Val*: int32
+    of ctInt64: int64Val*: int64
+    of ctFloat: floatVal*: float
     of ctFloat32: float32Val*: float32
     of ctFloat64: float64Val*: float64
     of ctText: textVal*: string
@@ -69,7 +74,11 @@ type
   # CandidRecord
   # ==================================================
   CandidRecordKind* = enum
-    ckNull, ckBool, ckInt, ckFloat32, ckFloat64, ckText, ckBlob,
+    ckNull, ckBool,
+    ckInt, ckInt8, ckInt16, ckInt32, ckInt64, 
+    ckNat, ckNat8, ckNat16, ckNat32, ckNat64,
+    ckFloat, ckFloat32, ckFloat64,
+    ckText, ckBlob,
     ckRecord, ckVariant, ckOption, ckPrincipal, ckFunc, ckService, ckArray
 
   CandidRecord* = ref object
@@ -79,7 +88,27 @@ type
     of ckBool:
       boolVal*: bool
     of ckInt:
-      intVal*: int64  # TODO: BigIntサポート時は BigInt に変更
+      intVal*: int
+    of ckInt8:
+      int8Val*: int8
+    of ckInt16:
+      int16Val*: int16
+    of ckInt32:
+      int32Val*: int32
+    of ckInt64:
+      int64Val*: int64
+    of ckNat:
+      natVal*: uint
+    of ckNat8:
+      nat8Val*: uint8
+    of ckNat16:
+      nat16Val*: uint16
+    of ckNat32:
+      nat32Val*: uint32
+    of ckNat64:
+      nat64Val*: uint64
+    of ckFloat:
+      fVal*: float
     of ckFloat32:
       f32Val*: float32
     of ckFloat64:
@@ -124,8 +153,18 @@ proc `$`*(value: CandidValue): string =
     result = $value.boolVal
   of ctNat, ctNat8, ctNat16, ctNat32, ctNat64:
     result = $value.natVal
-  of ctInt, ctInt8, ctInt16, ctInt32, ctInt64:
+  of ctInt:
     result = $value.intVal
+  of ctInt8:
+    result = $value.int8Val
+  of ctInt16:
+    result = $value.int16Val
+  of ctInt32:
+    result = $value.int32Val
+  of ctInt64:
+    result = $value.int64Val
+  of ctFloat:
+    result = $value.floatVal
   of ctFloat32:
     result = $value.float32Val
   of ctFloat64:
@@ -213,7 +252,7 @@ proc typeCodeFromCandidType*(candidType: CandidType): int =
   of ctEmpty: -17
   of ctOpt: -18
   of ctVec: -19
-  of ctBlob: -19  # BlobはVecと同じ型コード
+  of ctBlob: -19  # Blobは実際にはvec nat8として扱われる
   of ctRecord: -20
   of ctVariant: -21
   of ctFunc: -22
@@ -225,9 +264,11 @@ proc typeCodeFromCandidType*(candidType: CandidType): int =
 proc isPrimitiveType*(candidType: CandidType): bool =
   ## 基本型かどうかを判定
   case candidType:
-  of ctNull, ctBool, ctNat, ctInt, ctNat8, ctNat16, ctNat32, ctNat64,
-     ctInt8, ctInt16, ctInt32, ctInt64, ctFloat32, ctFloat64,
-     ctText, ctReserved, ctEmpty, ctPrincipal:
+  of ctNull, ctBool,
+    ctInt, ctInt8, ctInt16, ctInt32, ctInt64,
+    ctNat, ctNat8, ctNat16, ctNat32, ctNat64,
+    ctFloat, ctFloat32, ctFloat64,
+    ctText, ctReserved, ctEmpty, ctPrincipal:
     return true
   else:
     return false
@@ -251,13 +292,13 @@ proc newCandidValue*[T](value: T): CandidValue =
   elif T is int:
     CandidValue(kind: ctInt, intVal: value)
   elif T is int8:
-    CandidValue(kind: ctInt8, intVal: int(value))
+    CandidValue(kind: ctInt8, int8Val: value)
   elif T is int16:
-    CandidValue(kind: ctInt16, intVal: int(value))
+    CandidValue(kind: ctInt16, int16Val: value)
   elif T is int32:
-    CandidValue(kind: ctInt32, intVal: int(value))
+    CandidValue(kind: ctInt32, int32Val: value)
   elif T is int64:
-    CandidValue(kind: ctInt64, intVal: int(value))
+    CandidValue(kind: ctInt64, int64Val: value)
   elif T is byte:
     CandidValue(kind: ctNat8, natVal: uint(value))
   elif T is uint16:
@@ -272,12 +313,20 @@ proc newCandidValue*[T](value: T): CandidValue =
     CandidValue(kind: ctFloat64, float64Val: value)
   elif T is float or T is float32:
     CandidValue(kind: ctFloat32, float32Val: value.float32)
+  elif T is float:
+    CandidValue(kind: ctFloat, floatVal: value)
   elif T is string:
     CandidValue(kind: ctText, textVal: value)
   elif T is Principal:
     CandidValue(kind: ctPrincipal, principalVal: value)
   elif T is seq[uint8]:
     CandidValue(kind: ctBlob, blobVal: value)
+  elif T is seq[seq[uint8]]:
+    # vec blob型のサポート - seq[uint8]要素をそれぞれblobとして処理
+    var vecElements = newSeq[CandidValue]()
+    for blob in value:
+      vecElements.add(CandidValue(kind: ctBlob, blobVal: blob))
+    CandidValue(kind: ctVec, vecVal: vecElements)
   elif T is seq[byte]:
     CandidValue(kind: ctVec, vecVal: value.mapIt(newCandidValue(it)))
   elif T is CandidRecord:
@@ -286,6 +335,12 @@ proc newCandidValue*[T](value: T): CandidValue =
     CandidValue(kind: ctVariant, variantVal: value)
   elif T is Option[CandidValue]:
     CandidValue(kind: ctOpt, optVal: value)
+  elif T is Option[Principal]:
+    # Option[Principal]型のサポート
+    if value.isSome():
+      CandidValue(kind: ctOpt, optVal: some(newCandidValue(value.get())))
+    else:
+      CandidValue(kind: ctOpt, optVal: none(CandidValue))
   elif T is seq[CandidValue]:
     CandidValue(kind: ctVec, vecVal: value)
   elif T is tuple[principal: Principal, methodName: string]:
@@ -307,17 +362,41 @@ proc newCandidNull*(): CandidValue =
 proc newCandidBool*(value: bool): CandidValue =
   CandidValue(kind: ctBool, boolVal: value)
 
-proc newCandidNat*(value: uint): CandidValue =
-  CandidValue(kind: ctNat, natVal: value)
-
 proc newCandidInt*(value: int): CandidValue =
   CandidValue(kind: ctInt, intVal: value)
 
-proc newCandidFloat*(value: float32): CandidValue =
-  CandidValue(kind: ctFloat32, float32Val: value)
+proc newCandidInt8*(value: int8): CandidValue =
+  CandidValue(kind: ctInt8, int8Val: value)
+
+proc newCandidInt16*(value: int16): CandidValue =
+  CandidValue(kind: ctInt16, int16Val: value)
+
+proc newCandidInt32*(value: int32): CandidValue =
+  CandidValue(kind: ctInt32, int32Val: value)
+
+proc newCandidInt64*(value: int64): CandidValue =
+  CandidValue(kind: ctInt64, int64Val: value)
+
+proc newCandidNat*(value: uint): CandidValue =
+  CandidValue(kind: ctNat, natVal: value)
+
+proc newCandidNat8*(value: uint8): CandidValue =
+  CandidValue(kind: ctNat8, natVal: uint(value))
+
+proc newCandidNat16*(value: uint16): CandidValue =
+  CandidValue(kind: ctNat16, natVal: uint(value))
+
+proc newCandidNat32*(value: uint32): CandidValue =
+  CandidValue(kind: ctNat32, natVal: uint(value))
+
+proc newCandidNat64*(value: uint64): CandidValue =
+  CandidValue(kind: ctNat64, natVal: uint(value))
 
 proc newCandidFloat*(value: float): CandidValue =
-  newCandidFloat(value.float32)
+  CandidValue(kind: ctFloat, floatVal: value)
+
+proc newCandidFloat32*(value: float32): CandidValue =
+  CandidValue(kind: ctFloat32, float32Val: value)
 
 proc newCandidFloat64*(value: float64): CandidValue =
   CandidValue(kind: ctFloat64, float64Val: value)
@@ -507,3 +586,73 @@ proc isQuery*(f: CandidFunc): bool =
 proc isOneway*(f: CandidFunc): bool =
   ## func参照がoneway関数かどうか判定
   "oneway" in f.annotations
+
+proc newCandidVecBlob*(blobs: seq[seq[uint8]]): CandidValue =
+  ## seq[seq[uint8]]からvec blob型のCandidValueを作成
+  var vecElements = newSeq[CandidValue]()
+  for blob in blobs:
+    vecElements.add(CandidValue(kind: ctBlob, blobVal: blob))
+  CandidValue(kind: ctVec, vecVal: vecElements)
+
+# ================================================================================
+# Vec/Blob統一処理 - 動的型変換API
+# ================================================================================
+
+proc getItems*(cv: CandidValue): seq[CandidValue] =
+  ## CandidValueからVec型として要素を取得（統一内部表現から変換）
+  if cv.kind != ctVec:
+    raise newException(ValueError, "CandidValue is not a vector type, got: " & $cv.kind)
+  
+  # 統一内部表現のvecValから直接返す
+  return cv.vecVal
+
+proc getBlob*(cv: CandidValue): seq[uint8] =
+  ## CandidValueからBlob型として要素を取得（統一内部表現から変換）
+  if cv.kind != ctVec:
+    raise newException(ValueError, "CandidValue is not a vector type (or blob), got: " & $cv.kind)
+  
+  # 統一内部表現から uint8 seq に変換
+  var blobData = newSeq[uint8]()
+  for item in cv.vecVal:
+    if item.kind == ctNat8:
+      blobData.add(uint8(item.natVal))
+    else:
+      raise newException(ValueError, "Vector contains non-nat8 element, cannot convert to blob. Element type: " & $item.kind)
+  
+  return blobData
+
+proc asBlobValue*(data: seq[uint8]): CandidValue =
+  ## seq[uint8]を明示的にBlob用CandidValueとして作成（Record挿入用）
+  # 統一内部表現として vec nat8 で作成
+  var vecElements = newSeq[CandidValue]()
+  for byteVal in data:
+    vecElements.add(CandidValue(kind: ctNat8, natVal: uint(byteVal)))
+  
+  var result = CandidValue(kind: ctVec, vecVal: vecElements)
+  # Blob意図の記録用にメタ情報を設定（将来の拡張用）
+  # 注意: 現在はkind=ctVecで統一、実際の型判定はAPI使用時
+  return result
+
+proc asSeqValue*[T](data: seq[T]): CandidValue =
+  ## seq[T]を明示的にVector用CandidValueとして作成（Record挿入用）
+  var vecElements = newSeq[CandidValue]()
+  for item in data:
+    vecElements.add(newCandidValue(item))
+  
+  return CandidValue(kind: ctVec, vecVal: vecElements)
+
+proc isVecNat8*(cv: CandidValue): bool =
+  ## CandidValueがvec nat8型かどうか判定（統一内部表現での判定）
+  if cv.kind != ctVec:
+    return false
+  
+  # すべての要素がnat8かチェック
+  for item in cv.vecVal:
+    if item.kind != ctNat8:
+      return false
+  
+  return true
+
+proc canConvertToBlob*(cv: CandidValue): bool =
+  ## CandidValueがBlob型に変換可能かチェック
+  return isVecNat8(cv)
