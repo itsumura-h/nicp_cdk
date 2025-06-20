@@ -296,6 +296,12 @@ proc encodePrimitiveValue(value: CandidValue): seq[byte] =
     result.setLen(8)
     littleEndian64(addr result[0], addr val)
   
+  of ctFloat:
+    # floatはfloat32として扱う
+    result.setLen(4)
+    var float32Val = float32(value.floatVal)
+    littleEndian32(addr result[0], unsafeAddr float32Val)
+  
   of ctFloat32:
     result.setLen(4)
     littleEndian32(addr result[0], unsafeAddr value.float32Val)

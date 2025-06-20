@@ -245,6 +245,7 @@ proc typeCodeFromCandidType*(candidType: CandidType): int =
   of ctInt16: -10
   of ctInt32: -11
   of ctInt64: -12
+  of ctFloat: -13  # floatはfloat32として扱う
   of ctFloat32: -13
   of ctFloat64: -14
   of ctText: -15
