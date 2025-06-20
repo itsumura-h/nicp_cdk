@@ -206,7 +206,7 @@ proc decodePrimitiveValue(data: seq[byte], offset: var int, candidType: CandidTy
   of ctInt8:
     if offset >= data.len:
       raise newException(CandidDecodeError, "Unexpected end of data")
-    result.intVal = int(cast[int8](data[offset]))
+    result.int8Val = cast[int8](data[offset])
     inc offset
   
   of ctInt16:
@@ -214,7 +214,7 @@ proc decodePrimitiveValue(data: seq[byte], offset: var int, candidType: CandidTy
       raise newException(CandidDecodeError, "Unexpected end of data")
     var val: int16
     littleEndian16(addr val, unsafeAddr data[offset])
-    result.intVal = int(val)
+    result.int16Val = val
     offset += 2
   
   of ctInt32:
@@ -222,7 +222,7 @@ proc decodePrimitiveValue(data: seq[byte], offset: var int, candidType: CandidTy
       raise newException(CandidDecodeError, "Unexpected end of data")
     var val: int32
     littleEndian32(addr val, unsafeAddr data[offset])
-    result.intVal = int(val)
+    result.int32Val = val
     offset += 4
   
   of ctInt64:
@@ -230,7 +230,7 @@ proc decodePrimitiveValue(data: seq[byte], offset: var int, candidType: CandidTy
       raise newException(CandidDecodeError, "Unexpected end of data")
     var val: int64
     littleEndian64(addr val, unsafeAddr data[offset])
-    result.intVal = int(val)
+    result.int64Val = val
     offset += 8
   
   of ctFloat32:

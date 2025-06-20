@@ -1,7 +1,14 @@
+discard """
+  cmd : "nim c --skipUserCfg $file"
+"""
+
+# nim c -r --skipUserCfg tests/types/test_empty.nim
+
 import unittest
 import ../../src/nicp_cdk/ic_types/candid_types
 import ../../src/nicp_cdk/ic_types/candid_message/candid_encode
 import ../../src/nicp_cdk/ic_types/candid_message/candid_decode
+
 
 proc newCandidEmpty*(): CandidValue =
   ## Creates a CandidValue of kind ctEmpty. (Temporary definition for testing)

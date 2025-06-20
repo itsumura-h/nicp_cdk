@@ -279,20 +279,20 @@ proc encodePrimitiveValue(value: CandidValue): seq[byte] =
     littleEndian64(addr result[0], addr val)
   
   of ctInt8:
-    result.add(byte(value.intVal))
+    result.add(byte(value.int8Val))
   
   of ctInt16:
-    var val = int16(value.intVal)
+    var val = value.int16Val
     result.setLen(2)
     littleEndian16(addr result[0], addr val)
   
   of ctInt32:
-    var val = int32(value.intVal)
+    var val = value.int32Val
     result.setLen(4)
     littleEndian32(addr result[0], addr val)
   
   of ctInt64:
-    var val = int64(value.intVal)
+    var val = value.int64Val
     result.setLen(8)
     littleEndian64(addr result[0], addr val)
   
