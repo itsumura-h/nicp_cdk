@@ -142,7 +142,7 @@ proc getSomeValue*(cv: CandidValue): CandidValue =
 
 # ===== Enum型のVariant操作 =====
 
-proc getEnumValue*[T: enum](cv: CandidValue, _: type T): T =
+proc getVariantEnumValue*[T: enum](cv: CandidValue, _: type T): T =
   ## Variantから任意のenum型を取得
   if cv.kind != ctVariant:
     raise newException(ValueError, "Expected Variant")

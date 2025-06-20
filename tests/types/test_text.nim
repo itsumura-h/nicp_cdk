@@ -11,7 +11,7 @@ import ../../src/nicp_cdk/ic_types/candid_message/candid_decode
 
 
 suite "ic_text tests":
-  test "serializeCandid with empty string":
+  test "encode with empty string":
     let textValue = newCandidText("")
     let encoded = encodeCandidMessage(@[textValue])
     # DIDL0ヘッダー(4バイト) + 型テーブル(3バイト) + 長さ(1バイト) + 文字列(0バイト) = 8バイト
@@ -20,7 +20,7 @@ suite "ic_text tests":
     check encoded[7] == 0'u8
 
 
-  test "serializeCandid with simple string":
+  test "encode with simple string":
     let textValue = newCandidText("hello")
     let encoded = encodeCandidMessage(@[textValue])
     # DIDL0ヘッダー(4バイト) + 型テーブル(3バイト) + 長さ(1バイト) + 文字列(5バイト) = 13バイト
@@ -31,7 +31,7 @@ suite "ic_text tests":
     check encoded[8..12] == @[byte('h'), byte('e'), byte('l'), byte('l'), byte('o')]
 
 
-  test "serializeCandid with Japanese string":
+  test "encode with Japanese string":
     let textValue = newCandidText("こんにちは")
     let encoded = encodeCandidMessage(@[textValue])
     # 日本語は1文字3バイトのUTF-8なので、「こんにちは」は15バイト

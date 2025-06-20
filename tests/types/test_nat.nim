@@ -10,20 +10,20 @@ import ../../src/nicp_cdk/ic_types/candid_message/candid_decode
 
 
 suite "ic_nat tests":
-  test "serializeCandid with small nat":
+  test "encode with small nat":
     let natValue = newCandidNat(42u)
     let encoded = encodeCandidMessage(@[natValue])
     # DIDL0ヘッダー(4バイト) + 型テーブル(3バイト) + 値(1バイト) = 8バイト（小さい値の場合）
     check encoded.len == 8
 
 
-  test "serializeCandid with zero":
+  test "encode with zero":
     let natValue = newCandidNat(0u)
     let encoded = encodeCandidMessage(@[natValue])
     check encoded.len == 8
 
 
-  test "serializeCandid with large nat":
+  test "encode with large nat":
     let natValue = newCandidNat(1000000u)
     let encoded = encodeCandidMessage(@[natValue])
     # 大きな値はより多くのバイトを使用
@@ -76,18 +76,18 @@ suite "ic_nat tests":
 
 
 suite "ic_nat8 tests":
-  test "serializeCandid with small nat8":
+  test "encode with small nat8":
     let nat8Value = newCandidValue(42u8)
     let encoded = encodeCandidMessage(@[nat8Value])
     # DIDL0ヘッダー(4バイト) + 型テーブル(3バイト) + 値(1バイト) = 8バイト
     check encoded.len == 8
 
-  test "serializeCandid with zero nat8":
+  test "encode with zero nat8":
     let nat8Value = newCandidValue(0u8)
     let encoded = encodeCandidMessage(@[nat8Value])
     check encoded.len == 8
 
-  test "serializeCandid with max nat8":
+  test "encode with max nat8":
     let nat8Value = newCandidValue(255u8)
     let encoded = encodeCandidMessage(@[nat8Value])
     check encoded.len == 8
@@ -144,19 +144,19 @@ suite "ic_nat8 tests":
 
 
 suite "ic_nat16 tests":
-  test "serializeCandid with nat16 zero":
+  test "encode with nat16 zero":
     let nat16Value = newCandidValue(0'u16)
     let encoded = encodeCandidMessage(@[nat16Value])
     # DIDL0ヘッダー(4バイト) + 型テーブル(3バイト) + nat16値(2バイト) = 9バイト
     check encoded.len == 9
 
-  test "serializeCandid with nat16 small value":
+  test "encode with nat16 small value":
     let nat16Value = newCandidValue(42'u16)
     let encoded = encodeCandidMessage(@[nat16Value])
     # DIDL0ヘッダー(4バイト) + 型テーブル(3バイト) + nat16値(2バイト) = 9バイト
     check encoded.len == 9
 
-  test "serializeCandid with nat16 max value":
+  test "encode with nat16 max value":
     let nat16Value = newCandidValue(65535'u16)  # 2^16 - 1
     let encoded = encodeCandidMessage(@[nat16Value])
     # DIDL0ヘッダー(4バイト) + 型テーブル(3バイト) + nat16値(2バイト) = 9バイト
@@ -213,19 +213,19 @@ suite "ic_nat16 tests":
 
 
 suite "ic_nat32 tests":
-  test "serializeCandid with nat32 zero":
+  test "encode with nat32 zero":
     let nat32Value = newCandidValue(0'u32)
     let encoded = encodeCandidMessage(@[nat32Value])
     # DIDL0ヘッダー(4バイト) + 型テーブル(3バイト) + nat32値(4バイト) = 11バイト
     check encoded.len == 11
 
-  test "serializeCandid with nat32 small value":
+  test "encode with nat32 small value":
     let nat32Value = newCandidValue(42'u32)
     let encoded = encodeCandidMessage(@[nat32Value])
     # DIDL0ヘッダー(4バイト) + 型テーブル(3バイト) + nat32値(4バイト) = 11バイト
     check encoded.len == 11
 
-  test "serializeCandid with nat32 max value":
+  test "encode with nat32 max value":
     let nat32Value = newCandidValue(4294967295'u32)  # 2^32 - 1
     let encoded = encodeCandidMessage(@[nat32Value])
     # DIDL0ヘッダー(4バイト) + 型テーブル(3バイト) + nat32値(4バイト) = 11バイト
@@ -282,19 +282,19 @@ suite "ic_nat32 tests":
 
 
 suite "ic_nat64 tests":
-  test "serializeCandid with nat64 zero":
+  test "encode with nat64 zero":
     let nat64Value = newCandidValue(0'u64)
     let encoded = encodeCandidMessage(@[nat64Value])
     # DIDL0ヘッダー(4バイト) + 型テーブル(3バイト) + nat64値(8バイト) = 15バイト
     check encoded.len == 15
 
-  test "serializeCandid with nat64 small value":
+  test "encode with nat64 small value":
     let nat64Value = newCandidValue(42'u64)
     let encoded = encodeCandidMessage(@[nat64Value])
     # DIDL0ヘッダー(4バイト) + 型テーブル(3バイト) + nat64値(8バイト) = 15バイト
     check encoded.len == 15
 
-  test "serializeCandid with nat64 max value":
+  test "encode with nat64 max value":
     let nat64Value = newCandidValue(18446744073709551615'u64)  # 2^64 - 1
     let encoded = encodeCandidMessage(@[nat64Value])
     # DIDL0ヘッダー(4バイト) + 型テーブル(3バイト) + nat64値(8バイト) = 15バイト

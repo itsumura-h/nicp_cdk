@@ -11,7 +11,7 @@ import ../../src/nicp_cdk/ic_types/candid_message/candid_decode
 
 
 suite "ic_func tests":
-  test "serializeCandid with simple func":
+  test "encode with simple func":
     let principal = Principal.fromText("aaaaa-aa")
     let funcValue = newCandidFunc(principal, "test_method")
     let encoded = encodeCandidMessage(@[funcValue])
@@ -19,14 +19,14 @@ suite "ic_func tests":
     check encoded.len > 10  # 少なくとも10バイト以上
 
 
-  test "serializeCandid with management canister func":
+  test "encode with management canister func":
     let principal = Principal.fromText("aaaaa-aa")  # management canister
     let funcValue = newCandidFunc(principal, "raw_rand")
     let encoded = encodeCandidMessage(@[funcValue])
     check encoded.len > 10
 
 
-  test "serializeCandid with long method name":
+  test "encode with long method name":
     let principal = Principal.fromText("rrkah-fqaaa-aaaaa-aaaaq-cai")
     let funcValue = newCandidFunc(principal, "very_long_method_name_for_testing_purposes")
     let encoded = encodeCandidMessage(@[funcValue])

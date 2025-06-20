@@ -11,33 +11,33 @@ import ../../src/nicp_cdk/ic_types/candid_message/candid_decode
 
 
 suite "ic_int tests":
-  test "serializeCandid with positive int":
+  test "encode with positive int":
     let intValue = newCandidInt(42)
     let encoded = encodeCandidMessage(@[intValue])
     # DIDL0ヘッダー(4バイト) + 型テーブル(3バイト) + 値(1バイト) = 8バイト（小さい値の場合）
     check encoded.len == 8
 
 
-  test "serializeCandid with negative int":
+  test "encode with negative int":
     let intValue = newCandidInt(-42)
     let encoded = encodeCandidMessage(@[intValue])
     check encoded.len == 8
 
 
-  test "serializeCandid with zero":
+  test "encode with zero":
     let intValue = newCandidInt(0)
     let encoded = encodeCandidMessage(@[intValue])
     check encoded.len == 8
 
 
-  test "serializeCandid with large positive int":
+  test "encode with large positive int":
     let intValue = newCandidInt(1000000)
     let encoded = encodeCandidMessage(@[intValue])
     # 大きな値はより多くのバイトを使用
     check encoded.len > 8
 
 
-  test "serializeCandid with large negative int":
+  test "encode with large negative int":
     let intValue = newCandidInt(-1000000)
     let encoded = encodeCandidMessage(@[intValue])
     check encoded.len > 8
@@ -104,31 +104,31 @@ suite "ic_int tests":
 
 
 suite "ic_int8 tests":
-  test "serializeCandid with int8 zero":
+  test "encode with int8 zero":
     let int8Value = newCandidValue(0'i8)
     let encoded = encodeCandidMessage(@[int8Value])
     # DIDL0ヘッダー(4バイト) + 型テーブル(3バイト) + int8値(1バイト) = 8バイト
     check encoded.len == 8
 
-  test "serializeCandid with int8 positive value":
+  test "encode with int8 positive value":
     let int8Value = newCandidValue(42'i8)
     let encoded = encodeCandidMessage(@[int8Value])
     # DIDL0ヘッダー(4バイト) + 型テーブル(3バイト) + int8値(1バイト) = 8バイト
     check encoded.len == 8
 
-  test "serializeCandid with int8 negative value":
+  test "encode with int8 negative value":
     let int8Value = newCandidValue(-42'i8)
     let encoded = encodeCandidMessage(@[int8Value])
     # DIDL0ヘッダー(4バイト) + 型テーブル(3バイト) + int8値(1バイト) = 8バイト
     check encoded.len == 8
 
-  test "serializeCandid with int8 max value":
+  test "encode with int8 max value":
     let int8Value = newCandidValue(127'i8)  # 2^7 - 1
     let encoded = encodeCandidMessage(@[int8Value])
     # DIDL0ヘッダー(4バイト) + 型テーブル(3バイト) + int8値(1バイト) = 8バイト
     check encoded.len == 8
 
-  test "serializeCandid with int8 min value":
+  test "encode with int8 min value":
     let int8Value = newCandidValue(-128'i8)  # -2^7
     let encoded = encodeCandidMessage(@[int8Value])
     # DIDL0ヘッダー(4バイト) + 型テーブル(3バイト) + int8値(1バイト) = 8バイト
@@ -199,31 +199,31 @@ suite "ic_int8 tests":
 
 
 suite "ic_int16 tests":
-  test "serializeCandid with int16 zero":
+  test "encode with int16 zero":
     let int16Value = newCandidValue(0'i16)
     let encoded = encodeCandidMessage(@[int16Value])
     # DIDL0ヘッダー(4バイト) + 型テーブル(3バイト) + int16値(2バイト) = 9バイト
     check encoded.len == 9
 
-  test "serializeCandid with int16 positive value":
+  test "encode with int16 positive value":
     let int16Value = newCandidValue(42'i16)
     let encoded = encodeCandidMessage(@[int16Value])
     # DIDL0ヘッダー(4バイト) + 型テーブル(3バイト) + int16値(2バイト) = 9バイト
     check encoded.len == 9
 
-  test "serializeCandid with int16 negative value":
+  test "encode with int16 negative value":
     let int16Value = newCandidValue(-42'i16)
     let encoded = encodeCandidMessage(@[int16Value])
     # DIDL0ヘッダー(4バイト) + 型テーブル(3バイト) + int16値(2バイト) = 9バイト
     check encoded.len == 9
 
-  test "serializeCandid with int16 max value":
+  test "encode with int16 max value":
     let int16Value = newCandidValue(32767'i16)  # 2^15 - 1
     let encoded = encodeCandidMessage(@[int16Value])
     # DIDL0ヘッダー(4バイト) + 型テーブル(3バイト) + int16値(2バイト) = 9バイト
     check encoded.len == 9
 
-  test "serializeCandid with int16 min value":
+  test "encode with int16 min value":
     let int16Value = newCandidValue(-32768'i16)  # -2^15
     let encoded = encodeCandidMessage(@[int16Value])
     # DIDL0ヘッダー(4バイト) + 型テーブル(3バイト) + int16値(2バイト) = 9バイト
@@ -294,31 +294,31 @@ suite "ic_int16 tests":
 
 
 suite "ic_int32 tests":
-  test "serializeCandid with int32 zero":
+  test "encode with int32 zero":
     let int32Value = newCandidValue(0'i32)
     let encoded = encodeCandidMessage(@[int32Value])
     # DIDL0ヘッダー(4バイト) + 型テーブル(3バイト) + int32値(4バイト) = 11バイト
     check encoded.len == 11
 
-  test "serializeCandid with int32 positive value":
+  test "encode with int32 positive value":
     let int32Value = newCandidValue(42'i32)
     let encoded = encodeCandidMessage(@[int32Value])
     # DIDL0ヘッダー(4バイト) + 型テーブル(3バイト) + int32値(4バイト) = 11バイト
     check encoded.len == 11
 
-  test "serializeCandid with int32 negative value":
+  test "encode with int32 negative value":
     let int32Value = newCandidValue(-42'i32)
     let encoded = encodeCandidMessage(@[int32Value])
     # DIDL0ヘッダー(4バイト) + 型テーブル(3バイト) + int32値(4バイト) = 11バイト
     check encoded.len == 11
 
-  test "serializeCandid with int32 max value":
+  test "encode with int32 max value":
     let int32Value = newCandidValue(2147483647'i32)  # 2^31 - 1
     let encoded = encodeCandidMessage(@[int32Value])
     # DIDL0ヘッダー(4バイト) + 型テーブル(3バイト) + int32値(4バイト) = 11バイト
     check encoded.len == 11
 
-  test "serializeCandid with int32 min value":
+  test "encode with int32 min value":
     let int32Value = newCandidValue(-2147483648'i32)  # -2^31
     let encoded = encodeCandidMessage(@[int32Value])
     # DIDL0ヘッダー(4バイト) + 型テーブル(3バイト) + int32値(4バイト) = 11バイト
@@ -389,31 +389,31 @@ suite "ic_int32 tests":
 
 
 suite "ic_int64 tests":
-  test "serializeCandid with int64 zero":
+  test "encode with int64 zero":
     let int64Value = newCandidValue(0'i64)
     let encoded = encodeCandidMessage(@[int64Value])
     # DIDL0ヘッダー(4バイト) + 型テーブル(3バイト) + int64値(8バイト) = 15バイト
     check encoded.len == 15
 
-  test "serializeCandid with int64 positive value":
+  test "encode with int64 positive value":
     let int64Value = newCandidValue(42'i64)
     let encoded = encodeCandidMessage(@[int64Value])
     # DIDL0ヘッダー(4バイト) + 型テーブル(3バイト) + int64値(8バイト) = 15バイト
     check encoded.len == 15
 
-  test "serializeCandid with int64 negative value":
+  test "encode with int64 negative value":
     let int64Value = newCandidValue(-42'i64)
     let encoded = encodeCandidMessage(@[int64Value])
     # DIDL0ヘッダー(4バイト) + 型テーブル(3バイト) + int64値(8バイト) = 15バイト
     check encoded.len == 15
 
-  test "serializeCandid with int64 large positive value":
+  test "encode with int64 large positive value":
     let int64Value = newCandidValue(9223372036854775807'i64)  # 2^63 - 1
     let encoded = encodeCandidMessage(@[int64Value])
     # DIDL0ヘッダー(4バイト) + 型テーブル(3バイト) + int64値(8バイト) = 15バイト
     check encoded.len == 15
 
-  test "serializeCandid with int64 large negative value":
+  test "encode with int64 large negative value":
     let int64Value = newCandidValue(-9223372036854775808'i64)  # -2^63
     let encoded = encodeCandidMessage(@[int64Value])
     # DIDL0ヘッダー(4バイト) + 型テーブル(3バイト) + int64値(8バイト) = 15バイト
