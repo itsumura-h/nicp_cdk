@@ -233,6 +233,13 @@ suite("record array"):
     check record["value"].getArray()[1].getInt() == 2
     check record["value"].getArray()[2].getInt() == 3
 
+  test("seq empty"):
+    let emptySeq: seq[int] = @[]
+    let record = %*{
+      "value": emptySeq
+    }
+    check record["value"].getArray().len == 0
+
 
   test("record array 2"):
     let record = %*{
@@ -242,3 +249,21 @@ suite("record array"):
     check record["value"].getArray()[0].getInt() == 1
     check record["value"].getArray()[1].getInt() == 2
     check record["value"].getArray()[2].getInt() == 3
+
+
+suite("ecdsa arg"):
+  test("public key"):
+    let arg = %*{
+      "canister_id": Principal.managementCanister().some(),
+      "derivation_path": @[Principal.governanceCanister().bytes],
+      "key_id": {
+        "curve": EcdsaCurve.secp256k1,
+        "name": "dfx_test_key"
+      }
+    }
+    echo arg
+    check arg["canister_id"].getOpt().getPrincipal() == Principal.managementCanister()
+    check arg["derivation_path"].getArray().len == 1
+    check arg["derivation_path"][0].getBlob() == Principal.governanceCanister().bytes
+    check arg["key_id"]["curve"].getVariant(EcdsaCurve) == EcdsaCurve.secp256k1
+    check arg["key_id"]["name"].getStr() == "dfx_test_key"

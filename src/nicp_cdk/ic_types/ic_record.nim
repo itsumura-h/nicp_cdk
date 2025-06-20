@@ -5,7 +5,6 @@ import std/options
 import std/base64
 import std/hashes
 import std/macros
-
 import ./candid_types
 import ./ic_principal
 
@@ -567,10 +566,10 @@ proc recordToCandidValue*(cr: CandidRecord): CandidValue =
       vecItems.add(recordToCandidValue(elem))
     CandidValue(kind: ctVec, vecVal: vecItems)
   of ckRecord:
-    var candidRecord = CandidRecord(kind: ckRecord, fields: initOrderedTable[string, CandidValue]())
+    var recordValue = CandidRecord(kind: ckRecord, fields: initOrderedTable[string, CandidValue]())
     for key, value in cr.fields:
-      candidRecord.fields[key] = value
-    recordToCandidValue(candidRecord)
+      recordValue.fields[key] = value
+    CandidValue(kind: ctRecord, recordVal: recordValue)
   of ckOption:
     if cr.optVal.isSome():
       CandidValue(kind: ctOpt, optVal: some(recordToCandidValue(cr.optVal.get())))
@@ -850,10 +849,10 @@ proc `%`*[T](arr: seq[T]): CandidRecord =
     candidArray.elems.add(%item)
   candidArray
 
-proc `%`*[T](arr: openArray[T]): CandidRecord =
-  ## 配列をCandidRecordに変換
+proc `%`*[I, T](arr: array[I, T]): CandidRecord =
+  ## 固定長配列をCandidRecordに変換
   var candidArray = CandidRecord(kind: ckArray, elems: @[])
-  for item in arr.items:
+  for item in arr:
     candidArray.elems.add(%item)
   candidArray
 

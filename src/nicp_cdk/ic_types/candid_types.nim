@@ -81,7 +81,7 @@ type
     ckText, ckBlob,
     ckRecord, ckVariant, ckOption, ckPrincipal, ckFunc, ckService, ckArray
 
-  CandidRecord* = ref object
+  CandidRecord* {.acyclic, inheritable.} = ref object
     case kind*: CandidRecordKind
     of ckNull:
       discard  # 値を持たない
