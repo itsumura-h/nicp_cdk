@@ -5,6 +5,7 @@ import std/options
 import std/base64
 import std/hashes
 import std/macros
+import std/sequtils
 import ./candid_types
 import ./ic_principal
 
@@ -148,9 +149,13 @@ proc getStr*(cv: CandidRecord): string =
 
 proc getBlob*(cv: CandidRecord): seq[uint8] =
   ## バイト列を取得
-  if cv.kind != ckBlob:
-    raise newException(ValueError, &"Expected Blob, got {cv.kind}")
-  cv.blobVal
+  case cv.kind:
+  of ckBlob:
+    cv.blobVal
+  of ckArray:
+    cv.elems.map(proc(x: CandidRecord): uint8 = x.getNat8())
+  else:
+    raise newException(ValueError, &"Expected Blob or Array, got {cv.kind}")
 
 proc getArray*(cv: CandidRecord): seq[CandidRecord] =
   ## 配列の要素を取得
@@ -164,9 +169,17 @@ proc `[]`*(cv: CandidRecord, key: string): CandidRecord =
   ## レコードのフィールドにアクセス（存在しない場合は例外）
   if cv.kind != ckRecord:
     raise newException(ValueError, &"Cannot index {cv.kind} with string key")
-  if key notin cv.fields:
-    raise newException(KeyError, &"Key '{key}' not found in record")
-  candidValueToCandidRecord(cv.fields[key])
+  
+  # 文字列キーで直接検索
+  if key in cv.fields:
+    return candidValueToCandidRecord(cv.fields[key])
+  
+  # 文字列キーのハッシュ値で検索
+  let hashKey = $candidHash(key)
+  if hashKey in cv.fields:
+    return candidValueToCandidRecord(cv.fields[hashKey])
+  
+  raise newException(KeyError, &"Key '{key}' (hash: {hashKey}) not found in record")
 
 proc `[]=`*(cv: CandidRecord, key: string, value: CandidRecord) =
   ## レコードのフィールドを設定
@@ -203,13 +216,30 @@ proc contains*(cv: CandidRecord, key: string): bool =
   ## レコード内にキーが存在するかチェック
   if cv.kind != ckRecord:
     return false
-  key in cv.fields
+  
+  # 文字列キーで直接検索
+  if key in cv.fields:
+    return true
+  
+  # 文字列キーのハッシュ値で検索
+  let hashKey = $candidHash(key)
+  return hashKey in cv.fields
 
 proc get*(cv: CandidRecord, key: string, default: CandidRecord = nil): CandidRecord =
   ## 安全なフィールド取得（存在しない場合はdefaultを返す）
-  if cv.kind != ckRecord or key notin cv.fields:
+  if cv.kind != ckRecord:
     return default
-  candidValueToCandidRecord(cv.fields[key])
+  
+  # 文字列キーで直接検索
+  if key in cv.fields:
+    return candidValueToCandidRecord(cv.fields[key])
+  
+  # 文字列キーのハッシュ値で検索
+  let hashKey = $candidHash(key)
+  if hashKey in cv.fields:
+    return candidValueToCandidRecord(cv.fields[hashKey])
+  
+  return default
 
 # ===== 配列操作 =====
 

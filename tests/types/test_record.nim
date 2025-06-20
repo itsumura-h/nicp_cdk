@@ -5,8 +5,14 @@ discard """
 
 import std/unittest
 import std/options
+import ../../src/nicp_cdk/request
+import ../../src/nicp_cdk/reply
+import ../../src/nicp_cdk/ic_types/candid_types
 import ../../src/nicp_cdk/ic_types/ic_record
+import ../../src/nicp_cdk/ic_types/ic_text
 import ../../src/nicp_cdk/ic_types/ic_principal
+import ../../src/nicp_cdk/ic_types/candid_message/candid_encode
+import ../../src/nicp_cdk/ic_types/candid_message/candid_decode
 
 
 type EcdsaCurve {.pure.} = enum
@@ -241,7 +247,7 @@ suite("record array"):
     check record["value"].getArray().len == 0
 
 
-  test("record array 2"):
+  test("record array"):
     let record = %*{
       "value": [1, 2, 3]
     }
@@ -267,3 +273,73 @@ suite("ecdsa arg"):
     check arg["derivation_path"][0].getBlob() == Principal.governanceCanister().bytes
     check arg["key_id"]["curve"].getVariant(EcdsaCurve) == EcdsaCurve.secp256k1
     check arg["key_id"]["name"].getStr() == "dfx_test_key"
+
+  test("sign"):
+    let arg = %*{
+      "message_hash": "hello".toBlob(),
+      "derivation_path": @[Principal.governanceCanister().bytes],
+      "key_id": {
+        "curve": EcdsaCurve.secp256k1,
+        "name": "dfx_test_key"
+      }
+    }
+    echo arg
+    let candidRecord = newCandidRecord(arg)
+    let encoded = encodeCandidMessage(@[candidRecord])
+    echo "encoded: ", encoded.toString()
+    let decoded = decodeCandidMessage(encoded)
+    let request = newMockRequest(decoded.values)
+    check request.getRecord(0)["message_hash"].getBlob() == "hello".toBlob()
+    check request.getRecord(0)["derivation_path"].getArray().len == 1
+
+
+suite("encode, decode"):
+  test("encode, decode int"):
+    let record = %*{
+      "value": 1
+    }
+    let candidRecord = newCandidRecord(record)
+    let encoded = encodeCandidMessage(@[candidRecord])
+    let decoded = decodeCandidMessage(encoded)
+    let request = newMockRequest(decoded.values)
+    check request.getRecord(0)["value"].getInt() == 1
+
+  test("encode, decode ecdsa public key"):
+    let arg = %*{
+      "canister_id": Principal.managementCanister().some(),
+      "derivation_path": @[Principal.governanceCanister().bytes],
+      "key_id": {
+        "curve": EcdsaCurve.secp256k1,
+        "name": "dfx_test_key"
+      }
+    }
+    let candidRecord = newCandidRecord(arg)
+    let encoded = encodeCandidMessage(@[candidRecord])
+    echo "encoded: ", encoded.toString()
+    let decoded = decodeCandidMessage(encoded)
+    let request = newMockRequest(decoded.values)
+    check request.getRecord(0)["canister_id"].getOpt().getPrincipal() == Principal.managementCanister()
+    check request.getRecord(0)["derivation_path"].getArray().len == 1
+    check request.getRecord(0)["derivation_path"][0].getBlob() == Principal.governanceCanister().bytes
+    check request.getRecord(0)["key_id"]["curve"].getVariant(EcdsaCurve) == EcdsaCurve.secp256k1
+    check request.getRecord(0)["key_id"]["name"].getStr() == "dfx_test_key"
+
+  test("encode, decode ecdsa signature"):
+    let arg = %*{
+      "message_hash": "hello".toBlob(),
+      "derivation_path": @[Principal.governanceCanister().bytes],
+      "key_id": {
+        "curve": EcdsaCurve.secp256k1,
+        "name": "dfx_test_key"
+      }
+    }
+    let candidRecord = newCandidRecord(arg)
+    let encoded = encodeCandidMessage(@[candidRecord])
+    echo "encoded: ", encoded.toString()
+    let decoded = decodeCandidMessage(encoded)
+    let request = newMockRequest(decoded.values)
+    check request.getRecord(0)["message_hash"].getBlob() == "hello".toBlob()
+    check request.getRecord(0)["derivation_path"].getArray().len == 1
+    check request.getRecord(0)["derivation_path"][0].getBlob() == Principal.governanceCanister().bytes
+    check request.getRecord(0)["key_id"]["curve"].getVariant(EcdsaCurve) == EcdsaCurve.secp256k1
+    check request.getRecord(0)["key_id"]["name"].getStr() == "dfx_test_key"

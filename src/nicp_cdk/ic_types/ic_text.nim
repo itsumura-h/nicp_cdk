@@ -24,3 +24,8 @@ proc serializeCandid*(value: string): seq[byte] =
   buf.add encodeULEB128(uint(utf8Bytes.len))
   for b in utf8Bytes: buf.add byte(b)
   buf
+
+
+proc toBlob*(value: string): seq[byte] =
+  ## --- string 用 toBlob ---
+  return value.map(proc(c:char): byte = byte(c)).toSeq()

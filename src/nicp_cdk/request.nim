@@ -189,11 +189,10 @@ proc getEmpty*(self:Request, index:int) =
 
 
 # 指定されたインデックスの引数を Record として取得する
-# TODO: Phase 3.2で実装予定 - fromCandidValue関数の依存関係を解決後に有効化
-# proc getRecord*(self:Request, index:int): CandidRecord =
-#   ## Get the argument at the specified index as a record
-#   assert self.values[index].kind == ctRecord, "Expected record type, got: " & $self.values[index].kind
-#   return fromCandidValue(self.values[index])
+proc getRecord*(self:Request, index:int): CandidRecord =
+  ## Get the argument at the specified index as a record
+  assert self.values[index].kind == ctRecord, "Expected record type, got: " & $self.values[index].kind
+  return candidValueToCandidRecord(self.values[index])
 
 
 # ================================================================================

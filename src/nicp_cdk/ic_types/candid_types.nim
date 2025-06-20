@@ -417,6 +417,9 @@ proc newCandidRecord*(values: Table[string, CandidValue]): CandidValue =
     record.fields[key] = value
   CandidValue(kind: ctRecord, recordVal: record)
 
+proc newCandidRecord*(values: CandidRecord): CandidValue =
+  CandidValue(kind: ctRecord, recordVal: values)
+
 proc newCandidVariant*(tag: string, value: CandidValue): CandidValue =
   let variant = CandidVariant(tag: candidHash(tag), value: value)
   CandidValue(kind: ctVariant, variantVal: variant)

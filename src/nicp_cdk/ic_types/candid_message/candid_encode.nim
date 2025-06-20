@@ -439,15 +439,14 @@ proc encodeCandidMessage*(values: seq[CandidValue]): seq[byte] =
   
   # 1. 魔法数を追加
   result.add(magicHeader)
-  
+ 
   # 2. 型テーブルを構築
   var builder = TypeBuilder(
     typeTable: @[],
     typeIndexMap: initTable[string, int]()
   )
-  
+
   var valueTypes: seq[int] = @[]
-  
   # 各値の型を分析して型テーブルに追加
   for value in values:
     let typeRef = if value.kind == ctBlob:
@@ -470,7 +469,7 @@ proc encodeCandidMessage*(values: seq[CandidValue]): seq[byte] =
   result.add(encodeULEB128(uint(builder.typeTable.len)))
   for entry in builder.typeTable:
     result.add(encodeTypeTableEntry(entry))
-  
+
   # 4. 型シーケンスをエンコード
   result.add(encodeULEB128(uint(valueTypes.len)))
   for typeRef in valueTypes:
