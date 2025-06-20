@@ -14,7 +14,6 @@ import ./ic_principal
 # CandidRecordタイプの前方宣言を追加（ic_record.nimから移動）
 proc newCNull*(): CandidRecord
 proc newCBool*(b: bool): CandidRecord 
-proc newCInt*(i: int64): CandidRecord
 proc newCInt*(i: int): CandidRecord
 proc newCFloat32*(f: float32): CandidRecord
 proc newCFloat64*(f: float): CandidRecord
@@ -167,7 +166,7 @@ proc fromCandidValue*(cv: CandidValue): CandidRecord =
   of ctBool:
     result = CandidRecord(kind: ckBool, boolVal: cv.boolVal)
   of ctInt:
-    result = CandidRecord(kind: ckInt, intVal: cv.intVal.int64)
+    result = CandidRecord(kind: ckInt, intVal: cv.intVal)
   of ctInt8:
     result = CandidRecord(kind: ckInt8, int8Val: cv.int8Val)
   of ctInt16:
@@ -385,13 +384,9 @@ proc newCBool*(b: bool): CandidRecord =
   ## ブール値からCandidRecordを生成
   CandidRecord(kind: ckBool, boolVal: b)
 
-proc newCInt*(i: int64): CandidRecord =
-  ## 整数からCandidRecordを生成
-  CandidRecord(kind: ckInt, intVal: i)
-
 proc newCInt*(i: int): CandidRecord =
   ## 整数からCandidRecordを生成
-  CandidRecord(kind: ckInt, intVal: i.int64)
+  CandidRecord(kind: ckInt, intVal: i)
 
 proc newCInt8*(i: int8): CandidRecord =
   ## 8bit整数からCandidRecordを生成
@@ -497,10 +492,6 @@ proc asBool*(b: bool): CandidRecord =
 
 proc asInt*(i: int): CandidRecord =
   ## intをInt型のCandidRecordに変換
-  newCInt(i)
-
-proc asInt*(i: int64): CandidRecord =
-  ## int64をInt型のCandidRecordに変換
   newCInt(i)
 
 proc asFloat32*(f: float32): CandidRecord =

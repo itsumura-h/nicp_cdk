@@ -418,7 +418,7 @@ proc newCBoolRecord*(value: bool): CandidRecord =
   ## Bool値のCandidRecordを作成
   CandidRecord(kind: ckBool, boolVal: value)
 
-proc newCIntRecord*(value: int64): CandidRecord =
+proc newCIntRecord*(value: int): CandidRecord =
   ## Int値のCandidRecordを作成
   CandidRecord(kind: ckInt, intVal: value)
 
@@ -979,13 +979,6 @@ proc blob*(data: seq[uint8]): CandidRecord =
   ## blob([...])構文用ヘルパー関数  
   CandidRecord(kind: ckBlob, blobVal: data)
 
-proc some*[T](value: T): CandidRecord =
-  ## some(value)構文用ヘルパー関数
-  CandidRecord(kind: ckOption, optVal: some(%value))
-
-proc none*[T](t: typedesc[T]): CandidRecord =
-  ## none(Type)構文用ヘルパー関数
-  CandidRecord(kind: ckOption, optVal: none(CandidRecord))
 
 # ===== 汎用seq処理のヘルパーマクロ =====
 
