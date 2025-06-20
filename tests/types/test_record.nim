@@ -4,8 +4,14 @@ discard """
 # nim c -r --skipUserCfg tests/types/test_record.nim
 
 import std/unittest
+import std/options
 import ../../src/nicp_cdk/ic_types/ic_record
 import ../../src/nicp_cdk/ic_types/ic_principal
+
+
+type EcdsaCurve {.pure.} = enum
+  secp256k1
+  secp256r1
 
 
 suite("record null"):
@@ -154,24 +160,12 @@ suite("record blob"):
 
 suite("record variant"):
   test "record variant":
-    type EcdsaCurve {.pure.} = enum
-      secp256k1
-      secp256r1
-      secp384r1
-      secp521r1
-
     let record = %*{
       "value": EcdsaCurve.secp256k1
     }
     check record["value"].getVariant(EcdsaCurve) == EcdsaCurve.secp256k1
 
   test "record variant - different enum values":
-    type EcdsaCurve {.pure.} = enum
-      secp256k1
-      secp256r1
-      secp384r1
-      secp521r1
-
     # 各Enum値をテスト
     for curve in EcdsaCurve:
       let record = %*{
@@ -198,22 +192,32 @@ suite("record variant"):
     check record["status"].getVariant(SimpleStatus) == SimpleStatus.Active
 
   test "record variant - type mismatch error":
-    type 
-      EcdsaCurve {.pure.} = enum
-        secp256k1
-        secp256r1
-      
-      SimpleStatus {.pure.} = enum
-        Active
-        Inactive
-
     let record = %*{
       "curve": EcdsaCurve.secp256k1
     }
     
     # 正しい型では成功
     check record["curve"].getVariant(EcdsaCurve) == EcdsaCurve.secp256k1
-    
+
     # 間違った型ではエラー
+    type SimpleStatus {.pure.} = enum
+      Active
+      Inactive
+
     expect(ValueError):
       discard record["curve"].getVariant(SimpleStatus)
+
+
+suite("record option"):
+  test "record option some":
+    let record = %*{
+      "value": some(1)
+    }
+    check record["value"].isSome() == true
+    check record["value"].getOpt().getInt() == 1
+
+  test "record option none":
+    let record = %*{
+      "value": none(int)
+    }
+    check record["value"].isNone() == true
