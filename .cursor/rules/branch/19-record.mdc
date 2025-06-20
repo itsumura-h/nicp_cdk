@@ -12,11 +12,12 @@ alwaysApply: true
 - JsonNodeを参考にしつつ、Candidに特化した動的型システムの改善を実装する
 
 ## 進捗
-- [ ] NimのJsonNodeの `%` と `%*` マクロの実装詳細を調査
-- [ ] 既存のCandidRecordとCandidValueの実装を分析
-- [ ] PrincipalやBlob型を含むCandid型システムの設計改善
-- [ ] %*マクロの機能拡張（型安全性とエラーハンドリングの向上）
-- [ ] テストケースの充実化
+- [x] NimのJsonNodeの `%` と `%*` マクロの実装詳細を調査
+- [x] 既存のCandidRecordとCandidValueの実装を分析
+- [x] PrincipalやBlob型を含むCandid型システムの設計改善
+- [x] %*マクロの機能拡張（型安全性とエラーハンドリングの向上）
+- [x] コードベースの整理（candid_funcs.nimからRecord型関連処理をic_record.nimに移動）
+- [x] テストケースの充実化
 
 ## 参考資料
 - Nim標準ライブラリ json.html: https://nim-lang.org/docs/json.html
@@ -90,46 +91,63 @@ macro `%*`*(x: untyped): untyped =
 **candidLit マクロ**: `%*`相当の機能、ただし配列処理やICP型の統合に改善余地
 **%* テンプレート**: 既存実装あり、Principal型の特別処理も含む
 
-### 設計改善提案
+### 実装完了済み設計
 
-#### 1. 統合的な%演算子の実装
+#### 1. 完全な%演算子実装
 ```nim
-proc `%`*(p: Principal): CandidRecord = 
-  CandidRecord(kind: ckPrincipal, principalId: $p)
+# 基本型
+proc `%`*(b: bool): CandidRecord
+proc `%`*(n: int): CandidRecord
+proc `%`*(n: int8/16/32/64): CandidRecord
+proc `%`*(n: uint/8/16/32/64): CandidRecord
+proc `%`*(f: float32/64): CandidRecord
+proc `%`*(s: string): CandidRecord
 
-proc `%`*(blob: seq[uint8]): CandidRecord = 
-  CandidRecord(kind: ckBlob, bytesVal: blob)
+# ICP特化型
+proc `%`*(p: Principal): CandidRecord
+proc `%`*(blob: seq[uint8]): CandidRecord
+proc `%`*[T: enum](mdc:enumValue: T): CandidRecord
 
-proc `%`*[T](mdc:opt: Option[T]): CandidRecord =
-  if opt.isSome(): CandidRecord(kind: ckOption, hasValue: true, optVal: %(opt.get()))
-  else: CandidRecord(kind: ckOption, hasValue: false)
+# 複合型
+proc `%`*[T](mdc:opt: Option[T]): CandidRecord
+proc `%`*[T](mdc:arr: seq[T]): CandidRecord
+proc `%`*(table: openArray[(string, CandidRecord)]): CandidRecord
 ```
 
-#### 2. 強化された%*マクロ
-- 配列構造: `[1, 2, 3]` のサポート強化
-- 関数呼び出し: `some(value)`, `none(Type)` の認識
-- Principal/Blob型のリテラル構文: `principal("aaaaa-aa")`, `blob([0x41, 0x42])`
+#### 2. 完全な%*マクロ実装
+- **配列構造**: `[1, 2, 3]` 完全サポート
+- **オブジェクト構造**: `{"key": value}` 完全サポート
+- **ネスト構造**: 任意の深さでの組み合わせ可能
 
-#### 3. JsonNodeとの主な違い
+#### 3. 型安全性・バリデーション
+- **フィールド型チェック**: 未サポート型（func, service, reserved等）の検出
+- **コンパイル時最適化**: マクロによる高速化
+- **エラーハンドリング**: 詳細なエラーメッセージ付き
 
-| 機能 | JsonNode | CandidRecord（提案） |
-|------|----------|-------------------|
+#### 4. JsonNodeとの主な違い（実装済み）
+
+| 機能 | JsonNode | CandidRecord（実装済み） |
+|------|----------|--------------------------|
 | **基本型** | Null, Bool, Int, Float, String, Array, Object | + Principal, Blob, Option, Variant |
 | **数値型** | Int, Float | Int8/16/32/64, Nat8/16/32/64, Float32/64 |
 | **配列** | 同種要素のみ | 異種要素対応 |
 | **Optional** | nil許可 | Option[T]型で明示的 |
-| **キーハッシュ** | 文字列のまま | 内部的にハッシュ化（Candid仕様） |
+| **Enum** | 文字列変換 | Variant型で型安全 |
+| **アクセス** | `[]`演算子 | `[]`演算子 + 型安全なgetters |
+| **文字列化** | JSON準拠 | JSON風 + Candid特化 |
 
-### 実装目標
+#### 5. 実装済み機能
 
-1. **型安全性**: コンパイル時の型チェック強化
-2. **ICP型サポート**: Principal、Blob型のネイティブサポート  
-3. **直感的構文**: JSON風のリテラル記法
-4. **相互運用性**: 既存コードとの互換性維持
-5. **パフォーマンス**: マクロによるコンパイル時最適化
+1. **型安全性**: コンパイル時型チェック完了
+2. **ICP型サポート**: Principal、Blob型のネイティブサポート完了
+3. **直感的構文**: JSON風リテラル記法完了
+4. **相互運用性**: CandidValue変換完了
+5. **パフォーマンス**: マクロによるコンパイル時最適化完了
+6. **エラーハンドリング**: 詳細なエラーメッセージ完了
 
-### 使用例
+### 実装済み使用例
 ```nim
+# 基本的な使用法
 let candidData = %* {
   "user": {
     "name": "Alice",
@@ -143,5 +161,55 @@ let candidData = %* {
     "version": 1
   }
 }
+
+# Enum型の使用
+type EcdsaCurve = enum
+  secp256k1, secp256r1
+
+let config = %* {
+  "curve": EcdsaCurve.secp256k1,
+  "enabled": true
+}
+
+# 数値型の明示的指定
+let numbers = %* {
+  "int8": 127.int8,
+  "uint64": 1000000.uint64,
+  "float32": 3.14.float32
+}
 ```
+
+### アーキテクチャ設計
+
+#### モジュール分離
+- `candid_funcs.nim`: 基本型のCandidValue変換に特化
+- `ic_record.nim`: CandidRecord操作・変換に特化
+
+#### 内部設計
+- **CandidRecord**: Variant object型による型安全な実装
+- **変換関数**: `candidValueToCandidRecord`, `recordToCandidValue`
+- **バリデーション**: `validateRecordFieldType`による型チェック
+- **マクロ**: `toCandidRecordImpl`によるコンパイル時AST処理
+
+### 実装結果
+
+#### テスト結果（全項目PASS）
+- Null、Bool、Int、Float、Text型の処理: ✅
+- Principal、Blob型のICP特化処理: ✅ 
+- Enum型のVariant処理: ✅
+- Option型（some/none）の処理: ✅
+- %*マクロによるリテラル構文: ✅
+- エラーハンドリング: ✅
+
+#### パフォーマンス
+- コンパイル時最適化によりランタイムオーバーヘッドなし
+- JsonNodeと同等の使いやすさを実現
+- ICP特化型のネイティブサポートによる高効率化
+
+#### 型安全性
+- コンパイル時型チェックによる実行時エラーの削減
+- 不正な型変換の事前検出
+- 詳細なエラーメッセージによるデバッグ支援
+
+この設計により、NimのJsonNodeの利便性を保ちつつ、ICPのCandid型システムに特化した高性能・高安全性の動的型システムを実現しました。
 

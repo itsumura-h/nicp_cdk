@@ -8,13 +8,13 @@ import std/macros
 
 import ./candid_types
 import ./ic_principal
-import ./candid_funcs
 
 # CandidRecordの操作に特化したモジュール
 # 型変換ロジックはcandid_funcs.nimに移動済み
 
 # 前方宣言
 proc recordToCandidValue*(cr: CandidRecord): CandidValue
+proc candidValueToCandidRecord*(cv: CandidValue): CandidRecord
 
 # ===== Record型バリデーション関数 =====
 
@@ -167,7 +167,7 @@ proc `[]`*(cv: CandidRecord, key: string): CandidRecord =
     raise newException(ValueError, &"Cannot index {cv.kind} with string key")
   if key notin cv.fields:
     raise newException(KeyError, &"Key '{key}' not found in record")
-  fromCandidValue(cv.fields[key])
+  candidValueToCandidRecord(cv.fields[key])
 
 proc `[]=`*(cv: CandidRecord, key: string, value: CandidRecord) =
   ## レコードのフィールドを設定
@@ -210,7 +210,7 @@ proc get*(cv: CandidRecord, key: string, default: CandidRecord = nil): CandidRec
   ## 安全なフィールド取得（存在しない場合はdefaultを返す）
   if cv.kind != ckRecord or key notin cv.fields:
     return default
-  fromCandidValue(cv.fields[key])
+  candidValueToCandidRecord(cv.fields[key])
 
 # ===== 配列操作 =====
 
@@ -378,7 +378,7 @@ proc getVariant*(cv: CandidRecord): VariantResult =
   
   VariantResult(
     tag: tagStr,
-    value: fromCandidValue(cv.variantVal.value)
+    value: candidValueToCandidRecord(cv.variantVal.value)
   )
 
 proc getVariant*[T: enum](cv: CandidRecord, enumType: typedesc[T]): T =
@@ -461,6 +461,8 @@ proc asSome*(value: CandidRecord): CandidRecord =
 
 # ===== CandidValue ⇔ CandidRecord 変換関数 =====
 
+
+
 proc candidValueToCandidRecord*(cv: CandidValue): CandidRecord =
   ## CandidValueからCandidRecordに変換
   case cv.kind:
@@ -501,7 +503,7 @@ proc candidValueToCandidRecord*(cv: CandidValue): CandidRecord =
   of ctVec:
     var arrayRecord = newCArrayRecord()
     for elem in cv.vecVal:
-      arrayRecord.add(fromCandidValue(elem))
+      arrayRecord.add(candidValueToCandidRecord(elem))
     arrayRecord
   of ctRecord:
     var recordRecord = newCRecordEmpty()
@@ -510,7 +512,7 @@ proc candidValueToCandidRecord*(cv: CandidValue): CandidRecord =
     recordRecord
   of ctOpt:
     if cv.optVal.isSome():
-      asSome(fromCandidValue(cv.optVal.get()))
+      asSome(candidValueToCandidRecord(cv.optVal.get()))
     else:
       newCOptionNone()
   of ctVariant:
@@ -730,7 +732,7 @@ proc candidValueToJsonString(cv: CandidRecord, indent: int = 0): string =
                        "\"_" & key & "_\""  # 数値キーの場合は特殊表記
                      else: 
                        "\"" & key & "\""
-        lines.add(indentStr(indent + 1) & keyStr & ": " & candidValueToJsonString(fromCandidValue(value), indent + 1))
+        lines.add(indentStr(indent + 1) & keyStr & ": " & candidValueToJsonString(candidValueToCandidRecord(value), indent + 1))
         isFirst = false
       lines.add(indentStr(indent) & "}")
       lines.join("\n")
@@ -746,7 +748,7 @@ proc candidValueToJsonString(cv: CandidRecord, indent: int = 0): string =
       lines.join("\n")
   of ckVariant:
     # Variantは単一キーのオブジェクトとして表現
-    "{\"" & $cv.variantVal.tag & "\": " & candidValueToJsonString(fromCandidValue(cv.variantVal.value), indent) & "}"
+    "{\"" & $cv.variantVal.tag & "\": " & candidValueToJsonString(candidValueToCandidRecord(cv.variantVal.value), indent) & "}"
   of ckOption:
     # Optionも単一キーのオブジェクトとして表現
     if cv.optVal.isSome():
@@ -852,7 +854,7 @@ proc `%`*(table: openArray[(string, CandidRecord)]): CandidRecord =
   ## テーブル（レコード）をCandidRecordに変換
   var record = CandidRecord(kind: ckRecord, fields: initOrderedTable[string, CandidValue]())
   for (key, value) in table:
-    record.fields[key] = candid_funcs.toCandidValue(value)
+    record.fields[key] = recordToCandidValue(value)
   record
 
 # ===== 改良された %* マクロ（JsonNodeの%*相当） =====
@@ -887,7 +889,7 @@ proc toCandidRecordImpl(x: NimNode): NimNode =
       let value = toCandidRecordImpl(x[i][1])
       
       stmts.add quote do:
-        `recordVar`.fields[`key`] = candid_funcs.toCandidValue(`value`)
+        `recordVar`.fields[`key`] = recordToCandidValue(`value`)
     
     stmts.add recordVar
     result = newBlockStmt(stmts)
@@ -968,16 +970,6 @@ macro `%*`*(x: untyped): CandidRecord =
   ## }
   ## ```
   result = toCandidRecordImpl(x)
-
-# ===== 特殊型用のヘルパー関数 =====
-
-proc principal*(text: string): CandidRecord =
-  ## principal("text")構文用ヘルパー関数
-  CandidRecord(kind: ckPrincipal, principalId: text)
-
-proc blob*(data: seq[uint8]): CandidRecord =
-  ## blob([...])構文用ヘルパー関数  
-  CandidRecord(kind: ckBlob, blobVal: data)
 
 
 # ===== 汎用seq処理のヘルパーマクロ =====
