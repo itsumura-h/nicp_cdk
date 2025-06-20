@@ -1,18 +1,23 @@
+discard """
+  cmd: "nim c --skipUserCfg $file"
+"""
+
+# nim c -r --skipUserCfg tests/types/test_vec.nim
+
 import unittest
 import ../../src/nicp_cdk/ic_types/candid_types
 import ../../src/nicp_cdk/ic_types/candid_message/candid_encode
 import ../../src/nicp_cdk/ic_types/candid_message/candid_decode
 
-
 suite "ic_vec tests":
-  test "serializeCandid with empty vec":
+  test "encode with empty vec":
     let vecValue = newCandidVec(@[])
     let encoded = encodeCandidMessage(@[vecValue])
     # DIDL0ヘッダー(4バイト) + 型テーブル(サイズ可変) + 長さ0(1バイト) = 最小サイズ
     check encoded.len >= 8
     echo "Empty vec encoded size: ", encoded.len, " bytes"
 
-  test "serializeCandid with vec of nat8":
+  test "encode with vec of nat8":
     let nat8Values = @[
       newCandidValue(uint8(1)),
       newCandidValue(uint8(2)),
@@ -24,7 +29,7 @@ suite "ic_vec tests":
     check encoded.len > 8
     echo "Vec of 3 nat8 encoded size: ", encoded.len, " bytes"
 
-  test "serializeCandid with vec of nat16":
+  test "encode with vec of nat16":
     let nat16Values = @[
       newCandidValue(uint16(100)),
       newCandidValue(uint16(200)),
@@ -35,7 +40,7 @@ suite "ic_vec tests":
     check encoded.len > 8
     echo "Vec of 3 nat16 encoded size: ", encoded.len, " bytes"
 
-  test "serializeCandid with vec of text":
+  test "encode with vec of text":
     let textValues = @[
       newCandidText("Hello"),
       newCandidText("World"),
@@ -190,22 +195,38 @@ suite "ic_vec tests":
     check vecValue.vecVal[1].natVal == 20u
     check vecValue.vecVal[2].natVal == 30u
 
-  test "vec boundary values":
-    # 境界値のテスト
-    let boundaryValues = @[
+  test "vec boundary values nat8":
+    # nat8の境界値テスト
+    let nat8BoundaryValues = @[
       newCandidValue(uint8(0)),      # 最小値
-      newCandidValue(uint8(255)),    # 最大値
-      newCandidValue(uint16(0)),     # 最小値
-      newCandidValue(uint16(65535))  # 最大値
+      newCandidValue(uint8(255))     # 最大値
     ]
-    let vecValue = newCandidVec(boundaryValues)
+    let vecValue = newCandidVec(nat8BoundaryValues)
     let encoded = encodeCandidMessage(@[vecValue])
     let decoded = decodeCandidMessage(encoded)
     check decoded.values.len == 1
     check decoded.values[0].kind == ctVec
-    check decoded.values[0].vecVal.len == 4
+    check decoded.values[0].vecVal.len == 2
     # 各境界値を検証
+    check decoded.values[0].vecVal[0].kind == ctNat8
     check decoded.values[0].vecVal[0].natVal == 0u
+    check decoded.values[0].vecVal[1].kind == ctNat8
     check decoded.values[0].vecVal[1].natVal == 255u
-    check decoded.values[0].vecVal[2].natVal == 0u
-    check decoded.values[0].vecVal[3].natVal == 65535u 
+
+  test "vec boundary values nat16":
+    # nat16の境界値テスト
+    let nat16BoundaryValues = @[
+      newCandidValue(uint16(0)),     # 最小値
+      newCandidValue(uint16(65535))  # 最大値
+    ]
+    let vecValue = newCandidVec(nat16BoundaryValues)
+    let encoded = encodeCandidMessage(@[vecValue])
+    let decoded = decodeCandidMessage(encoded)
+    check decoded.values.len == 1
+    check decoded.values[0].kind == ctVec
+    check decoded.values[0].vecVal.len == 2
+    # 各境界値を検証
+    check decoded.values[0].vecVal[0].kind == ctNat16
+    check decoded.values[0].vecVal[0].natVal == 0u
+    check decoded.values[0].vecVal[1].kind == ctNat16
+    check decoded.values[0].vecVal[1].natVal == 65535u 

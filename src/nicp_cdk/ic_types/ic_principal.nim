@@ -113,17 +113,4 @@ proc readPrincipal*(data: seq[byte]; offset: var int): Principal =
   return principal
 
 
-# Principal型のserializeCandid
-proc serializeCandid*(value: Principal): seq[byte] =
-  ## --- Principal用 serializeCandid ---
-  var buf = newSeq[byte]()
-  # 1. ヘッダー追加
-  buf.add magicHeader
-  # 2. 型シーケンス長=1, 型タグ=principal
-  buf.add byte(1); buf.add tagPrincipal
-  # 3. 値シーケンス: IDフォーム(1) + バイト列長(ULEB128) + 生バイト列
-  buf.add byte(1)                                      # IDフォーム識別子 :contentReference[oaicite:4]{index=4}
-  buf.add encodeULEB128(uint(value.bytes.len))        # ULEB128で長さを符号無しエンコード :contentReference[oaicite:5]{index=5}
-  for b in value.bytes:
-    buf.add b                                          # 生バイト列をそのまま追加
-  buf
+

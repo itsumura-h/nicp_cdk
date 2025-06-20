@@ -10,7 +10,7 @@ import ../../src/nicp_cdk/ic_types/candid_message/candid_decode
 
 
 suite "ic_null tests":
-  test "serializeCandid with null":
+  test "encode with null":
     let nullValue = newCandidNull()
     let encoded = encodeCandidMessage(@[nullValue])
     # DIDL0ヘッダー(4バイト) + 型テーブル(3バイト) = 7バイト（null値は値を持たない）

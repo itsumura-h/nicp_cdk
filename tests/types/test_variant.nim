@@ -1,5 +1,5 @@
 discard """
-  cmd: nim c --skipUserCfg $file
+  cmd: "nim c --skipUserCfg $file"
 """
 
 # nim c -r --skipUserCfg tests/types/test_variant.nim
@@ -15,35 +15,35 @@ import ../../src/nicp_cdk/ic_types/ic_variant
 import ../../src/nicp_cdk/ic_types/ic_record  # %*マクロのため
 
 suite "ic_variant tests":
-  test "serializeCandid with variant success":
+  test "encode with variant success":
     let textValue = newCandidText("OK")
     let variantValue = newCandidVariant("success", textValue)
     let encoded = encodeCandidMessage(@[variantValue])
     # DIDL0ヘッダー(4バイト) + 型テーブル数(1バイト) + variant型テーブル(2バイト) + フィールド数(1バイト) + フィールドハッシュ(4バイト) + フィールド型(1バイト) + 型シーケンス(1バイト) + タグインデックス(1バイト) + 文字列長(1バイト) + 文字列データ(2バイト) = 18バイト
     check encoded.len >= 18
 
-  test "serializeCandid with variant error":
+  test "encode with variant error":
     let textValue = newCandidText("Failed")
     let variantValue = newCandidVariant("error", textValue)
     let encoded = encodeCandidMessage(@[variantValue])
     # エラーvariantのエンコードサイズを確認
     check encoded.len >= 18
 
-  test "serializeCandid with variant empty":
+  test "encode with variant empty":
     let nullValue = newCandidNull()
     let variantValue = newCandidVariant("empty", nullValue)
     let encoded = encodeCandidMessage(@[variantValue])
     # 空のvariantのエンコードサイズを確認
     check encoded.len >= 15
 
-  test "serializeCandid with variant nat value":
+  test "encode with variant nat value":
     let natValue = newCandidNat(uint(12345))
     let variantValue = newCandidVariant("value", natValue)
     let encoded = encodeCandidMessage(@[variantValue])
     # nat値を含むvariantのエンコードサイズを確認
     check encoded.len >= 16
 
-  test "serializeCandid with variant bool value":
+  test "encode with variant bool value":
     let boolValue = newCandidBool(true)
     let variantValue = newCandidVariant("active", boolValue)
     let encoded = encodeCandidMessage(@[variantValue])
@@ -274,7 +274,7 @@ suite "ic_variant tests":
     let enumVariant = newEnumVariant(mtsActive)
     check enumVariant.kind == ctVariant
     check isEnumVariant(enumVariant, MyTestStatus)
-    check getEnumValue(enumVariant, MyTestStatus) == mtsActive
+    check getVariantEnumValue(enumVariant, MyTestStatus) == mtsActive
 
   test "enum variant with value":
     type MyOperationResult = enum
@@ -283,7 +283,7 @@ suite "ic_variant tests":
 
     let enumVariant = newEnumVariantWithValue(morSuccess, newCandidText("完了"))
     check isEnumVariant(enumVariant, MyOperationResult)
-    check getEnumValue(enumVariant, MyOperationResult) == morSuccess
+    check getVariantEnumValue(enumVariant, MyOperationResult) == morSuccess
     check getVariantValue(enumVariant).textVal == "完了"
 
   # ===== 複雑なシナリオテスト =====

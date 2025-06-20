@@ -279,22 +279,28 @@ proc encodePrimitiveValue(value: CandidValue): seq[byte] =
     littleEndian64(addr result[0], addr val)
   
   of ctInt8:
-    result.add(byte(value.intVal))
+    result.add(byte(value.int8Val))
   
   of ctInt16:
-    var val = int16(value.intVal)
+    var val = value.int16Val
     result.setLen(2)
     littleEndian16(addr result[0], addr val)
   
   of ctInt32:
-    var val = int32(value.intVal)
+    var val = value.int32Val
     result.setLen(4)
     littleEndian32(addr result[0], addr val)
   
   of ctInt64:
-    var val = int64(value.intVal)
+    var val = value.int64Val
     result.setLen(8)
     littleEndian64(addr result[0], addr val)
+  
+  of ctFloat:
+    # floatはfloat32として扱う
+    result.setLen(4)
+    var float32Val = float32(value.floatVal)
+    littleEndian32(addr result[0], unsafeAddr float32Val)
   
   of ctFloat32:
     result.setLen(4)
@@ -433,15 +439,14 @@ proc encodeCandidMessage*(values: seq[CandidValue]): seq[byte] =
   
   # 1. 魔法数を追加
   result.add(magicHeader)
-  
+ 
   # 2. 型テーブルを構築
   var builder = TypeBuilder(
     typeTable: @[],
     typeIndexMap: initTable[string, int]()
   )
-  
+
   var valueTypes: seq[int] = @[]
-  
   # 各値の型を分析して型テーブルに追加
   for value in values:
     let typeRef = if value.kind == ctBlob:
@@ -464,7 +469,7 @@ proc encodeCandidMessage*(values: seq[CandidValue]): seq[byte] =
   result.add(encodeULEB128(uint(builder.typeTable.len)))
   for entry in builder.typeTable:
     result.add(encodeTypeTableEntry(entry))
-  
+
   # 4. 型シーケンスをエンコード
   result.add(encodeULEB128(uint(valueTypes.len)))
   for typeRef in valueTypes:

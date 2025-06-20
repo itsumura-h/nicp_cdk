@@ -9,27 +9,27 @@ import ../../src/nicp_cdk/ic_types/candid_message/candid_encode
 import ../../src/nicp_cdk/ic_types/candid_message/candid_decode
 
 suite "ic_blob tests":
-  test "serializeCandid with empty blob":
+  test "encode with empty blob":
     let blobValue = newCandidBlob(@[])
     let encoded = encodeCandidMessage(@[blobValue])
     # 空のblob（vec nat8として処理）: DIDL0ヘッダー(4バイト) + 型テーブル(1バイト + 3バイト) + 型シーケンス(1バイト + 1バイト) + 長さ0(1バイト) = 10バイト
     check encoded.len == 10
 
-  test "serializeCandid with small blob":
+  test "encode with small blob":
     let blobData = @[0x48u8, 0x65u8, 0x6Cu8, 0x6Cu8, 0x6Fu8] # "Hello"
     let blobValue = newCandidBlob(blobData)
     let encoded = encodeCandidMessage(@[blobValue])
     # DIDL0ヘッダー(4バイト) + 型テーブル(4バイト) + 型シーケンス(2バイト) + LEB128長さ(1バイト) + データ(5バイト) = 15バイト  
     check encoded.len == 15
 
-  test "serializeCandid with binary data":
+  test "encode with binary data":
     let blobData = @[0x00u8, 0x01u8, 0x02u8, 0xFFu8]
     let blobValue = newCandidBlob(blobData)
     let encoded = encodeCandidMessage(@[blobValue])
     # バイナリデータ: DIDL0ヘッダー(4バイト) + 型テーブル(4バイト) + 型シーケンス(2バイト) + LEB128長さ(1バイト) + データ(4バイト) = 14バイト
     check encoded.len == 14
 
-  test "serializeCandid with large blob":
+  test "encode with large blob":
     var blobData = newSeq[uint8](1000)
     for i in 0..<1000:
       blobData[i] = uint8(i mod 256)

@@ -81,7 +81,7 @@ type
     ckText, ckBlob,
     ckRecord, ckVariant, ckOption, ckPrincipal, ckFunc, ckService, ckArray
 
-  CandidRecord* = ref object
+  CandidRecord* {.acyclic, inheritable.} = ref object
     case kind*: CandidRecordKind
     of ckNull:
       discard  # 値を持たない
@@ -116,7 +116,7 @@ type
     of ckText:
       strVal*: string
     of ckBlob:
-      bytesVal*: seq[uint8]
+      blobVal*: seq[uint8]
     of ckRecord:
       fields*: OrderedTable[string, CandidValue]
     of ckVariant:
@@ -245,6 +245,7 @@ proc typeCodeFromCandidType*(candidType: CandidType): int =
   of ctInt16: -10
   of ctInt32: -11
   of ctInt64: -12
+  of ctFloat: -13  # floatはfloat32として扱う
   of ctFloat32: -13
   of ctFloat64: -14
   of ctText: -15
@@ -415,6 +416,9 @@ proc newCandidRecord*(values: Table[string, CandidValue]): CandidValue =
   for key, value in values:
     record.fields[key] = value
   CandidValue(kind: ctRecord, recordVal: record)
+
+proc newCandidRecord*(values: CandidRecord): CandidValue =
+  CandidValue(kind: ctRecord, recordVal: values)
 
 proc newCandidVariant*(tag: string, value: CandidValue): CandidValue =
   let variant = CandidVariant(tag: candidHash(tag), value: value)

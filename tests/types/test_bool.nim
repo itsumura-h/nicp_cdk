@@ -10,7 +10,7 @@ import ../../src/nicp_cdk/ic_types/candid_message/candid_decode
 
 
 suite "ic_bool tests":
-  test "serializeCandid with true":
+  test "encode with true":
     let boolValue = newCandidBool(true)
     let encoded = encodeCandidMessage(@[boolValue])
     # DIDL0ヘッダー(4バイト) + 型テーブル(3バイト) + 値(1バイト) = 8バイト
@@ -19,7 +19,7 @@ suite "ic_bool tests":
     check encoded[^1] == 1'u8
 
 
-  test "serializeCandid with false":
+  test "encode with false":
     let boolValue = newCandidBool(false)
     let encoded = encodeCandidMessage(@[boolValue])
     # DIDL0ヘッダー(4バイト) + 型テーブル(3バイト) + 値(1バイト) = 8バイト

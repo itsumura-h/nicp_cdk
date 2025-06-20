@@ -2,7 +2,7 @@ discard """
   cmd : "nim c --skipUserCfg $file"
 """
 
-# nim c -r --skipConfig tests/types/test_enum_basic.nim
+# nim c -r --skipUserCfg tests/types/test_enum_basic.nim
 
 import unittest
 import std/options

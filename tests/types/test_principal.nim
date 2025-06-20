@@ -25,7 +25,7 @@ suite "ic_principal tests":
     check principalValue.principalVal.value == "rrkah-fqaaa-aaaaa-aaaaq-cai"
 
 
-  test "serializeCandid with management canister principal":
+  test "encode with management canister principal":
     let principal = Principal.fromText("aaaaa-aa")
     let principalValue = newCandidValue(principal)
     let encoded = encodeCandidMessage(@[principalValue])
@@ -35,7 +35,7 @@ suite "ic_principal tests":
     check encoded[0..3] == @[68'u8, 73'u8, 68'u8, 76'u8]  # "DIDL"
 
 
-  test "serializeCandid with long principal":
+  test "encode with long principal":
     let principal = Principal.fromText("rrkah-fqaaa-aaaaa-aaaaq-cai")
     let principalValue = newCandidValue(principal)
     let encoded = encodeCandidMessage(@[principalValue])

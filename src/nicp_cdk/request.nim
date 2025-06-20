@@ -55,39 +55,40 @@ proc getNat64*(self:Request, index:int): uint64 =
   return self.values[index].natVal.uint64
 
 
+# 指定されたインデックスの引数を int として取得する
+proc getInt*(self:Request, index:int): int =
+  ## Get the argument at the specified index as an int
+  assert self.values[index].kind == ctInt
+  return self.values[index].intVal
+
+
 # 指定されたインデックスの引数を int8 として取得する
 proc getInt8*(self:Request, index:int): int8 =
   ## Get the argument at the specified index as an int8
   assert self.values[index].kind == ctInt8
-  return self.values[index].intVal.int8
+  return self.values[index].int8Val
 
 
 # 指定されたインデックスの引数を int16 として取得する
 proc getInt16*(self:Request, index:int): int16 =
   ## Get the argument at the specified index as an int16
   assert self.values[index].kind == ctInt16
-  return self.values[index].intVal.int16
+  return self.values[index].int16Val
 
 
 # 指定されたインデックスの引数を int32 として取得する
 proc getInt32*(self:Request, index:int): int32 =
   ## Get the argument at the specified index as an int32
   assert self.values[index].kind == ctInt32
-  return self.values[index].intVal.int32
+  return self.values[index].int32Val
 
 
 # 指定されたインデックスの引数を int64 として取得する
 proc getInt64*(self:Request, index:int): int64 =
   ## Get the argument at the specified index as an int64
   assert self.values[index].kind == ctInt64
-  return self.values[index].intVal.int64
+  return self.values[index].int64Val
 
-
-# 指定されたインデックスの引数を int として取得する
-proc getInt*(self:Request, index:int): int =
-  ## Get the argument at the specified index as an int
-  assert self.values[index].kind == ctInt
-  return self.values[index].intVal
 
 
 # 指定されたインデックスの引数を float32 として取得する
@@ -188,11 +189,10 @@ proc getEmpty*(self:Request, index:int) =
 
 
 # 指定されたインデックスの引数を Record として取得する
-# TODO: Phase 3.2で実装予定 - fromCandidValue関数の依存関係を解決後に有効化
-# proc getRecord*(self:Request, index:int): CandidRecord =
-#   ## Get the argument at the specified index as a record
-#   assert self.values[index].kind == ctRecord, "Expected record type, got: " & $self.values[index].kind
-#   return fromCandidValue(self.values[index])
+proc getRecord*(self:Request, index:int): CandidRecord =
+  ## Get the argument at the specified index as a record
+  assert self.values[index].kind == ctRecord, "Expected record type, got: " & $self.values[index].kind
+  return candidValueToCandidRecord(self.values[index])
 
 
 # ================================================================================
