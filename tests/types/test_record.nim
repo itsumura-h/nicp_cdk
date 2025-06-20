@@ -221,3 +221,24 @@ suite("record option"):
       "value": none(int)
     }
     check record["value"].isNone() == true
+
+
+suite("record array"):
+  test "record seq":
+    let record = %*{
+      "value": @[1, 2, 3]
+    }
+    check record["value"].getArray().len == 3
+    check record["value"].getArray()[0].getInt() == 1
+    check record["value"].getArray()[1].getInt() == 2
+    check record["value"].getArray()[2].getInt() == 3
+
+
+  test("record array 2"):
+    let record = %*{
+      "value": [1, 2, 3]
+    }
+    check record["value"].getArray().len == 3
+    check record["value"].getArray()[0].getInt() == 1
+    check record["value"].getArray()[1].getInt() == 2
+    check record["value"].getArray()[2].getInt() == 3

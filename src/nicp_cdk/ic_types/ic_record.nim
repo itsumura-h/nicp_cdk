@@ -850,6 +850,13 @@ proc `%`*[T](arr: seq[T]): CandidRecord =
     candidArray.elems.add(%item)
   candidArray
 
+proc `%`*[T](arr: openArray[T]): CandidRecord =
+  ## 配列をCandidRecordに変換
+  var candidArray = CandidRecord(kind: ckArray, elems: @[])
+  for item in arr.items:
+    candidArray.elems.add(%item)
+  candidArray
+
 proc `%`*(table: openArray[(string, CandidRecord)]): CandidRecord =
   ## テーブル（レコード）をCandidRecordに変換
   var record = CandidRecord(kind: ckRecord, fields: initOrderedTable[string, CandidValue]())
