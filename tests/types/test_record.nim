@@ -268,11 +268,16 @@ suite("ecdsa arg"):
       }
     }
     echo arg
-    check arg["canister_id"].getOpt().getPrincipal() == Principal.managementCanister()
-    check arg["derivation_path"].getArray().len == 1
-    check arg["derivation_path"][0].getBlob() == Principal.governanceCanister().bytes
-    check arg["key_id"]["curve"].getVariant(EcdsaCurve) == EcdsaCurve.secp256k1
-    check arg["key_id"]["name"].getStr() == "dfx_test_key"
+    let candidRecord = newCandidRecord(arg)
+    let encoded = encodeCandidMessage(@[candidRecord])
+    echo "encoded: ", encoded.toString()
+    let decoded = decodeCandidMessage(encoded)
+    let request = newMockRequest(decoded.values)
+    check request.getRecord(0)["canister_id"].getOpt().getPrincipal() == Principal.managementCanister()
+    check request.getRecord(0)["derivation_path"].getArray().len == 1
+    check request.getRecord(0)["derivation_path"][0].getBlob() == Principal.governanceCanister().bytes
+    check request.getRecord(0)["key_id"]["curve"].getVariant(EcdsaCurve) == EcdsaCurve.secp256k1
+    check request.getRecord(0)["key_id"]["name"].getStr() == "dfx_test_key"
 
   test("sign"):
     let arg = %*{

@@ -504,13 +504,13 @@ proc candidValueToCandidRecord*(cv: CandidValue): CandidRecord =
   of ctInt:
     newCIntRecord(cv.intVal)
   of ctNat8:
-    CandidRecord(kind: ckNat8, nat8Val: uint8(cv.natVal))
+    CandidRecord(kind: ckNat8, nat8Val: cv.nat8Val)
   of ctNat16:
-    CandidRecord(kind: ckNat16, nat16Val: uint16(cv.natVal))
+    CandidRecord(kind: ckNat16, nat16Val: cv.nat16Val)
   of ctNat32:
-    CandidRecord(kind: ckNat32, nat32Val: uint32(cv.natVal))
+    CandidRecord(kind: ckNat32, nat32Val: cv.nat32Val)
   of ctNat64:
-    CandidRecord(kind: ckNat64, nat64Val: uint64(cv.natVal))
+    CandidRecord(kind: ckNat64, nat64Val: cv.nat64Val)
   of ctInt8:
     CandidRecord(kind: ckInt8, int8Val: cv.int8Val)
   of ctInt16:

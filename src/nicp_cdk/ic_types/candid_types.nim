@@ -433,8 +433,8 @@ proc newCandidVariant*(tag: uint32, value: CandidValue): CandidValue =
 proc newCandidOpt*(value: Option[CandidValue]): CandidValue =
   CandidValue(kind: ctOpt, optVal: value)
 
-# proc newCandidVec*(values: seq[CandidValue]): CandidValue =
-#   CandidValue(kind: ctVec, vecVal: values)
+proc newCandidVec*(values: seq[CandidValue]): CandidValue =
+  CandidValue(kind: ctVec, vecVal: values)
 
 proc newCandidVec*[T](values: seq[T]): CandidValue =
   let vecElements = values.mapIt(newCandidValue(it))
