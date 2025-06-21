@@ -20,3 +20,15 @@ proc ecdsaPublicKeyResponse() {.query.} =
     }
   }
   reply(response)
+
+
+proc ecdsaSignResponse() {.query.} =
+  let response = %*{
+    "message_hash": "hello world".toBlob(),
+    "derivation_path": @[Msg.caller().bytes],
+    "key_id": %*{
+      "curve": EcdsaCurve.secp256k1,
+      "name": "dfx_test_key"
+    }
+  }
+  reply(response)

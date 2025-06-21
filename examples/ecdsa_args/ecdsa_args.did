@@ -8,11 +8,11 @@ service : {
       key_id : record { curve : ecdsa_curve; name : text };
     }
   ) query;
-  ecdsaSignResponce: () -> (
+  ecdsaSignResponse: () -> (
     record {
       message_hash: blob;
       derivation_path: vec blob;
       key_id : record { curve : ecdsa_curve; name : text };
     }
-  )
+  ) query;
 }
