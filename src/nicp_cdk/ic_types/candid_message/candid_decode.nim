@@ -327,7 +327,7 @@ proc decodeValue(data: seq[byte], offset: var int, typeRef: int, typeTable: seq[
           if offset >= data.len:
             raise newException(CandidDecodeError, "Unexpected end of data in vec")
           # nat8値をCandidValueとして格納
-          result.vecVal[i] = CandidValue(kind: ctNat8, natVal: uint(data[offset]))
+          result.vecVal[i] = CandidValue(kind: ctNat8, nat8Val: uint8(data[offset]))
           offset += 1
       else:
         # 通常のvec処理（非nat8要素）
@@ -345,7 +345,7 @@ proc decodeValue(data: seq[byte], offset: var int, typeRef: int, typeTable: seq[
         if offset >= data.len:
           raise newException(CandidDecodeError, "Unexpected end of data in blob")
         # nat8値をCandidValueとして格納
-        result.vecVal[i] = CandidValue(kind: ctNat8, natVal: uint(data[offset]))
+        result.vecVal[i] = CandidValue(kind: ctNat8, nat8Val: uint8(data[offset]))
         offset += 1
     of ctFunc:
       # 関数参照: principal + method name

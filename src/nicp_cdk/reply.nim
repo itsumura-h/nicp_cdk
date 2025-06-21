@@ -17,8 +17,9 @@ proc reply*(msg: bool) =
   ic0_msg_reply_data_append(ptrToInt(addr encoded[0]), encoded.len)
   ic0_msg_reply()
 
-proc reply*(msg: int32) =
-  let value = newCandidInt(msg)
+
+proc reply*(msg: int) =
+  let value = newCandidValue(msg)
   let encoded = encodeCandidMessage(@[value])
   ic0_msg_reply_data_append(ptrToInt(addr encoded[0]), encoded.len)
   ic0_msg_reply()
@@ -38,6 +39,13 @@ proc reply*(msg: int16) =
   ic0_msg_reply()
 
 
+proc reply*(msg: int32) =
+  let value = newCandidValue(msg)
+  let encoded = encodeCandidMessage(@[value])
+  ic0_msg_reply_data_append(ptrToInt(addr encoded[0]), encoded.len)
+  ic0_msg_reply()
+
+
 proc reply*(msg: int64) =
   let value = newCandidValue(msg)
   let encoded = encodeCandidMessage(@[value])
@@ -45,15 +53,8 @@ proc reply*(msg: int64) =
   ic0_msg_reply()
 
 
-proc reply*(msg: int) =
-  let value = newCandidInt(msg)
-  let encoded = encodeCandidMessage(@[value])
-  ic0_msg_reply_data_append(ptrToInt(addr encoded[0]), encoded.len)
-  ic0_msg_reply()
-
-
 proc reply*(msg: uint) =
-  let value = newCandidNat(msg)
+  let value = newCandidValue(msg)
   let encoded = encodeCandidMessage(@[value])
   ic0_msg_reply_data_append(ptrToInt(addr encoded[0]), encoded.len)
   ic0_msg_reply()

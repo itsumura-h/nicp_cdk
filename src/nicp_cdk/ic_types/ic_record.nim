@@ -573,13 +573,13 @@ proc recordToCandidValue*(cr: CandidRecord): CandidValue =
   of ckNat:
     CandidValue(kind: ctNat, natVal: cr.natVal)
   of ckNat8:
-    CandidValue(kind: ctNat8, natVal: uint(cr.nat8Val))
+    CandidValue(kind: ctNat8, nat8Val: cr.nat8Val)
   of ckNat16:
-    CandidValue(kind: ctNat16, natVal: uint(cr.nat16Val))
+    CandidValue(kind: ctNat16, nat16Val: cr.nat16Val)
   of ckNat32:
-    CandidValue(kind: ctNat32, natVal: uint(cr.nat32Val))
+    CandidValue(kind: ctNat32, nat32Val: cr.nat32Val)
   of ckNat64:
-    CandidValue(kind: ctNat64, natVal: uint(cr.nat64Val))
+    CandidValue(kind: ctNat64, nat64Val: cr.nat64Val)
   of ckFloat32:
     CandidValue(kind: ctFloat32, float32Val: cr.f32Val)
   of ckFloat64:
