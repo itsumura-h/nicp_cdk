@@ -152,11 +152,9 @@ proc argFunc() {.query.} =
   icEcho "arg method: ", arg.methodName
   reply(arg)
 
-
-
-
-
-
+proc responseNull() {.query.} =
+  # null値を返す
+  reply()
 
 # proc msgPrincipal() {.query.} =
 #   let caller = Msg.caller()
@@ -174,11 +172,8 @@ proc argFunc() {.query.} =
 #   echo "record: ", $record
 #   reply(record)
 
-# proc responseNull() {.query.} =
-#   reply()
-
-
 # proc responsePrincipal() {.query.} =
+
 #   echo "===== main.nim responsePrincipal() ====="
 #   let caller = Msg.caller()
 #   icEcho "caller: ", caller
