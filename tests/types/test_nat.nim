@@ -16,7 +16,8 @@ suite "ic_nat tests":
     let candidNat = newCandidNat(n)
     let encoded = encodeCandidMessage(@[candidNat])
     let decoded = decodeCandidMessage(encoded)
-    check decoded.values[0].natVal == n
+    let request = newMockRequest(decoded.values)
+    check request.getNat(0) == n
 
   test("nat8"):
     let n = 10.uint8
@@ -32,18 +33,21 @@ suite "ic_nat tests":
     let candidNat16 = newCandidNat16(n)
     let encoded = encodeCandidMessage(@[candidNat16])
     let decoded = decodeCandidMessage(encoded)
-    check decoded.values[0].nat16Val == n
+    let request = newMockRequest(decoded.values)
+    check request.getNat16(0) == n
 
   test("nat32"):
     let n = 10.uint32
     let candidNat32 = newCandidNat32(n)
     let encoded = encodeCandidMessage(@[candidNat32])
     let decoded = decodeCandidMessage(encoded)
-    check decoded.values[0].nat32Val == n
+    let request = newMockRequest(decoded.values)
+    check request.getNat32(0) == n
 
   test("nat64"):
     let n = 10.uint64
     let candidNat64 = newCandidNat64(n)
     let encoded = encodeCandidMessage(@[candidNat64])
     let decoded = decodeCandidMessage(encoded)
-    check decoded.values[0].nat64Val == n
+    let request = newMockRequest(decoded.values)
+    check request.getNat64(0) == n

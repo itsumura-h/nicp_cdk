@@ -136,8 +136,7 @@ proc argVec() {.query.} =
   let typedArg = arg.map(proc(val: CandidValue): uint16 = val.getNat16())
   icEcho "arg length: ", typedArg.len
   icEcho "arg: ", $typedArg
-  let replyValue = newCandidValue(typedArg)
-  reply(replyValue)
+  reply(typedArg)
 
 proc argVariant() {.query.} =
   let request = Request.new()

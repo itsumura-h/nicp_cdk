@@ -136,10 +136,10 @@ proc reply*(msg: seq[uint8]) =
   ic0_msg_reply()
 
 
-proc reply*[T](msg: Option[T]) =
+proc reply*(msg: Option[CandidValue]) =
   ## Reply with an optional value
   let optValue = if msg.isSome():
-    some(newCandidOpt(msg))
+    msg
   else:
     none(CandidValue)
   let value = newCandidOpt(optValue)
@@ -148,8 +148,15 @@ proc reply*[T](msg: Option[T]) =
   ic0_msg_reply()
 
 
-proc reply*(msg: seq[CandidValue]) =
-  ## Reply with a vector of CandidValue
+# proc reply*(msg: seq[CandidValue]) =
+#   ## Reply with a vector of CandidValue
+#   let value = newCandidVec(msg)
+#   let encoded = encodeCandidMessage(@[value])
+#   ic0_msg_reply_data_append(ptrToInt(addr encoded[0]), encoded.len)
+#   ic0_msg_reply()
+
+
+proc reply*[T](msg: seq[T]) =
   let value = newCandidVec(msg)
   let encoded = encodeCandidMessage(@[value])
   ic0_msg_reply_data_append(ptrToInt(addr encoded[0]), encoded.len)
