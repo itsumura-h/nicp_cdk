@@ -68,11 +68,8 @@ proc argNat() {.query.} =
   reply(arg)
 
 proc argNat8() {.query.} =
-  echo "===== main.nim argNat8() ====="
   let request = Request.new()
-  echo "request.values: ", request.values
   let arg = request.getNat8(0)
-  echo "arg: ", arg
   reply(arg)
 
 proc argNat16() {.query.} =

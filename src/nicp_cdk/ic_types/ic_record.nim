@@ -331,7 +331,7 @@ proc `[]=`*[T: enum](cv: CandidRecord, key: string, enumValue: T) =
   
   try:
     # Enum値をVariant CandidValueに変換
-    let candidValue = newCandidValue(enumValue)
+    let candidValue = newCandidVariant(enumValue)
     
     # バリデーションを実行（Variant型なので通常は問題ないが、一応チェック）
     validateRecordFieldType(candidValue, key)
@@ -559,65 +559,58 @@ proc recordToCandidValue*(cr: CandidRecord): CandidValue =
   of ckNull:
     newCandidNull()
   of ckBool:
-    newCandidValue(cr.boolVal)
+    newCandidBool(cr.boolVal)
   of ckInt:
-    newCandidValue(cr.intVal)
+    newCandidInt(cr.intVal)
   of ckInt8:
-    CandidValue(kind: ctInt8, int8Val: cr.int8Val)
+    newCandidInt8(cr.int8Val)
   of ckInt16:
-    CandidValue(kind: ctInt16, int16Val: cr.int16Val)
+    newCandidInt16(cr.int16Val)
   of ckInt32:
-    CandidValue(kind: ctInt32, int32Val: cr.int32Val)
+    newCandidInt32(cr.int32Val)
   of ckInt64:
-    CandidValue(kind: ctInt64, int64Val: cr.int64Val)
+    newCandidInt64(cr.int64Val)
   of ckNat:
-    CandidValue(kind: ctNat, natVal: cr.natVal)
+    newCandidNat(cr.natVal)
   of ckNat8:
-    CandidValue(kind: ctNat8, nat8Val: cr.nat8Val)
+    newCandidNat8(cr.nat8Val)
   of ckNat16:
-    CandidValue(kind: ctNat16, nat16Val: cr.nat16Val)
+    newCandidNat16(cr.nat16Val)
   of ckNat32:
-    CandidValue(kind: ctNat32, nat32Val: cr.nat32Val)
+    newCandidNat32(cr.nat32Val)
   of ckNat64:
-    CandidValue(kind: ctNat64, nat64Val: cr.nat64Val)
+    newCandidNat64(cr.nat64Val)
   of ckFloat32:
-    CandidValue(kind: ctFloat32, float32Val: cr.f32Val)
+    newCandidFloat32(cr.f32Val)
   of ckFloat64:
-    newCandidValue(cr.f64Val)
+    newCandidFloat64(cr.f64Val)
   of ckText:
-    newCandidValue(cr.strVal)
+    newCandidText(cr.strVal)
   of ckBlob:
-    newCandidValue(cr.blobVal)
+    newCandidBlob(cr.blobVal)
   of ckPrincipal:
-    newCandidValue(Principal.fromText(cr.principalId))
+    newCandidPrincipal(Principal.fromText(cr.principalId))
   of ckArray:
     var vecItems: seq[CandidValue] = @[]
     for elem in cr.elems:
       vecItems.add(recordToCandidValue(elem))
-    CandidValue(kind: ctVec, vecVal: vecItems)
+    newCandidVec(vecItems)
   of ckRecord:
     var recordValue = CandidRecord(kind: ckRecord, fields: initOrderedTable[string, CandidValue]())
     for key, value in cr.fields:
       recordValue.fields[key] = value
-    CandidValue(kind: ctRecord, recordVal: recordValue)
+    newCandidRecord(recordValue)
   of ckOption:
     if cr.optVal.isSome():
-      CandidValue(kind: ctOpt, optVal: some(recordToCandidValue(cr.optVal.get())))
+      newCandidOpt(some(recordToCandidValue(cr.optVal.get())))
     else:
-      CandidValue(kind: ctOpt, optVal: none(CandidValue))
+      newCandidOpt(none(CandidValue))
   of ckVariant:
-    CandidValue(kind: ctVariant, variantVal: cr.variantVal)
+    newCandidVariant(cr.variantVal.tag, cr.variantVal.value)
   of ckFunc:
-    let funcValue = CandidFunc(
-      principal: Principal.fromText(cr.funcRef.principal),
-      methodName: cr.funcRef.methodName,
-      args: @[],
-      returns: @[],
-      annotations: @[]
-    )
-    CandidValue(kind: ctFunc, funcVal: funcValue)
+    newCandidFunc(Principal.fromText(cr.funcRef.principal), cr.funcRef.methodName)
   of ckService:
-    newCandidValue(Principal.fromText(cr.serviceId))
+    newCandidService(Principal.fromText(cr.serviceId))
   else:
     newCandidNull()
 

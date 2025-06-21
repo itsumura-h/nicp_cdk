@@ -4,6 +4,7 @@ import ./ic_types/candid_message/candid_decode
 import ./ic_types/ic_principal
 import ./ic_types/ic_record
 import ./ic0/ic0
+import ./ic_api
 
 
 type Request* = object
@@ -13,10 +14,7 @@ proc new*(_:type Request): Request =
   let n = ic0_msg_arg_data_size()
   var data = newSeq[byte](n)
   ic0_msg_arg_data_copy(ptrToInt(addr data[0]), 0, n)
-  echo "data: ", data
-  echo data.toString()
   let decodedResult = decodeCandidMessage(data)
-  echo "decodedResult: ", decodedResult
   return Request(values: decodedResult.values)
 
 
@@ -35,25 +33,27 @@ proc getNat*(self:Request, index:int): uint =
 
 proc getNat8*(self:Request, index:int): uint8 =
   ## Get the argument at the specified index as a nat8
-  echo "self.values[index].kind: ", self.values[index].kind
   assert self.values[index].kind == ctNat8, "Expected nat8 type, got: " & $self.values[index].kind
   return self.values[index].nat8Val
 
 
 proc getNat16*(self:Request, index:int): uint16 =
   ## Get the argument at the specified index as a nat16
+  icEcho "self.values[index].kind: ", self.values[index].kind
   assert self.values[index].kind == ctNat16, "Expected nat16 type, got: " & $self.values[index].kind
   return self.values[index].nat16Val
 
 
 proc getNat32*(self:Request, index:int): uint32 =
   ## Get the argument at the specified index as a nat32
+  icEcho "self.values[index].kind: ", self.values[index].kind
   assert self.values[index].kind == ctNat32, "Expected nat32 type, got: " & $self.values[index].kind
   return self.values[index].nat32Val
 
 
 proc getNat64*(self:Request, index:int): uint64 =
   ## Get the argument at the specified index as a nat64
+  icEcho "self.values[index].kind: ", self.values[index].kind
   assert self.values[index].kind == ctNat64, "Expected nat64 type, got: " & $self.values[index].kind
   return self.values[index].nat64Val
 

@@ -10,9 +10,9 @@ import ./ic_principal
 #---- Candid 型タグの定義 ----
 type
   CandidType* = enum
-    ctNull, ctBool, ctNat, ctInt,
-    ctNat8, ctNat16, ctNat32, ctNat64,
-    ctInt8, ctInt16, ctInt32, ctInt64,
+    ctNull, ctBool, 
+    ctNat, ctNat8, ctNat16, ctNat32, ctNat64,
+    ctInt, ctInt8, ctInt16, ctInt32, ctInt64,
     ctFloat, ctFloat32, ctFloat64,
     ctText, ctReserved, ctEmpty, ctPrincipal,
     ctRecord, ctVariant, ctOpt, ctVec, ctBlob,
@@ -294,6 +294,14 @@ proc candidHash*(name: string): uint32 =
 proc newCandidValue*[T](value: T): CandidValue =
   when T is bool:
     CandidValue(kind: ctBool, boolVal: value)
+  elif T is uint:
+    CandidValue(kind: ctNat, natVal: value)
+  elif T is uint8:
+    CandidValue(kind: ctNat8, nat8Val: value)
+  elif T is uint16:
+    CandidValue(kind: ctNat16, nat16Val: value)
+  elif T is uint32:
+    CandidValue(kind: ctNat32, nat32Val: value)
   elif T is int:
     CandidValue(kind: ctInt, intVal: value)
   elif T is int8:
@@ -304,16 +312,6 @@ proc newCandidValue*[T](value: T): CandidValue =
     CandidValue(kind: ctInt32, int32Val: value)
   elif T is int64:
     CandidValue(kind: ctInt64, int64Val: value)
-  elif T is byte:
-    CandidValue(kind: ctNat8, nat8Val: value)
-  elif T is uint16:
-    CandidValue(kind: ctNat16, nat16Val: value)
-  elif T is uint32:
-    CandidValue(kind: ctNat32, nat32Val: value)
-  elif T is uint64:
-    CandidValue(kind: ctNat64, nat64Val: value)
-  elif T is uint:
-    CandidValue(kind: ctNat, natVal: value)
   elif T is float64:
     CandidValue(kind: ctFloat64, float64Val: value)
   elif T is float or T is float32:
@@ -426,6 +424,10 @@ proc newCandidRecord*(values: CandidRecord): CandidValue =
 
 proc newCandidVariant*(tag: string, value: CandidValue): CandidValue =
   let variant = CandidVariant(tag: candidHash(tag), value: value)
+  CandidValue(kind: ctVariant, variantVal: variant)
+
+proc newCandidVariant*(tag: uint32, value: CandidValue): CandidValue =
+  let variant = CandidVariant(tag: tag, value: value)
   CandidValue(kind: ctVariant, variantVal: variant)
 
 proc newCandidOpt*(value: Option[CandidValue]): CandidValue =
@@ -645,7 +647,7 @@ proc asSeqValue*[T](data: seq[T]): CandidValue =
   ## seq[T]を明示的にVector用CandidValueとして作成（Record挿入用）
   var vecElements = newSeq[CandidValue]()
   for item in data:
-    vecElements.add(newCandidValue(item))
+    vecElements.add(newCandidVec(item))
   
   return CandidValue(kind: ctVec, vecVal: vecElements)
 
