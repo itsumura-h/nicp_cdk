@@ -261,20 +261,20 @@ proc encodePrimitiveValue(value: CandidValue): seq[byte] =
     result.add(encodeSLEB128(int32(value.intVal)))
   
   of ctNat8:
-    result.add(byte(value.natVal))
+    result.add(value.nat8Val)
   
   of ctNat16:
-    var val = uint16(value.natVal)
+    var val = value.nat16Val
     result.setLen(2)
     littleEndian16(addr result[0], addr val)
   
   of ctNat32:
-    var val = uint32(value.natVal)
+    var val = value.nat32Val
     result.setLen(4)
     littleEndian32(addr result[0], addr val)
   
   of ctNat64:
-    var val = uint64(value.natVal)
+    var val = value.nat64Val
     result.setLen(8)
     littleEndian64(addr result[0], addr val)
   

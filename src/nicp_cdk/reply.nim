@@ -5,9 +5,16 @@ import ./ic_types/candid_message/candid_encode
 import ./ic_types/ic_principal
 
 
-proc reply*() =
+proc replyNull*() =
   let value = newCandidNull()
   let encoded = encodeCandidMessage(@[value])
+  ic0_msg_reply_data_append(ptrToInt(addr encoded[0]), encoded.len)
+  ic0_msg_reply()
+
+proc replyEmpty*() =
+  # Candidの() -> ()は空のタプルを意味する
+  # 空の値リストでCandidメッセージをエンコード
+  let encoded = encodeCandidMessage(@[])
   ic0_msg_reply_data_append(ptrToInt(addr encoded[0]), encoded.len)
   ic0_msg_reply()
 
@@ -17,7 +24,8 @@ proc reply*(msg: bool) =
   ic0_msg_reply_data_append(ptrToInt(addr encoded[0]), encoded.len)
   ic0_msg_reply()
 
-proc reply*(msg: int32) =
+
+proc reply*(msg: int) =
   let value = newCandidInt(msg)
   let encoded = encodeCandidMessage(@[value])
   ic0_msg_reply_data_append(ptrToInt(addr encoded[0]), encoded.len)
@@ -25,28 +33,28 @@ proc reply*(msg: int32) =
 
 
 proc reply*(msg: int8) =
-  let value = newCandidValue(msg)
+  let value = newCandidInt8(msg)
   let encoded = encodeCandidMessage(@[value])
   ic0_msg_reply_data_append(ptrToInt(addr encoded[0]), encoded.len)
   ic0_msg_reply()
 
 
 proc reply*(msg: int16) =
-  let value = newCandidValue(msg)
+  let value = newCandidInt16(msg)
+  let encoded = encodeCandidMessage(@[value])
+  ic0_msg_reply_data_append(ptrToInt(addr encoded[0]), encoded.len)
+  ic0_msg_reply()
+
+
+proc reply*(msg: int32) =
+  let value = newCandidInt32(msg)
   let encoded = encodeCandidMessage(@[value])
   ic0_msg_reply_data_append(ptrToInt(addr encoded[0]), encoded.len)
   ic0_msg_reply()
 
 
 proc reply*(msg: int64) =
-  let value = newCandidValue(msg)
-  let encoded = encodeCandidMessage(@[value])
-  ic0_msg_reply_data_append(ptrToInt(addr encoded[0]), encoded.len)
-  ic0_msg_reply()
-
-
-proc reply*(msg: int) =
-  let value = newCandidInt(msg)
+  let value = newCandidInt64(msg)
   let encoded = encodeCandidMessage(@[value])
   ic0_msg_reply_data_append(ptrToInt(addr encoded[0]), encoded.len)
   ic0_msg_reply()
@@ -60,34 +68,34 @@ proc reply*(msg: uint) =
 
 
 proc reply*(msg: uint8) =
-  let value = newCandidValue(msg)
+  let value = newCandidNat8(msg)
   let encoded = encodeCandidMessage(@[value])
   ic0_msg_reply_data_append(ptrToInt(addr encoded[0]), encoded.len)
   ic0_msg_reply()
 
 
 proc reply*(msg: uint16) =
-  let value = newCandidValue(msg)
+  let value = newCandidNat16(msg)
   let encoded = encodeCandidMessage(@[value])
   ic0_msg_reply_data_append(ptrToInt(addr encoded[0]), encoded.len)
   ic0_msg_reply()
 
 
 proc reply*(msg: uint32) =
-  let value = newCandidValue(msg)
+  let value = newCandidNat32(msg)
   let encoded = encodeCandidMessage(@[value])
   ic0_msg_reply_data_append(ptrToInt(addr encoded[0]), encoded.len)
   ic0_msg_reply()
 
 
 proc reply*(msg: float32) =
-  let value = newCandidFloat(msg)
+  let value = newCandidFloat32(msg)
   let encoded = encodeCandidMessage(@[value])
   ic0_msg_reply_data_append(ptrToInt(addr encoded[0]), encoded.len)
   ic0_msg_reply()
 
 proc reply*(msg: float64) =
-  let value = newCandidValue(msg)
+  let value = newCandidFloat64(msg)
   let encoded = encodeCandidMessage(@[value])
   ic0_msg_reply_data_append(ptrToInt(addr encoded[0]), encoded.len)
   ic0_msg_reply()
@@ -114,18 +122,14 @@ proc reply*(msg: Principal) =
 
 
 proc reply*(msg: CandidRecord) =
-  echo "===== reply.nim reply() ====="
-  # let value = CandidValue(kind: ctRecord, recordVal: msg)
-  let value = newCandidValue(msg)
-  echo "value: ", value
+  let value = newCandidRecord(msg)
   let encoded = encodeCandidMessage(@[value])
-  echo "encoded: ", encoded
   ic0_msg_reply_data_append(ptrToInt(addr encoded[0]), encoded.len)
   ic0_msg_reply()
 
 
 proc reply*(msg: uint64) =
-  let value = newCandidValue(msg)
+  let value = newCandidNat64(msg)
   let encoded = encodeCandidMessage(@[value])
   ic0_msg_reply_data_append(ptrToInt(addr encoded[0]), encoded.len)
   ic0_msg_reply()
@@ -138,10 +142,10 @@ proc reply*(msg: seq[uint8]) =
   ic0_msg_reply()
 
 
-proc reply*[T](msg: Option[T]) =
+proc reply*(msg: Option[CandidValue]) =
   ## Reply with an optional value
   let optValue = if msg.isSome():
-    some(newCandidValue(msg.get()))
+    msg
   else:
     none(CandidValue)
   let value = newCandidOpt(optValue)
@@ -150,8 +154,15 @@ proc reply*[T](msg: Option[T]) =
   ic0_msg_reply()
 
 
-proc reply*(msg: seq[CandidValue]) =
-  ## Reply with a vector of CandidValue
+# proc reply*(msg: seq[CandidValue]) =
+#   ## Reply with a vector of CandidValue
+#   let value = newCandidVec(msg)
+#   let encoded = encodeCandidMessage(@[value])
+#   ic0_msg_reply_data_append(ptrToInt(addr encoded[0]), encoded.len)
+#   ic0_msg_reply()
+
+
+proc reply*[T](msg: seq[T]) =
   let value = newCandidVec(msg)
   let encoded = encodeCandidMessage(@[value])
   ic0_msg_reply_data_append(ptrToInt(addr encoded[0]), encoded.len)
@@ -188,7 +199,7 @@ proc reply*(msg: CandidValue) =
 proc reply*[T: enum](enumValue: T) =
   ## Reply with an enum value (automatically converted to Variant)
   try:
-    let value = newCandidValue(enumValue)  # Enum→Variant変換
+    let value = newCandidVariant(enumValue)  # Enum→Variant変換
     let encoded = encodeCandidMessage(@[value])
     ic0_msg_reply_data_append(ptrToInt(addr encoded[0]), encoded.len)
     ic0_msg_reply()

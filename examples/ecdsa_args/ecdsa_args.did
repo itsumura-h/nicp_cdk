@@ -1,40 +1,18 @@
 type ecdsa_curve = variant { secp256k1; secp256r1 };
 
-type key_id = record { curve : ecdsa_curve; name : text };
-
-type ecdsa_public_key_args = record {
-  canister_id : opt principal;
-  derivation_path : vec blob;
-  key_id : key_id;
-};
-
 service : {
-  // ECDSA Curve Enum関連
-  argEcdsaCurveEnum: (ecdsa_curve) -> (ecdsa_curve) query;
-  responseEcdsaCurveEnum: () -> (ecdsa_curve) query;
-  argEcdsaCurve: (ecdsa_curve) -> (ecdsa_curve) query;
-  
-  // Management Canister ECDSA連携
-  ecdsaArg: () -> (text) query;
-  responseEcdsaPublicKeyArgs: () -> (ecdsa_public_key_args) query;
-  
-  // ECDSA デバッグ・ステップ別テスト
-  responseEcdsaDebug: () -> (text) query;
-  responseEcdsaStep1: () -> (text) query;
-  responseEcdsaStep2: () -> (blob) query;
-  responseEcdsaStep3: () -> (key_id) query;
-  responseEcdsaStep4: () -> (ecdsa_public_key_args) query;
-  responseEcdsaFull: () -> (text) query;
-  responseEcdsaDebugFields: () -> (text) query;
-  responseEcdsaDebugRecord: () -> (text) query;
-  
-  // Vec Blob テスト
-  responseVecBlobSimple: () -> (vec blob) query;
-  responseVecBlobToRecord: () -> (record { derivation_path : vec blob }) query;
-  
-  // その他の補助テスト
-  responseSimpleRecord: () -> (record { name : text; value : nat32 }) query;
-  responseVecBlobTest: () -> (vec blob) query;
-  responseOptTest: () -> (opt text) query;
-  responseOptNoneTest: () -> (opt text) query;
+  ecdsaPublicKeyResponse: () -> (
+    record {
+      canister_id: opt principal;
+      derivation_path: vec blob;
+      key_id : record { curve : ecdsa_curve; name : text };
+    }
+  ) query;
+  ecdsaSignResponse: () -> (
+    record {
+      message_hash: blob;
+      derivation_path: vec blob;
+      key_id : record { curve : ecdsa_curve; name : text };
+    }
+  ) query;
 }
