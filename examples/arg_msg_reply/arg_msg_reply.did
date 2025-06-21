@@ -1,4 +1,5 @@
 service : {
+  nullResponse: () -> () query;
   boolArg: (bool) -> (bool) query;
   intArg: (int) -> (int) query;
   int8Arg: (int8) -> (int8) query;
@@ -19,7 +20,19 @@ service : {
   vecArg: (vec nat16) -> (vec nat16) query;
   variantArg: (variant { success : text; error : text; value : nat }) -> (variant { success : text; error : text; value : nat }) query;
   funcArg: (func () -> ()) -> (func () -> ()) query;
-  nullResponse: () -> () query;
+  recordArg: (
+    record {
+      name: text;
+      age: nat;
+      isActive: bool;
+    }
+  ) -> (
+    record {
+      name: text;
+      age: nat;
+      isActive: bool;
+    }
+  ) query;
 
   // // Phase 3.1: Enum機能のCanister関数定義
   // argSimpleStatus: (variant { Active; Inactive }) -> (variant { Active; Inactive }) query;

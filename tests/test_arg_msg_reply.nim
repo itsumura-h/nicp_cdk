@@ -586,4 +586,32 @@ suite "Func Type Tests":
     # func型の処理でエラーが発生することを確認
     check callResult.contains("IC0506") or callResult.contains("TypeError") or callResult.contains("error")
 
+suite "Record Type Tests":
+  setup:
+    echo "Starting record type test setup..."
+
+  teardown:
+    echo "Record type test teardown complete"
+
+  test "Test recordArg function":
+    echo "Testing recordArg function..."
+    let callResult = callCanisterFunction("recordArg", "(record { name = \"Alice\"; age = 30 : nat; isActive = true })")
+    echo "Call output: ", callResult
+    # Record値が返されることを確認
+    check callResult.contains("record") and callResult.contains("\"Alice\"") and callResult.contains("30 : nat") and callResult.contains("true")
+
+  test "Test recordArg function with different values":
+    echo "Testing recordArg function with different values..."
+    let callResult = callCanisterFunction("recordArg", "(record { name = \"Bob\"; age = 25 : nat; isActive = false })")
+    echo "Call output: ", callResult
+    # 異なる値のRecord値が返されることを確認
+    check callResult.contains("record") and callResult.contains("\"Bob\"") and callResult.contains("25 : nat") and callResult.contains("false")
+
+  test "Test recordArg function with zero age":
+    echo "Testing recordArg function with zero age..."
+    let callResult = callCanisterFunction("recordArg", "(record { name = \"Charlie\"; age = 0 : nat; isActive = true })")
+    echo "Call output: ", callResult
+    # 0歳のRecord値が返されることを確認
+    check callResult.contains("record") and callResult.contains("\"Charlie\"") and callResult.contains("0 : nat") and callResult.contains("true")
+
  

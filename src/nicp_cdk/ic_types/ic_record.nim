@@ -650,6 +650,15 @@ proc asBlob*(data: seq[uint8]): CandidRecord =
   ## Recordの中で配列をBlobとして明示
   CandidRecord(kind: ckBlob, blobVal: data)
 
+proc asInt*(data: int8|int16|int32|int64|uint|uint8|uint16|uint32|uint64): CandidRecord =
+  ## Recordの中でintを明示
+  CandidRecord(kind: ckInt, intVal: data.int)
+
+proc asNat*(data: int|int8|int16|int32|int64|uint|uint8|uint16|uint32|uint64): CandidRecord =
+  ## Recordの中でnatを明示
+  assert data >= 0, "nat must be positive"
+  CandidRecord(kind: ckNat, natVal: data.uint)
+
 # ===== テスト用ヘルパー関数 =====
 
 proc newCFloat32*(value: float32): CandidRecord =

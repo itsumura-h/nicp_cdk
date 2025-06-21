@@ -21,6 +21,10 @@ type
     Critical = 3
 
 
+proc nullResponse() {.query.} =
+  # null値を返す
+  reply()
+
 proc boolArg() {.query.} =
   let request = Request.new()
   let arg = request.getBool(0)
@@ -148,9 +152,20 @@ proc funcArg() {.query.} =
   icEcho "arg method: ", arg.methodName
   reply(arg)
 
-proc nullResponse() {.query.} =
-  # null値を返す
-  reply()
+proc recordArg() {.query.} =
+  let request = Request.new()
+  let arg = request.getRecord(0)
+  icEcho "arg name: ", arg["name"].getStr()
+  icEcho "arg age: ", $arg["age"].getNat()
+  icEcho "arg isActive: ", $arg["isActive"].getBool()
+  let response = %*{
+    "name": arg["name"].getStr(),
+    "age": arg["age"].getNat(),
+    "isActive": arg["isActive"].getBool()
+  }
+  reply(response)
+
+
 
 # proc msgPrincipal() {.query.} =
 #   let caller = Msg.caller()
