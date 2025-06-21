@@ -1,25 +1,25 @@
 service : {
-  argBool: (bool) -> (bool) query;
-  argInt: (int) -> (int) query;
-  argInt8: (int8) -> (int8) query;
-  argInt16: (int16) -> (int16) query;
-  argInt32: (int32) -> (int32) query;
-  argInt64: (int64) -> (int64) query;
-  argNat: (nat) -> (nat) query;
-  argNat8: (nat8) -> (nat8) query;
-  argNat16: (nat16) -> (nat16) query;
-  argNat32: (nat32) -> (nat32) query;
-  argNat64: (nat64) -> (nat64) query;
-  argFloat: (float32) -> (float32) query;
-  argFloat32: (float32) -> (float32) query;
-  argFloat64: (float64) -> (float64) query;
-  argText: (text) -> (text) query;
-  argBlob: (blob) -> (blob) query;
-  argOpt: (opt nat8) -> (opt nat8) query;
-  argVec: (vec nat16) -> (vec nat16) query;
-  argVariant: (variant { success : text; error : text; value : nat }) -> (variant { success : text; error : text; value : nat }) query;
-  argFunc: (func () -> ()) -> (func () -> ()) query;
-  responseNull: () -> () query;
+  boolArg: (bool) -> (bool) query;
+  intArg: (int) -> (int) query;
+  int8Arg: (int8) -> (int8) query;
+  int16Arg: (int16) -> (int16) query;
+  int32Arg: (int32) -> (int32) query;
+  int64Arg: (int64) -> (int64) query;
+  natArg: (nat) -> (nat) query;
+  nat8Arg: (nat8) -> (nat8) query;
+  nat16Arg: (nat16) -> (nat16) query;
+  nat32Arg: (nat32) -> (nat32) query;
+  nat64Arg: (nat64) -> (nat64) query;
+  floatArg: (float32) -> (float32) query;
+  float32Arg: (float32) -> (float32) query;
+  float64Arg: (float64) -> (float64) query;
+  textArg: (text) -> (text) query;
+  blobArg: (blob) -> (blob) query;
+  optArg: (opt nat8) -> (opt nat8) query;
+  vecArg: (vec nat16) -> (vec nat16) query;
+  variantArg: (variant { success : text; error : text; value : nat }) -> (variant { success : text; error : text; value : nat }) query;
+  funcArg: (func () -> ()) -> (func () -> ()) query;
+  nullResponse: () -> () query;
 
   // // Phase 3.1: Enum機能のCanister関数定義
   // argSimpleStatus: (variant { Active; Inactive }) -> (variant { Active; Inactive }) query;

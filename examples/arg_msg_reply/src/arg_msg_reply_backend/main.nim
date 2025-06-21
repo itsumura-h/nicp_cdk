@@ -9,10 +9,6 @@ import ../../../../src/nicp_cdk/ic_types/candid_funcs
 import ../../../../src/nicp_cdk/ic_types/ic_record
 import ../../../../src/nicp_cdk/ic0/ic0
 
-# ================================================================================
-# Phase 3: Enum型定義（Canister統合テスト用）
-# ================================================================================
-
 type
   SimpleStatus* {.pure.} = enum
     Active = 0
@@ -25,103 +21,103 @@ type
     Critical = 3
 
 
-proc argBool() {.query.} =
+proc boolArg() {.query.} =
   let request = Request.new()
   let arg = request.getBool(0)
   icEcho "arg: ", arg
   reply(arg)
 
-proc argInt() {.query.} =
+proc intArg() {.query.} =
   let request = Request.new()
   let arg = request.getInt(0)
   icEcho "arg: ", arg
   reply(arg)
 
-proc argInt8() {.query.} =
+proc int8Arg() {.query.} =
   let request = Request.new()
   let arg = request.getInt8(0)
   icEcho "arg: ", arg
   reply(arg)
 
-proc argInt16() {.query.} =
+proc int16Arg() {.query.} =
   let request = Request.new()
   let arg = request.getInt16(0)
   icEcho "arg: ", arg
   reply(arg)
 
-proc argInt32() {.query.} =
+proc int32Arg() {.query.} =
   let request = Request.new()
   let arg = request.getInt32(0)
   icEcho "arg: ", arg
   reply(arg)
 
-proc argInt64() {.query.} =
+proc int64Arg() {.query.} =
   let request = Request.new()
   let arg = request.getInt64(0)
   icEcho "arg: ", arg
   reply(arg)
 
-proc argNat() {.query.} =
+proc natArg() {.query.} =
   let request = Request.new()
   let arg = request.getNat(0)
   icEcho "arg: ", arg
   reply(arg)
 
-proc argNat8() {.query.} =
+proc nat8Arg() {.query.} =
   let request = Request.new()
   let arg = request.getNat8(0)
   reply(arg)
 
-proc argNat16() {.query.} =
+proc nat16Arg() {.query.} =
   let request = Request.new()
   let arg = request.getNat16(0)
   icEcho "arg: ", arg
   reply(arg)
 
-proc argNat32() {.query.} =
+proc nat32Arg() {.query.} =
   let request = Request.new()
   let arg = request.getNat32(0)
   icEcho "arg: ", arg
   reply(arg)
 
-proc argNat64() {.query.} =
+proc nat64Arg() {.query.} =
   let request = Request.new()
   let arg = request.getNat64(0)
   icEcho "arg: ", arg
   reply(arg)
 
-proc argFloat() {.query.} =
+proc floatArg() {.query.} =
   let request = Request.new()
   let arg = request.getFloat(0)
   icEcho "arg: ", arg
   reply(arg)
 
-proc argFloat32() {.query.} =
+proc float32Arg() {.query.} =
   let request = Request.new()
   let arg = request.getFloat32(0)
   icEcho "arg: ", arg
   reply(arg)
 
-proc argFloat64() {.query.} =
+proc float64Arg() {.query.} =
   let request = Request.new()
   let arg = request.getFloat64(0)
   icEcho "arg: ", arg
   reply(arg)
 
-proc argText() {.query.} =
+proc textArg() {.query.} =
   let request = Request.new()
   let arg = request.getStr(0)
   icEcho "arg: ", arg
   reply(arg)
 
-proc argBlob() {.query.} =
+proc blobArg() {.query.} =
   let request = Request.new()
   let arg = request.getBlob(0)
   icEcho "arg length: ", arg.len
   icEcho "arg: ", arg
   reply(arg)
 
-proc argOpt() {.query.} =
+proc optArg() {.query.} =
   let request = Request.new()
   # Option[uint8]として受け取る例
   let arg = request.getOpt(0)
@@ -130,7 +126,7 @@ proc argOpt() {.query.} =
     icEcho "arg value: ", $arg.get().getNat8()
   reply(arg)
 
-proc argVec() {.query.} =
+proc vecArg() {.query.} =
   let request = Request.new()
   let arg = request.getVec(0)
   let typedArg = arg.map(proc(val: CandidValue): uint16 = val.getNat16())
@@ -138,21 +134,21 @@ proc argVec() {.query.} =
   icEcho "arg: ", $typedArg
   reply(typedArg)
 
-proc argVariant() {.query.} =
+proc variantArg() {.query.} =
   let request = Request.new()
   let arg = request.getVariant(0)
   icEcho "arg tag: ", arg.tag
   icEcho "arg value: ", arg.value
   reply(arg)
 
-proc argFunc() {.query.} =
+proc funcArg() {.query.} =
   let request = Request.new()
   let arg = request.getFunc(0)
   icEcho "arg principal: ", arg.principal
   icEcho "arg method: ", arg.methodName
   reply(arg)
 
-proc responseNull() {.query.} =
+proc nullResponse() {.query.} =
   # null値を返す
   reply()
 
