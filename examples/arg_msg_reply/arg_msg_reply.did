@@ -1,5 +1,6 @@
 service : {
-  nullResponse: () -> () query;
+  nullResponse: () -> (null) query;
+  emptyResponse: () -> () query;
   boolArg: (bool) -> (bool) query;
   intArg: (int) -> (int) query;
   int8Arg: (int8) -> (int8) query;

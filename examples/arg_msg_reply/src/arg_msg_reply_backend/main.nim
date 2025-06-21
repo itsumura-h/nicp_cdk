@@ -22,8 +22,10 @@ type
 
 
 proc nullResponse() {.query.} =
-  # null値を返す
-  reply()
+  replyNull()
+
+proc emptyResponse() {.query.} =
+  replyEmpty()
 
 proc boolArg() {.query.} =
   let request = Request.new()

@@ -3,12 +3,18 @@ import ./ic0/ic0
 import ./ic_types/candid_types
 import ./ic_types/candid_message/candid_encode
 import ./ic_types/ic_principal
-import ./ic_api
 
 
-proc reply*() =
+proc replyNull*() =
   let value = newCandidNull()
   let encoded = encodeCandidMessage(@[value])
+  ic0_msg_reply_data_append(ptrToInt(addr encoded[0]), encoded.len)
+  ic0_msg_reply()
+
+proc replyEmpty*() =
+  # Candidの() -> ()は空のタプルを意味する
+  # 空の値リストでCandidメッセージをエンコード
+  let encoded = encodeCandidMessage(@[])
   ic0_msg_reply_data_append(ptrToInt(addr encoded[0]), encoded.len)
   ic0_msg_reply()
 

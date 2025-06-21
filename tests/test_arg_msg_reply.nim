@@ -58,7 +58,21 @@ suite "Null Type Tests":
     echo "Testing nullResponse function..."
     let callResult = callCanisterFunction("nullResponse")
     echo "Call output: ", callResult
-    # null値が返されることを確認（空の値として表現される）
+    # null値が返されることを確認
+    check callResult.contains("(null : null)")
+
+suite "Empty Type Tests":
+  setup:
+    echo "Starting empty type test setup..."
+
+  teardown:
+    echo "Empty type test teardown complete"
+
+  test "Test emptyResponse function":
+    echo "Testing emptyResponse function..."
+    let callResult = callCanisterFunction("emptyResponse")
+    echo "Call output: ", callResult
+    # 空の応答が返されることを確認
     check callResult.contains("()")
 
 suite "Bool Type Tests":
