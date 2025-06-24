@@ -223,17 +223,79 @@ suite "ic_variant tests":
     check isVariantTag(outerValue, "inner")
     check getVariantValue(outerValue).textVal == "inner text"
 
-  test "newVariantWithRecord":
+  test "newVariantWithTable":
     var recordFields = initTable[string, CandidValue]()
     recordFields["name"] = newCandidText("Alice")
     recordFields["age"] = newCandidInt(30)
     
-    let variant = newVariantWithRecord("user", recordFields)
+    let variant = newVariantWithTable("user", recordFields)
     check variant.kind == ctVariant
     check isVariantTag(variant, "user")
     
     let recordValue = getVariantValue(variant)
     check recordValue.kind == ctRecord
+
+  test "newVariantFromTable direct usage":
+    var recordFields = initTable[string, CandidValue]()
+    recordFields["name"] = newCandidText("Bob")
+    recordFields["age"] = newCandidInt(25)
+    
+    let variant = newVariantFromTable("employee", recordFields)
+    check variant.kind == ctVariant
+    check isVariantTag(variant, "employee")
+    
+    let recordValue = getVariantValue(variant)
+    check recordValue.kind == ctRecord
+
+  test "newVariantFromTable function":
+    var recordFields = initTable[string, CandidValue]()
+    recordFields["name"] = newCandidText("Charlie")
+    recordFields["age"] = newCandidInt(35)
+    
+    let variant = newVariantFromTable("person", recordFields)
+    check variant.kind == ctVariant
+    check isVariantTag(variant, "person")
+    
+    let recordValue = getVariantValue(variant)
+    check recordValue.kind == ctRecord
+
+  test "variant template with Table":
+    var data = initTable[string, int]()
+    data["count"] = 42
+    data["limit"] = 100
+    
+    let variantValue = variant("config", data)
+    check variantValue.kind == ctVariant
+    check isVariantTag(variantValue, "config")
+
+  test "newVariantFromEnum function":
+    type Status = enum
+      active = "active"
+      inactive = "inactive"
+      pending = "pending"
+    
+    let enumVariant = newVariantFromEnum(Status.active)
+    check enumVariant.kind == ctVariant
+    check isVariantTag(enumVariant, "active")
+    
+    let enumVariantWithValue = newVariantFromEnum(Status.pending, newCandidText("waiting"))
+    check enumVariantWithValue.kind == ctVariant
+    check isVariantTag(enumVariantWithValue, "pending")
+    check getVariantValue(enumVariantWithValue).textVal == "waiting"
+
+  test "variant template with Enum":
+    type Mode = enum
+      development = "development"
+      production = "production"
+    
+    let enumVar1 = variant(Mode.development)
+    check enumVar1.kind == ctVariant
+    check isVariantTag(enumVar1, "development")
+    
+    let enumVar2 = variant(Mode.production, newCandidInt(1))
+    check enumVar2.kind == ctVariant
+    check isVariantTag(enumVar2, "production")
+    check getVariantValue(enumVar2).intVal == 1
 
   test "newVariantWithVector":
     let elements = @[
@@ -295,7 +357,7 @@ suite "ic_variant tests":
     successData["username"] = newCandidText("alice_smith")
     successData["email"] = newCandidText("alice@example.com")
     
-    let successResponse = newVariantWithRecord("success", successData)
+    let successResponse = newVariantWithTable("success", successData)
     
     check isVariantTag(successResponse, "success")
     let userData = getVariantValue(successResponse)

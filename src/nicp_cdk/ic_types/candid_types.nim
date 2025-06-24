@@ -1,9 +1,7 @@
 import std/options
 import std/tables
 import std/macros
-import std/sequtils
 import std/strutils
-import std/algorithm
 import ./ic_principal
 
 
@@ -73,6 +71,8 @@ type
       value*: T
     of false:
       discard
+
+
 
   # ==================================================
   # CandidRecord
@@ -178,7 +178,10 @@ proc `$`*(value: CandidValue): string =
   of ctPrincipal:
     result = "principal \"" & $value.principalVal & "\""
   of ctBlob:
-    result = "blob \"" & value.blobVal.mapIt(it.toHex()).join("") & "\""
+    var hexValues: seq[string] = @[]
+    for b in value.blobVal:
+      hexValues.add(b.toHex())
+    result = "blob \"" & hexValues.join("") & "\""
   of ctRecord:
     result = "record {"
     var first = true
@@ -221,7 +224,10 @@ proc `$`*(value: CandidValue): string =
 
 
 proc toString*(data: seq[byte]): string =
-  return data.mapIt(it.toHex()).join("")
+  var hexValues: seq[string] = @[]
+  for b in data:
+    hexValues.add(b.toHex())
+  return hexValues.join("")
 
 proc stringToBytes*(s: string): seq[byte] =
   # 2文字ずつバイト列に変換
@@ -331,7 +337,10 @@ proc newCandidValue*[T](value: T): CandidValue =
       vecElements.add(CandidValue(kind: ctBlob, blobVal: blob))
     CandidValue(kind: ctVec, vecVal: vecElements)
   elif T is seq[byte]:
-    CandidValue(kind: ctVec, vecVal: value.mapIt(newCandidValue(it)))
+    var vecElements: seq[CandidValue] = @[]
+    for b in value:
+      vecElements.add(newCandidValue(b))
+    CandidValue(kind: ctVec, vecVal: vecElements)
   elif T is CandidRecord:
     CandidValue(kind: ctRecord, recordVal: value)
   elif T is CandidVariant:
@@ -351,6 +360,7 @@ proc newCandidValue*[T](value: T): CandidValue =
   elif T is enum:
     # Enum型をVariant型として変換（Enum名のVariantとしてnull値を持つ）
     newCandidVariant($value, newCandidNull())
+
   elif T is object:
     # Object型を再帰的にCandidRecordに変換
     newCandidRecord(value)
@@ -445,9 +455,14 @@ proc newCandidOpt*(value: Option[CandidValue]): CandidValue =
 proc newCandidVec*(values: seq[CandidValue]): CandidValue =
   CandidValue(kind: ctVec, vecVal: values)
 
+proc newCandidVecEmpty*(): CandidValue =
+  ## Creates an empty CandidValue vector.
+  CandidValue(kind: ctVec, vecVal: @[])
+
 proc newCandidVec*[T](values: seq[T]): CandidValue =
-  let vecElements = values.mapIt(newCandidValue(it))
-  CandidValue(kind: ctVec, vecVal: vecElements)
+  result = CandidValue(kind: ctVec, vecVal: @[])
+  for item in values:
+    result.vecVal.add(newCandidValue(item))
 
 proc newCandidFunc*(principal: Principal, methodName: string, args: seq[CandidType] = @[], returns: seq[CandidType] = @[], annotations: seq[string] = @[]): CandidValue =
   let funcRef = CandidFunc(
@@ -546,9 +561,12 @@ proc getEnumValue*[T: enum](cv: CandidValue, enumType: typedesc[T]): T =
       return enumValue
   
   # 見つからない場合は文字列による比較も試行
+  var enumNames: seq[string] = @[]
+  for enumValue in T:
+    enumNames.add($enumValue)
   raise newException(ValueError, 
     "Cannot convert Variant tag " & $variant.tag & " to enum type " & $typeof(T) & ". " &
-    "Available enum values: " & @[T.low..T.high].mapIt($it).join(", "))
+    "Available enum values: " & enumNames.join(", "))
 
 proc validateEnumType*[T: enum](enumType: typedesc[T]) =
   ## Enum型の制約をチェック（{.pure.} pragma付きかどうかなど）
@@ -616,6 +634,8 @@ proc newCandidVecBlob*(blobs: seq[seq[uint8]]): CandidValue =
   for blob in blobs:
     vecElements.add(CandidValue(kind: ctBlob, blobVal: blob))
   CandidValue(kind: ctVec, vecVal: vecElements)
+
+
 
 # ================================================================================
 # Vec/Blob統一処理 - 動的型変換API

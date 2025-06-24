@@ -1,5 +1,4 @@
 import ./candid_types
-import ./candid_funcs
 import std/tables
 import std/options
 
@@ -74,9 +73,12 @@ proc newNestedVariant*(outerTag: string, innerTag: string, value: CandidValue): 
   let innerVariant = newCandidVariant(innerTag, value)
   newCandidVariant(outerTag, innerVariant)
 
-proc newVariantWithRecord*(tag: string, recordFields: Table[string, CandidValue]): CandidValue =
+proc newVariantWithTable*(tag: string, recordFields: Table[string, CandidValue]): CandidValue =
   ## Record値を持つVariantを作成
-  let recordValue = newCandidRecord(recordFields)
+  var record = CandidRecord(kind: ckRecord, fields: initOrderedTable[string, CandidValue]())
+  for key, value in recordFields:
+    record.fields[key] = value
+  let recordValue = newCandidRecord(record)
   newCandidVariant(tag, recordValue)
 
 proc newVariantWithVector*(tag: string, elements: seq[CandidValue]): CandidValue =
@@ -183,8 +185,63 @@ proc getVariantInfo*(cv: CandidValue): tuple[tag: uint32, valueKind: CandidType]
     raise newException(ValueError, "Expected Variant")
   (tag: cv.variantVal.tag, valueKind: cv.variantVal.value.kind)
 
-# ===== 互換性レイヤー（古いAPIとの互換性保持） =====
+# ===== Table型とEnum型からVariant型を作成する専用関数 =====
 
-# 古いCandidRecord型ベースの関数群は削除し、
-# 必要に応じてCandidValue型への移行を促進するため、
-# 新しいAPIのみを提供します。
+proc newVariantFromTable*[K, V](tag: string, table: Table[K, V]): CandidValue =
+  ## Table[K, V]型からVariant型を作成（Variant型はTable型からのみ作成）
+  when K is string and V is CandidValue:
+    # Table[string, CandidValue]の場合はそのまま使用
+    newVariantWithTable(tag, table)
+  elif K is string:
+    # Table[string, T]の場合はCandidValueに変換
+    var recordFields = initTable[string, CandidValue]()
+    for key, value in table:
+      recordFields[key] = newCandidValue(value)
+    newVariantWithTable(tag, recordFields)
+  else:
+    # キーが文字列でない場合は文字列に変換
+    var recordFields = initTable[string, CandidValue]()
+    for key, value in table:
+      recordFields[$key] = newCandidValue(value)
+    newVariantWithTable(tag, recordFields)
+
+proc newVariantFromOrderedTable*[K, V](tag: string, table: OrderedTable[K, V]): CandidValue =
+  ## OrderedTable[K, V]型からVariant型を作成（Variant型はTable型からのみ作成）
+  when K is string and V is CandidValue:
+    # OrderedTable[string, CandidValue]の場合
+    var recordFields = initTable[string, CandidValue]()
+    for key, value in table:
+      recordFields[key] = value
+    newVariantWithTable(tag, recordFields)
+  elif K is string:
+    # OrderedTable[string, T]の場合はCandidValueに変換
+    var recordFields = initTable[string, CandidValue]()
+    for key, value in table:
+      recordFields[key] = newCandidValue(value)
+    newVariantWithTable(tag, recordFields)
+  else:
+    # キーが文字列でない場合は文字列に変換
+    var recordFields = initTable[string, CandidValue]()
+    for key, value in table:
+      recordFields[$key] = newCandidValue(value)
+    newVariantWithTable(tag, recordFields)
+
+proc newVariantFromEnum*[T: enum](enumValue: T, value: CandidValue = newCandidNull()): CandidValue =
+  ## Enum型からVariant型を作成（Variant型はEnum型からのみ作成）
+  newCandidVariant($enumValue, value)
+
+template variant*(tag: string, value: Table): CandidValue =
+  ## Table型専用のvariant作成テンプレート
+  newVariantFromTable(tag, value)
+
+template variant*(tag: string, value: OrderedTable): CandidValue =
+  ## OrderedTable型専用のvariant作成テンプレート
+  newVariantFromOrderedTable(tag, value)
+
+template variant*[T: enum](enumValue: T): CandidValue =
+  ## Enum型専用のvariant作成テンプレート
+  newVariantFromEnum(enumValue)
+
+template variant*[T: enum](enumValue: T, value: CandidValue): CandidValue =
+  ## Enum型＋値のvariant作成テンプレート
+  newVariantFromEnum(enumValue, value)
