@@ -18,3 +18,7 @@ requires "nim >= 2.2.2"
 requires "cligen >= 1.8.3"
 requires "illwill >= 0.4.1"
 requires "base32 >= 0.1.3"
+
+
+task test, "Run tests":
+  exec """testament p "tests/**/test_*.nim" """

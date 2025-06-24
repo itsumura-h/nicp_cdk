@@ -351,6 +351,9 @@ proc newCandidValue*[T](value: T): CandidValue =
   elif T is enum:
     # Enum型をVariant型として変換（Enum名のVariantとしてnull値を持つ）
     newCandidVariant($value, newCandidNull())
+  elif T is object:
+    # Object型を再帰的にCandidRecordに変換
+    newCandidRecord(value)
   else:
     raise newException(ValueError, "Unsupported type: " & $typeof(value))
 
@@ -413,14 +416,20 @@ proc newCandidBlob*(value: seq[uint8]): CandidValue =
 proc newCandidPrincipal*(value: Principal): CandidValue =
   CandidValue(kind: ctPrincipal, principalVal: value)
 
-proc newCandidRecord*(values: Table[string, CandidValue]): CandidValue =
-  var record = CandidRecord(kind: ckRecord, fields: initOrderedTable[string, CandidValue]())
-  for key, value in values:
-    record.fields[key] = value
-  CandidValue(kind: ctRecord, recordVal: record)
+# proc newCandidRecord*(values: Table[string, CandidValue]): CandidValue =
+#   var record = CandidRecord(kind: ckRecord, fields: initOrderedTable[string, CandidValue]())
+#   for key, value in values:
+#     record.fields[key] = value
+#   CandidValue(kind: ctRecord, recordVal: record)
 
 proc newCandidRecord*(values: CandidRecord): CandidValue =
   CandidValue(kind: ctRecord, recordVal: values)
+
+proc newCandidRecord*(values: object): CandidValue =
+  var record = CandidRecord(kind: ckRecord, fields: initOrderedTable[string, CandidValue]())
+  for key, value in values.fieldPairs:
+    record.fields[key] = newCandidValue(value)
+  CandidValue(kind: ctRecord, recordVal: record)
 
 proc newCandidVariant*(tag: string, value: CandidValue): CandidValue =
   let variant = CandidVariant(tag: candidHash(tag), value: value)
