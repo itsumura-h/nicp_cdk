@@ -11,7 +11,7 @@ import ../../src/nicp_cdk/ic_types/candid_message/candid_decode
 
 suite "ic_vec tests":
   test "encode with empty vec":
-    let vecValue = newCandidVec(@[])
+    let vecValue = newCandidVecEmpty()
     let encoded = encodeCandidMessage(@[vecValue])
     # DIDL0ヘッダー(4バイト) + 型テーブル(サイズ可変) + 長さ0(1バイト) = 最小サイズ
     check encoded.len >= 8
@@ -52,7 +52,7 @@ suite "ic_vec tests":
     echo "Vec of 3 text encoded size: ", encoded.len, " bytes"
 
   test "encode and decode with empty vec":
-    let vecValue = newCandidVec(@[])
+    let vecValue = newCandidVecEmpty()
     let encoded = encodeCandidMessage(@[vecValue])
     let decoded = decodeCandidMessage(encoded)
     check decoded.values.len == 1
@@ -73,11 +73,11 @@ suite "ic_vec tests":
     check decoded.values[0].vecVal.len == 3
     # 各要素の値を検証
     check decoded.values[0].vecVal[0].kind == ctNat8
-    check decoded.values[0].vecVal[0].natVal == 42u
+    check decoded.values[0].vecVal[0].nat8Val == 42u
     check decoded.values[0].vecVal[1].kind == ctNat8
-    check decoded.values[0].vecVal[1].natVal == 100u
+    check decoded.values[0].vecVal[1].nat8Val == 100u
     check decoded.values[0].vecVal[2].kind == ctNat8
-    check decoded.values[0].vecVal[2].natVal == 255u
+    check decoded.values[0].vecVal[2].nat8Val == 255u
 
   test "encode and decode with vec of nat16":
     let nat16Values = @[
@@ -93,11 +93,11 @@ suite "ic_vec tests":
     check decoded.values[0].vecVal.len == 3
     # 各要素の値を検証
     check decoded.values[0].vecVal[0].kind == ctNat16
-    check decoded.values[0].vecVal[0].natVal == 1000u
+    check decoded.values[0].vecVal[0].nat16Val == 1000u
     check decoded.values[0].vecVal[1].kind == ctNat16
-    check decoded.values[0].vecVal[1].natVal == 2000u
+    check decoded.values[0].vecVal[1].nat16Val == 2000u
     check decoded.values[0].vecVal[2].kind == ctNat16
-    check decoded.values[0].vecVal[2].natVal == 65535u
+    check decoded.values[0].vecVal[2].nat16Val == 65535u
 
   test "encode and decode with vec of text":
     let textValues = @[
@@ -152,9 +152,9 @@ suite "ic_vec tests":
     check decoded.values[0].vecVal.len == 100
     # 先頭と末尾の要素を検証
     check decoded.values[0].vecVal[0].kind == ctNat8
-    check decoded.values[0].vecVal[0].natVal == 0u
+    check decoded.values[0].vecVal[0].nat8Val == 0u
     check decoded.values[0].vecVal[99].kind == ctNat8
-    check decoded.values[0].vecVal[99].natVal == 99u
+    check decoded.values[0].vecVal[99].nat8Val == 99u
 
   test "multiple vec values":
     let vecValue1 = newCandidVec(@[newCandidValue(uint8(1)), newCandidValue(uint8(2))])
@@ -167,8 +167,8 @@ suite "ic_vec tests":
     # 最初のベクター（nat8）
     check decoded.values[0].kind == ctVec
     check decoded.values[0].vecVal.len == 2
-    check decoded.values[0].vecVal[0].natVal == 1u
-    check decoded.values[0].vecVal[1].natVal == 2u
+    check decoded.values[0].vecVal[0].nat8Val == 1u
+    check decoded.values[0].vecVal[1].nat8Val == 2u
     
     # 2番目のベクター（text）
     check decoded.values[1].kind == ctVec
@@ -191,9 +191,9 @@ suite "ic_vec tests":
     let vecValue = newCandidVec(nat8Values)
     check vecValue.kind == ctVec
     check vecValue.vecVal.len == 3
-    check vecValue.vecVal[0].natVal == 10u
-    check vecValue.vecVal[1].natVal == 20u
-    check vecValue.vecVal[2].natVal == 30u
+    check vecValue.vecVal[0].nat8Val == 10u
+    check vecValue.vecVal[1].nat8Val == 20u
+    check vecValue.vecVal[2].nat8Val == 30u
 
   test "vec boundary values nat8":
     # nat8の境界値テスト
@@ -209,9 +209,9 @@ suite "ic_vec tests":
     check decoded.values[0].vecVal.len == 2
     # 各境界値を検証
     check decoded.values[0].vecVal[0].kind == ctNat8
-    check decoded.values[0].vecVal[0].natVal == 0u
+    check decoded.values[0].vecVal[0].nat8Val == 0u
     check decoded.values[0].vecVal[1].kind == ctNat8
-    check decoded.values[0].vecVal[1].natVal == 255u
+    check decoded.values[0].vecVal[1].nat8Val == 255u
 
   test "vec boundary values nat16":
     # nat16の境界値テスト
@@ -227,6 +227,6 @@ suite "ic_vec tests":
     check decoded.values[0].vecVal.len == 2
     # 各境界値を検証
     check decoded.values[0].vecVal[0].kind == ctNat16
-    check decoded.values[0].vecVal[0].natVal == 0u
+    check decoded.values[0].vecVal[0].nat16Val == 0u
     check decoded.values[0].vecVal[1].kind == ctNat16
-    check decoded.values[0].vecVal[1].natVal == 65535u 
+    check decoded.values[0].vecVal[1].nat16Val == 65535u 

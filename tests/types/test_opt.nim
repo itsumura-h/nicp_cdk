@@ -88,7 +88,7 @@ suite "ic_opt tests":
     check decoded.values.len == 3
     check decoded.values[0].kind == ctOpt
     check decoded.values[0].optVal.isSome()
-    check decoded.values[0].optVal.get().natVal == 1
+    check decoded.values[0].optVal.get().nat8Val == 1
     check decoded.values[1].kind == ctOpt
     check decoded.values[1].optVal.isNone()
     check decoded.values[2].kind == ctOpt

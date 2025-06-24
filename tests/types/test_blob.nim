@@ -49,7 +49,7 @@ suite "ic_blob tests":
     # 各要素がnat8値として格納されているかチェック
     for i in 0..<5:
       check decoded.values[0].vecVal[i].kind == ctNat8
-      check decoded.values[0].vecVal[i].natVal == uint(blobData[i])
+      check decoded.values[0].vecVal[i].nat8Val == blobData[i]
 
   test "encode and decode with empty blob":
     let blobValue = newCandidBlob(@[])
@@ -69,7 +69,7 @@ suite "ic_blob tests":
     # バイナリデータの検証
     for i in 0..<6:
       check decoded.values[0].vecVal[i].kind == ctNat8
-      check decoded.values[0].vecVal[i].natVal == uint(blobData[i])
+      check decoded.values[0].vecVal[i].nat8Val == blobData[i]
 
   test "encode and decode with UTF-8 blob":
     # UTF-8でエンコードされた日本語文字列「こんにちは」
@@ -84,7 +84,7 @@ suite "ic_blob tests":
     # UTF-8バイト列の検証
     for i in 0..<15:
       check decoded.values[0].vecVal[i].kind == ctNat8
-      check decoded.values[0].vecVal[i].natVal == uint(blobData[i])
+      check decoded.values[0].vecVal[i].nat8Val == blobData[i]
 
   test "encode and decode with large blob":
     var blobData = newSeq[uint8](100)  # テスト時間短縮のため100バイトに縮小
@@ -98,7 +98,7 @@ suite "ic_blob tests":
     # 大きなデータの検証（サンプルのみ）
     for i in 0..<10:
       check decoded.values[0].vecVal[i].kind == ctNat8
-      check decoded.values[0].vecVal[i].natVal == uint(blobData[i])
+      check decoded.values[0].vecVal[i].nat8Val == blobData[i]
 
   test "multiple blob values":
     let blobValue1 = newCandidBlob(@[0x41u8, 0x42u8]) # "AB"
@@ -110,16 +110,16 @@ suite "ic_blob tests":
     # 全てvec nat8として返される
     check decoded.values[0].kind == ctVec
     check decoded.values[0].vecVal.len == 2
-    check decoded.values[0].vecVal[0].natVal == 0x41u
-    check decoded.values[0].vecVal[1].natVal == 0x42u
+    check decoded.values[0].vecVal[0].nat8Val == 0x41u
+    check decoded.values[0].vecVal[1].nat8Val == 0x42u
     check decoded.values[1].kind == ctVec
     check decoded.values[1].vecVal.len == 2
-    check decoded.values[1].vecVal[0].natVal == 0x43u
-    check decoded.values[1].vecVal[1].natVal == 0x44u
+    check decoded.values[1].vecVal[0].nat8Val == 0x43u
+    check decoded.values[1].vecVal[1].nat8Val == 0x44u
     check decoded.values[2].kind == ctVec
     check decoded.values[2].vecVal.len == 2
-    check decoded.values[2].vecVal[0].natVal == 0x45u
-    check decoded.values[2].vecVal[1].natVal == 0x46u
+    check decoded.values[2].vecVal[0].nat8Val == 0x45u
+    check decoded.values[2].vecVal[1].nat8Val == 0x46u
 
   test "blob value type check":
     let blobData = @[0x54u8, 0x65u8, 0x73u8, 0x74u8] # "Test"

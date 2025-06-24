@@ -94,11 +94,13 @@ proc reply*(msg: float32) =
   ic0_msg_reply_data_append(ptrToInt(addr encoded[0]), encoded.len)
   ic0_msg_reply()
 
+
 proc reply*(msg: float64) =
   let value = newCandidFloat64(msg)
   let encoded = encodeCandidMessage(@[value])
   ic0_msg_reply_data_append(ptrToInt(addr encoded[0]), encoded.len)
   ic0_msg_reply()
+
 
 proc reply*(msg: string) =
   let value = newCandidText(msg)
@@ -184,6 +186,12 @@ proc reply*(msg: CandidFunc) =
   ic0_msg_reply_data_append(ptrToInt(addr encoded[0]), encoded.len)
   ic0_msg_reply()
 
+
+proc reply*(msg: object) =
+  let value = newCandidRecord(msg)
+  let encoded = encodeCandidMessage(@[value])
+  ic0_msg_reply_data_append(ptrToInt(addr encoded[0]), encoded.len)
+  ic0_msg_reply()
 
 # ================================================================================
 # Enum型サポート関数
