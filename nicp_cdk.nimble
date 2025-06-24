@@ -21,4 +21,5 @@ requires "base32 >= 0.1.3"
 
 
 task test, "Run tests":
+  exec """testament p "tests/test_*.nim" """
   exec """testament p "tests/**/test_*.nim" """

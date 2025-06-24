@@ -4,9 +4,9 @@ cmd: "nim c --skipUserCfg $file"
 # nim c -r --skipUserCfg tests/test_arg_msg_reply.nim
 
 import unittest
-import osproc
-import strutils
-import os
+import std/osproc
+import std/strutils
+import std/os
 
 const 
   DFX_PATH = "/root/.local/share/dfx/bin/dfx"
