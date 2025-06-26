@@ -1,0 +1,543 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+28-async
+===
+
+このブランチで実装することは以下の通りです。
+- RustとMotokoのWASM向け非同期処理実装を調査し、NimでWASMターゲット時に非同期処理が可能な仕組みを設計・実装する
+- Nimのasyncdispatchと同名の関数名でAPIを提供する（例: sleepAsync, recv, send, runForeverなど）
+
+## 進捗
+- [x] RustのWASM向け非同期処理実装方式を調査
+- [x] Motokoの非同期処理実装方式を調査
+- [ ] 調査結果に基づくNimでの実装方針ドキュメント作成
+- [ ] Nim用asyncdispatch互換API設計
+- [ ] 実装環境のセットアップ（wasm32-unknown-unknownターゲット設定）
+- [ ] 初期プロトタイプの実装と動作確認
+
+## 参考資料
+- Rust: wasm-bindgen futuresドキュメント (https://rustwasm.github.io/docs/wasm-bindgen/reference/futures.html)
+- Motoko: async/awaitおよびActorモデルについて (https://sdk.dfinity.org/docs/languages/motoko/managing-async.html)
+- Motoko: Actors & async data (https://internetcomputer.org/docs/motoko/fundamentals/actors-async)
+- Nim: asyncdispatchモジュール (https://nim-lang.org/docs/asyncdispatch.html)
+- Nim WASM (JSBackend) (https://nim-lang.org/docs/jsbackend.html)
+
+## 調査結果・設計まとめ
+
+# WASM環境におけるRustの非同期処理実装とNimでの類似機構の設計
+
+## Rustの非同期処理実装構造（WASM向け）
+
+### 1. Rustのasync/awaitと`Future<T>`のコード生成・型定義
+
+Rustでは、`async fn`はコンパイル時に**状態機械（state machine）**へと変換され、実行時には`Future`トレイトを実装する匿名型として扱われます。具体的には、`async`キーワードの付いた関数は返り値の型が暗黙に`impl Future<Output=T>`となり、関数内に書かれた一連の処理はコンパイラによって**状態を保持する構造体と`poll`関数**に展開されます。以下にポイントをまとめます:
+
+* **`Future`トレイトと`poll`関数**: Rustの`std::future::Future`トレイトは以下のように定義され、`poll(self: Pin<&mut Self>, cx: &mut Context) -> Poll<Output>`というメソッドを持ちます。この`poll`が非同期タスクの進行をドライブする役割です。`async`関数から生成される匿名のFuture型には自動的にこの`poll`が実装され、内部で状態機械の遷移処理が記述されます。
+
+* **状態と構造体**: コンパイラは`async fn`のローカル変数や途中経過をフィールドに持つ構造体を生成し、また関数内の`await`ごとに「中断ポイント」に対応するenum型の状態列挙子を用意します。例えば、2つの`.await`を含む関数なら、開始状態、1つ目の待機状態、2つ目の待機状態、完了状態といった複数の状態を持つことになります。これは**有限状態機械**として実装され、どの状態で中断しているかを保持します。
+
+* **`async`ブロックも同様**: 関数以外に`async { ... }`ブロックも`Future`を返す構造に変換されます。いずれも**コンパイル時に特殊な型定義**となるため、Rustでは`async fn`の型名は明示されず`impl Future<Output=T>`の形式になります。
+
+* **コード生成の例**: 簡単な例として、
+
+  ```rust
+  async fn foo() -> u32 {
+      0
+  }
+  ```
+
+  は内部的にほぼ次のように解釈されます:
+
+  ```rust
+  fn foo() -> impl Future<Output = u32> {
+      future::ready(0) // すぐ完了するFutureを返す
+  }
+  ```
+
+  実際には状態機械構造体`FooFuture`（仮称）が生成され、`poll`実装で即座に`Poll::Ready(0)`を返すようになります。
+
+* **`.await`の実装**: `.await`は特殊な演算子で、Futureをポーリングして値が準備できていれば取り出し、未完了なら現在の`Future`（＝状態機械）を一時停止して`Poll::Pending`を返します。Rustコンパイラは`.await`の箇所で一旦実行を中断するためのコードを自動生成し、必要ならWaker（後述）を登録して**再開のきっかけ**を待つようにします。この仕組みにより、Rust側では`yield`文がなくとも`await`で関数を中断・再開できます。
+
+### 2. wasm32-wasiターゲットでの非同期ランタイムのタスクポーリングとスケジューリング
+
+WASMターゲット（特にWASI環境やInternet Computer上）ではスレッドの概念が限定的であり、非同期処理は**シングルスレッド上の協調的なタスク切り替え**によって実現されています。Rustの場合、OS上では`tokio`のようなランタイムやOSのI/O待ち機構（epoll等）を利用しますが、WASMでは以下のような特性があります:
+
+* **シングルスレッド・協調マルチタスキング**: WebAssemblyはデフォルトではマルチスレッドをサポートしないため（*Web*環境では特にそうですが、WASIも現状ではシングルスレッド実行）、**協調的スケジューリング**でタスクを進めます。各タスク（Future）は自発的に`await`ポイントで実行権を手放し（`Poll::Pending`を返し）、他のタスクの実行や外部イベントの待機を許します。Rustの場合、`.await`によってそれが暗黙的になされています。
+
+* **WASIにおけるポーリング**: WASI (WebAssembly System Interface) では将来的に非同期I/Oを直接サポートする提案もありますが、現在安定しているWASI Preview1/Preview2では**readiness-based**（準備完了ベース）のポーリングAPIが提供されています。例えば`poll_oneoff`システムコールで複数のイベントを同時に待つことができます。このモデルでは「ある操作（例: ファイル読み込み）が読み取り可能になるまで待つ」という形でホストに興味を登録し、ホストから「準備ができた」と通知を受け取ったら実際のI/Oを実行します。RustのランタイムはWASIの場合、これら**ホストのポーリング機構**を利用してI/Oの完了を待ち、イベント発生時に対応するFutureを再度`poll`します。
+
+* **Wasmtimeにおけるスケジューリング**: Wasmtimeランタイムでは、ホスト関数を`async`で定義し、WASM側からは**同期関数のように見せつつ内部で非同期実行**する仕組みを提供しています。具体的には、`Config::async_support(true)`を有効にすると、Wasmtimeは**別途確保したスタック**上でWASMの実行を行い、ホスト関数が`Pending`を返した時点でそのスタックを保存して**元のスタックに戻す**ことでWASM実行を一時停止します。これにより、WASMモジュールから見るとホスト呼び出しはブロッキング（戻り値がすぐ来る）ように見えますが、実際はホスト側でFutureをポーリングしつつ結果が用意できたら再度WASMを再開しています。
+
+* **Internet Computer (IC)のcanisterにおける実行**: Internet Computer上では、各Canister（WASMモジュール）はイベント駆動・シングルスレッドで実行されます。RustのIC用CDK（ic-cdk）では**専用の非同期エグゼキュータ**を内蔵しており、Tokioのようなスレッドプールは使えません。`#[update]`や`#[query]`といった属性マクロで宣言された**非同期関数**は、CDK内のエグゼキュータに登録され、ポーリングされます。一般に、IC上で`async`関数が外部のcanister呼び出し（`ic_cdk::api::call`等）を行うと、一旦そのFutureは`Pending`で停止し、**ICシステムにコールバックを登録**して現在の実行を終了します。呼び出し先から応答が戻ると、ICシステムが当該Canisterを再度起動し、事前に登録されたコールバック（つまりFutureの続き）を呼び出すことで非同期処理が再開されます。Rust CDKの実装上は、`ic_cdk::spawn`でバックグラウンドタスクを投げたり、`Future`の`Waker`を使って適切に再開タイミングを管理しています。※ICでは一度に1つのメッセージハンドラしか実行されないため、`await`中は他の処理（他のメッセージ処理）に進む仕組みです。
+
+* **イベントループ（エグゼキュータ）の動作**: Rustでは非同期タスクを実行するために**エグゼキュータ（executor）**が必要です。通常のOS上であればTokioやasync-std、smol等を使いますが、WASM/WASIではしばしば**カスタムのエグゼキュータ**を自前で用意します。例えばYoshua Wuyts氏の示したWASI用ランタイムでは、`block_on`関数内で以下のようなループを回します:
+
+  ```rust
+  loop {
+      match fut.as_mut().poll(&mut cx) {
+          Poll::Ready(res) => return res,        // 完了したら結果を返す
+          Poll::Pending    => reactor.block_until(), // 完了していなければホストのポーラを呼んで待つ
+      }
+  }
+  ```
+
+  上記の`reactor.block_until()`はWASIの`poll`システムコールを内部で呼び出し、何らかのI/Oやタイマの完了イベントが来るまでブロックします。イベント到達後、再度Futureの`poll`を呼び、進行させることで協調的にタスクを完了まで動かします。
+  **重要な点**は、Rustコンパイル済みのWASMコード自体には非同期タスクを自動で回す仕組みはなく、あくまで**ホスト側またはランタイム側でポーリングを回す必要**がある点です。Internet Computerの場合も、ランタイムが各メッセージ毎にFutureのポーリングと停止を管理しています。
+
+### 3. Rustにおけるasync/awaitの状態機械への変換とWASM上でのyield/awaitの表現
+
+Rustの`async/await`は、**状態機械への変換**によって`yield`相当の動作を実現しています。WASM上には高級言語のような`yield`命令は存在しませんが、Rustコンパイル後のコードは**通常の関数とデータ構造**でそれを表現します。仕組みを順を追って説明します:
+
+* **状態機械としてのFuture**: 前述の通り、`async fn`は内部に状態(enum)を持つFuture構造体に変換されます。各`.await`はその関数が中断可能なポイントであり、**状態機械の遷移先**となります。`poll`関数が呼ばれると、この状態に基づいて続きを実行し、次の`await`や終了まで進みます。例えば、`future.poll()`の最中に他のFutureを`.await`した場合、その`.await`対象のFutureがまだ完了していなければ、現在の状態を記録して`Poll::Pending`を返す、という処理が自動生成されます。これはすなわち**関数を一時中断（yield）して呼び出し元に戻る**ことを意味します。
+
+* **Wakerとコンテキスト**: `Future::poll`メソッドには`Context`構造体が渡されます。この中に`Waker`という**再開用のコールバックハンドル**が含まれています。`await`する際、Rustの実装はこの`Waker`を.await対象のFutureに渡し、「完了したらこのWakerを起こして（呼び出して）ね」という登録を行います。Wakerが起こされると、エグゼキュータは対応するFuture（先程中断したもの）を再度`poll`キューに入れます。WASM上でもこの仕組みは同様で、特に**マルチスレッドでない場合**Wakerの起床は例えば次のイベントループイテレーションへのフラグ付け程度の意味になります。
+
+* **PendingとResume**: `.await`した結果がすぐに利用可能な場合（例えばすでに完了済みのFutureを.awaitした場合）は、そのまま値を取り出して続行します。一方結果待ちの場合、現在のFutureは`Poll::Pending`を返して中断します。この際、ローカル変数や次に実行すべき位置（状態）はFuture内部に保存済みなので、後日`poll`が呼ばれればそこから再開できます。\*\*WASM上での`yield`\*\*はまさにこの挙動に相当し、関数の実行を途中で終了してホストやスケジューラに制御を戻すことになります。以降、対応するイベントが起きて再度`poll`されるまで、そのFutureの残り部分は実行されません。
+
+* **状態の保存**: 状態機械内では、各`await`前後で必要なローカル変数をフィールドに保存し、再開時に取り出せるようにしています。例えば一時変数`content`を得てから`await`し、その後でまた`content`を使うような場合、`content`はFuture構造体のフィールドに格納されます。これにより、関数が一度戻っても値が失われず、再開後に処理を継続できます。
+
+* **実装上の安全性**: Rustではこれらの状態機械変換は**MIR（中間表現）レベル**で行われ、開発者が直接触ることはできません。しかし、`Unpin`でないFutureを`Pin`で固定する必要がある（自己参照の可能性があるため）など、低レベルの詳細も存在します。しかしWASM上ではヒープもスタックも使用できるため、通常のRustと同様に動的なFutureも動作可能です。**スタックやヒープを退避するような特別な処理（asyncify等）には頼らず**、あくまでRust言語機能としてのstate machineで非同期を表現しています。
+
+### 4. 非同期エントリーポイント関数の起動とタスク完了までの待機方法
+
+非同期プログラム全体を開始するエントリーポイント（例えば`async fn main()`）は、通常の関数とは異なり直接実行できないため、何らかの方法で**ポーリングを開始**してやる必要があります。Rustでは環境によって次のようなパターンがあります:
+
+* **標準環境（OS上）**: `tokio`クレートなどでは`#[tokio::main]`属性マクロや`tokio::runtime::Runtime`を利用して、`main`関数を非同期にしつつランタイムを起動します。これらは内部で`Runtime.block_on(main_future)`のように、`main`のFutureを完了するまでポーリングし続けます。つまり、プログラム開始時に**エグゼキュータを起動**し、その中で`main`タスク（Future）を動かす構造です。
+
+* **WASI/WASMにおける`_start`関数**: WASIではエントリーポイントは`_start`という名前のエクスポート関数です。通常RustのWASIターゲットでは、ライブラリクレートとしてビルドしていない限り`_start`が暗黙に生成され、`main`が同期関数なら直接呼ばれます。`main`が非同期関数の場合、そのままではWASM上で動かせないため、しばしば**手動でエグゼキュータを呼び出す処理**を仕込みます。例えば、以下のようにします:
+
+  ```rust
+  #[no_mangle]
+  pub extern "C" fn _start() {
+      ic_cdk::setup(); // ICの場合初期化
+      ic_cdk::block_on(async_main()); // async_main()をポーリングして完了までブロック
+  }
+  ```
+
+  このように`main`に相当するFutureを自前の`block_on`で待ち合わせるか、Internet Computerの場合はCDKがエントリーポイントを生成し、内部で`ic_cdk::executor`が非同期関数を実行・完了まで待機するようになっています。**重要なのは、エントリーポイントで一度エグゼキュータ（イベントループ）を回してやらないと、非同期タスクは何も実行されない**点です。Nimで例えるなら`waitFor`に相当しますが、Rust/WASMではそれを明示的に行う必要があります。
+
+* **Internet Computerのケース**: ICではCanisterのWASMモジュール内でエントリーポイントとして`canister_update <関数名>`といったエクスポートが作られます。Rust CDKのマクロは、`async fn my_func()`に対して自動的に**二段階の関数**を用意します。一つは公開エントリ（同期関数）で、これが呼ばれると内部で`ic_cdk::executor::spawn`などを使って`my_func()`のFutureを生成・開始し、**即座に返信を保留**して現在の実行を終了します。もう一つは**応答用のエントリポイント**で、対応するFutureの完了を待ち受けるものです。実際にはICシステムが応答を受信すると自動で正しいコールバックを呼ぶため、開発者は意識しませんが、暗黙にエントリーポイント関数の続きを実行する関数が存在しています。このように、**エントリポイントでFutureを開始し、完了やコールバックで再度WASMを起動してFinishする**という流れになっています。
+
+* **タスク完了の待機**: いずれの環境でも、最終的にプログラム終了前には全ての非同期タスクを完了させるか、明示的にデタッチ（切り離し）して無視する必要があります。Rust/Tokioでは`tokio::runtime::Runtime::block_on`や`tokio::join!`、Nimでは`waitFor`により、**対象Futureが完了するまでイベントループを回し続ける**処理が典型です。例えばNimの`waitFor`は内部で`poll()`を繰り返し、与えたFutureが`finished`になるまでブロックします。Rust/WASMでも、`block_on`ループが同様の役割を果たします。
+
+### 5. Asyncifyを使わず、明示的な状態機械とエグゼキュータで実現している点
+
+WebAssemblyには、EmscriptenやBinaryenが提供する**Asyncify**という仕組みがあります。Asyncifyを使うと、通常の同期的な関数呼び出しを**強制的に非同期化**（スタックの保存と復元による中断再開）できます。しかしRustの`async/await`実装はこれに頼らず、**言語機能レベルで非同期を表現**しています。これには以下の利点があります:
+
+* **オーバーヘッドの軽減**: Asyncifyのように**スタック全体を保存/復元**する方式は、メモリコピーコストやバイナリサイズ増大を招きます。一方、Rustの状態機械方式では、必要なデータ（ローカル変数）と状態のみを構造体に保持するため、効率的です。例えば1つのFutureごとに1つの状態機械インスタンスがあるだけで、スタックのスナップショットは不要です。
+
+* **明示的な制御**: Asyncifyによる中断再開はコンパイラやランタイムのブラックボックス的変換ですが、RustのFutureは`poll`駆動であるため**再開ポイントやタイミングを明示的に制御**できます。エグゼキュータが自前でタスクを並列にポーリングしたり、優先度を付けたりすることも可能です。
+
+* **言語内サポート**: Rustではコンパイル時にasync/await構文が解決され、非同期動作が**型システムに組み込まれている**ため、整合性のチェックやライフタイム保証なども行われます。外部ツールでバイトコードを書き換えるAsyncify方式とは信頼性の面で異なります。
+
+* **WASMランタイムとの相性**: Wasmtimeの例では、Asyncify的なスタック切替を**ランタイム内部**で行う選択肢がありますが、Rust側では**FutureとWakerでモデル化**するアプローチを取っています。結果として、**通常のRustプログラムをほぼそのままWASM上で動作させる**ことができ、開発者は特別なABIルールを意識しなくて済みます。
+
+以上のように、Rustの非同期は**言語機能＋ランタイムライブラリ**によって実現されており、WASM上でもその枠組みを維持しています。「非同期対応WASM」を作るのではなく、「既存の非同期コードをWASM上で動かす」形になっている点が特徴です。
+
+## NimでRust類似の非同期機構を構築するための設計
+
+Rustでの実装を踏まえ、Nim言語で同様の`async/await`・`Future[T]`・エグゼキュータを実現するための技術設計を示します。Nimには標準で`asyncdispatch`モジュールによる非同期機構がありますが、ここではRustの構造を参考にした設計をまとめます。
+
+### Future\[T]型と非同期関連の型定義
+
+まず、非同期処理の基本となる`Future[T]`型を定義します。Rustでは`Future`トレイトでしたが、Nimではジェネリックな**参照オブジェクト**として実装します。Nim標準ライブラリの`asyncfutures`モジュールでは、`Future[T]`は次のようなフィールドを持つ参照オブジェクトです:
+
+```nim
+type
+  Future[T] = ref object
+    value: T                 # 完了した場合の結果値
+    callbacks: CallbackList  # 完了時に呼び出すコールバックのリスト
+    finished: bool           # 完了したかどうかのフラグ
+    error: ref Exception     # エラーが発生した場合の例外オブジェクト
+```
+
+上記と同様の構造を採用します。ポイントは以下の通りです:
+
+* **value**: 成功時の結果を保持します。`T`は任意の型になりえます。まだ完了していない間は未初期化か無意味な値となります。完了後に`Future[value]`を取得することで結果を取り出します（または`read()`メソッド経由で取得）。
+
+* **error**: 非同期処理中に例外が投げられた場合、それを格納します。`finished`フラグと組み合わせてエラー終了か正常終了かを区別します。Rustの`Poll::Ready(Err(e))`に相当する概念です。
+
+* **finished**: Futureが完了（いずれかの結果が確定）したことを示すブール値です。`true`になった後は`value`または`error`が有効になります。ポーリング側（エグゼキュータ）はこのフラグでタスク終了を検知します。
+
+* **callbacks**: これは**コールバック関数のリスト**で、Futureが完了した際に呼び出されるべき処理（コールバック）を保持します。例えば、あるFuture Aが別のFuture Bを待っている場合、Bの完了時にAを再開する必要があります。そのため、Bの`callbacks`に「Aを再開する処理（AのContinuation）」を登録します。これにより、Bが完了→callbacks呼び出し→A（待っていたFuture）の処理再開、という連携ができます。Rustの`Waker`に近い役割ですが、Nimでは高階関数リストで管理します。
+
+* **その他の型**: `CallbackList`は内部的にはデータ構造（シーケンスやリスト）で、要素は`proc()`型（もしくは`proc(f: Future[T])`のように自身のFutureを受け取る型）です。またFutureの派生型として`FutureStream[T]`（ストリーム状に複数回値が出るFuture）や、完了を通知するだけの`Future[void]`なども考慮します。
+
+Nimではこの`Future[T]`を\*\*`ref object`**で定義することで、参照カウント管理（GC）され、様々なタスク間で参照を共有できます。Rustの場合`Future`は値（move）で扱い、Wakerで再ポーリングを予約しましたが、Nimでは**共有ヒープ上のオブジェクト**としてFutureを管理し、コールバック登録を通じて**完了時に他のFutureへ通知\*\*する設計になっています。
+
+### 非同期マクロによるコード変換（async/awaitの実現）
+
+Nimには言語組み込みで`async/await`キーワードはありませんが、マクロとテンプレートを用いて似た構文を提供できます。実際、Nim標準の`asyncdispatch`では`{.async.}`というプラグマと`await`というテンプレートが定義されており、これらがコード変換を行います。Rustコンパイラが行う変換を、Nimではマクロ処理で実現するイメージです。設計上のポイント:
+
+* **`{.async.}`プラグマ**: 非同期関数として定義するには、`proc name(args...): Future[T] {.async.} = ...`のようにプラグマを付与します。マクロ`async`はこのプロシージャの本体を解析し、**状態機械相当のコード**に書き換えます。Nimの実装によれば、`async`マクロは「適切なイテレータとyield文」に変換するとあります。つまり、関数本体中の`await`箇所で関数を中断・再開できるよう、\*\*隠れたイテレータ（ジェネレータ）\*\*として実装する戦略が採られています。
+
+* **`await`テンプレート**: `await(f)`はテンプレートとして定義され、渡されたFutureが完了するまで現在の非同期処理を中断します。具体的な変換内容は、`f`がまだ完了していなければ自分自身（現在のFuture）をコールバック登録して**return/yield**し、完了後には`f.value`を取得して処理を続行...といったコードが展開されます。擬似コードで示すと:
+
+  ```nim
+  template await(f: Future[T]): T =
+    if not f.finished:
+      # 現在の処理をfのコールバックに登録して中断
+      addCallback(f, proc() = resumeCurrentTask())
+      yield  # もしくはreturnを使って上位のイテレータを一時終了
+    if f.error != nil:
+      raise f.error    # 例外があれば再スロー
+    f.value            # 結果値を評価
+  ```
+
+  このように変換されることで、呼び出し元（エグゼキュータ）は一旦その関数の実行を止め、他の処理を進めます。`f`が完了した際には登録されたコールバックが呼ばれ、止まっていた関数を再び実行（再度イテレータを回す）します。これはRustの状態機械+Wakerの動きを、Nimで**yieldを用いた協調マルチタスク**として表現したものです。
+
+* **状態管理**: マクロ変換により、関数内のローカル変数や進行状況も適切に保持されます。NimのマクロはASTレベルで処理を書き換えるため、コンパイル後の関数は例えば`await`毎に`yield`を挟む**イテレータプロシージャ**になります。各ローカル変数はクロージャ（イテレータの内部状態）として生存し、Rustの構造体フィールドに相当します。例えば、
+
+  ```nim
+  proc example(): Future[int] {.async.} =
+    var x = await someAsyncFunc()  # ここで一度中断
+    if x < 0:
+      let y = await otherAsync()   # ここで二度目の中断
+      return x + y
+    else:
+      return x
+  ```
+
+  はマクロ変換後には、大まかに以下のような状態機械になるでしょう:
+
+  ```nim
+  iterator exampleIter(): int =         # 戻り値のイテレータ
+    var x: int
+    var y: int
+    # 状態0:
+    await_template(someAsyncFunc(), x)  # xに結果を格納 or 中断
+    # 状態1:
+    if x < 0:
+      await_template(otherAsync(), y)
+      yield x + y    # 結果をyieldして完了
+    else:
+      yield x        # 結果をyieldして完了
+  proc example(): Future[int] =
+    result = iterToFuture(exampleIter())  # イテレータをFutureに包む
+  ```
+
+  ※上記は概念的な擬似コードですが、`iterToFuture`のような処理でイテレータからFutureオブジェクト（コールバック管理付き）を生成する実装が考えられます。
+
+* **構文上の制限**: `async`マクロはNimの文法に沿ってコードを展開するため、いくつか制限があります。例えば、
+
+  * `{.async.}`なprocは必ず戻り型が`Future[T]`か`FutureBase`でなければならない。
+  * トップレベルの`await`呼び出しは`{.async.}`内でしか使えない（同期関数でawait不可）。
+  * クロージャやラムダの中で`await`を使う場合の扱い（通常難しいため禁止か、別のマクロで処理）。
+  * 非同期関数を再帰的に呼ぶ場合や、ネストした非同期ブロックは追加の変換が必要となる可能性。
+    これらは設計上ドキュメントで明示し、マクロ展開エラーやコンパイルエラーで検出するようにします。
+
+### 非同期タスク実行エンジン（Executor）の構造
+
+Rustで言うエグゼキュータ／スケジューラに当たるものを、Nim上で設計します。Nim標準の`asyncdispatch`では\*\*グローバルなDispatcher（イベントループ）\*\*を用意し、これが各Futureの完了イベントを管理しています。同様の仕組みを考慮しつつ、WASM向けにも調整可能な構造にします:
+
+* **Dispatcher/イベントループ**: 単一スレッド上で複数のFutureを並行実行するため、イベントループオブジェクト`Dispatcher`（またはシンプルにグローバルモジュール）を用意します。`Dispatcher`は内部に管理するFutureのセットや、タイマー、I/O待ちのためのファイル記述子などを保持します。具体的なフィールド例:
+
+  ```nim
+  type
+    PDispatcher = ref object
+      pendingTasks: seq[Future[void]]    # 実行待ちタスク（spawnされたもの等）
+      waitingIO: Table[AsyncFD, Future]  # 非同期I/O待ち→Futureのマッピング
+      timers: minHeap[TimerId, Future]   # タイマー満期順にFutureを保持
+      running: bool                     # イベントループ稼働中フラグ
+  ```
+
+  * `pendingTasks`: 新たに開始されたタスクで、すぐに実行するもののリスト。Rustの`Spawner`が持つキューに近い。
+  * `waitingIO`: 非同期I/Oハンドル（ファイルディスクリプタやソケット）に対し、完了を待っているFutureを関連付けるテーブル。例えば`readAsync(socket)`を呼ぶと、`socket`を非同期読み込み登録し、そのFutureをこのテーブルに登録。
+  * `timers`: Sleep等のタイマーFutureを管理するためのヒープやリスト。一定時間後に再開すべきFutureを格納。
+  * `running`: ループが動作中かどうか。多重起動を防止するためなどに使用。
+
+* **タスクの開始（spawn）**: 新しい非同期タスクを開始するには、Rustでいう`tokio::spawn`や`ic_cdk::spawn`に相当する仕組みが必要です。Nimでは、単に`proc foo() {.async.}: ...`を呼び出すと`Future`が返りますが、その時点で**自動的にDispatcherに登録**されるようにします。実際Nimの実装でも、`async`関数を呼ぶと即座に実行が始まるわけではなく、返ってきたFutureを`waitFor`やイベントループで処理します。ただ、利便性のため`spawn foo()`のようなシンタックス（テンプレート/マクロ）を提供し、`foo()`呼び出しから得たFutureをDispatcherの`pendingTasks`に追加することも考えられます。
+
+* **イベントループのポーリング**: Dispatcherに対して`poll()`操作を行うと、以下のような処理を実施します:
+
+  1. **新規タスクの開始**: `pendingTasks`キューにタスクがあれば順次`poll`ないし`resume`して実行を進めます。各タスク（Future）は、自分が中断せず完了まで一気に進む可能性もありますし、どこかで`await`により中断するかもしれません。
+  2. **I/O待ちの確認**: OSやWASIのポーリング機能を使い、登録済みのI/Oハンドルでイベント（読み込み可能、書き込み可能など）が発生したかチェックします。Nim標準ではLinuxなら`epoll_wait`、Windowsなら`GetQueuedCompletionStatus`等を内部で呼び出しています。WASM/WASIの場合、`wasi_poll_oneoff`やホスト提供のポーリング関数を呼ぶ必要があります。イベントが発生したら対応するFutureに対し、結果を設定し`finished=true`にするか、あるいは続行用の処理を`pendingTasks`に戻します。
+  3. **タイマーの確認**: 現在時刻と`timers`ヒープの先頭を比較し、満期になったタイマーFutureがあればそれを完了（もしくは再開）させます。例えば`sleepAsync(ms)`のFutureがあり、ms経過したらそのFutureの`finished`を立てて、コールバック（もし登録されていれば）を呼びます。
+  4. **次のタスクスケジューリング**: 一度に全タスクを完了させるのでなく、RoundRobin的に一つ実行したら他に譲るなどの戦略も取り得ます。ただし協調的モデルでは、各タスクが適度に`await`でyieldしないとCPUを独占するため、その点の注意はドキュメントします。
+
+  WASM環境では、上記2の部分（OS依存の待ち）は特に重要です。ブラウザ上のJavaScriptの場合、Nimでは`asyncjs`モジュールで**JavaScriptのPromise**やイベントループに橋渡ししています。WASIの場合、`poll_oneoff`システムコールをFFI経由で呼び出し、Cの`libc`相当（WASI libc）に実装されたポーリングを利用することが考えられます。**Internet Computer上ではポーリングという概念は無く、システムがメッセージ駆動で呼び出す**ため、むしろDispatcherの`poll()`は「次のメッセージ（イベント）が無ければ終了」といった簡易なものになるでしょう。IC上では一度に一つのタスクしか走らないため、`await`で中断＝メッセージ処理の終了となり、次は別のメッセージ（または応答）で再開という流れでした。
+
+* **`waitFor`とブロッキング**: Nimには`waitFor(fut)`というヘルパーがあり、これは**現在のスレッド（主スレッド）でDispatcherを回しつつ指定したFutureが終わるのを待つ**ものです。`waitFor`の実装戦略は:
+
+  ```nim
+  template waitFor(fut: Future[T]): T =
+    let d = getGlobalDispatcher()
+    while not fut.finished:
+      d.poll(timeout = someDuration)   # イベントループを回してFuture完了を待つ
+    if fut.error != nil: raise fut.error
+    fut.value
+  ```
+
+  のような流れになります（実際の実装では例外処理等考慮されています）。`waitFor`は**最上位のエントリポイントでのみ使用**すべきものです。GUIアプリケーションでのメインループや、コンソールアプリで`main`関数内最後に呼ぶ用途です。WASMモジュールでは、例えばWASIの`_start`関数内やICのheartbeat関数内などで`waitFor`に相当する処理を行い、全タスクの完了または一定時間の経過まで回し続けます。
+
+* **バックグラウンドタスク**: `spawn`されたタスクで、結果を誰も待っていない（`waitFor`されない）ものも存在し得ます。そのような**デタッチされたタスク**もDispatcherで管理されます。例えばICでは、`ic_cdk::spawn`で投げたFutureは自動的に実行されますが戻り値は無視されます。Nimでも、戻り値を使わない`Future[void]`のタスクをspawnしておけば、`waitFor`しなくてもDispatcher内で完結できます。ただしプログラム終了時に未完了だと強制終了してしまうため、注意が必要です。これはRust/Tokioで`tokio::spawn`したタスクが`Runtime`終了とともに破棄されるのと似ています。
+
+### WASMターゲットでのコンパイル/リンク時の考慮点（config.nims）
+
+NimをWASM向けにコンパイルする際には、いくつか特別な設定が必要です。プロジェクトの`config.nims`を利用して、ターゲットやリンクオプションを調整します:
+
+* **ターゲット指定**: NimはC言語やJavaScriptを経由してコードを生成します。WebAssembly用には主に2通りの方法があります:
+
+  1. **Emscripten経由**: NimをCコードにコンパイルし、Emscriptenを用いてWASMに変換する方法です。`config.nims`にて、コンパイルコマンドに`--cc: clang --clang.exe: "emcc"`等の指定を行い、emscriptenを使うようにします。また`--os: linux --cpu: wasm32`のようにプラットフォーム指定も行います。EmscriptenはPOSIX的APIを提供するため、Nimの非同期IO（epoll等）も一部機能する可能性がありますが、ブラウザ上での制約を踏まえ**asyncdispatchは使用せず、asyncjsを使う**選択もあります（後述）。
+  2. **WASI向けクロスコンパイル**: Clangの`--target=wasm32-wasi`を使用し、純粋なWASIモジュールを出力します。`config.nims`で例えば:
+
+     ```nim
+     when defined(wasi):
+       switch("target", "clang")
+       switch("cpu", "wasm32")
+       switch("os", "wasi")
+       passL:"-mexec-model=reactor"  # WASIモジュールをreactorモデルで出力（_initialize関数対応）
+     ```
+
+     のような設定を行います。WASIでは標準ライブラリ（libc相当）が使えるため、Nimの`asyncdispatch`中の`select/epoll`も、WASIの`poll_oneoff`にマッピングされて動作する可能性があります。ただし、現在のNim標準ライブラリがWASIに公式対応しているかは検証が必要です。**もし未対応なら、`asyncdispatch`のポーリング部分をWASIシステムコールに置き換える修正**や、Yoshua氏のRustランタイムのように独自実装した方が確実です。
+
+* **JavaScriptバックエンド**: NimにはJavaScriptコードを直接生成するバックエンドもあります。もしブラウザ環境で動かすなら、WASMではなくJSを出力し、必要な部分をWebAssemblyで書く手もあります。しかし本設計ではRust同様に**すべてをWASM上で完結**させる想定とします。したがってJavaScriptバックエンド（`--backend:js`）は使いません。ただしNim標準の`asyncjs`モジュールから学べる点として、JavaScriptの`async/await`構文にコンパイルしていることが挙げられます。WASM向けにはそれが使えないため、Cバックエンド＋WASI/emscriptenを用いる形になります。
+
+* **リンク時の問題**: WebAssemblyでは利用できない機能（例えばスレッド、シグナル、ソケット直接操作など）があります。Nimの標準ライブラリからそれらを呼んでいるとリンクエラーになります。`asyncdispatch`は内部でソケットやOSイベント機構を使うため、**不要な機能を切るかスタブ実装に差し替える**必要があります。`config.nims`で`--deadCodeElim:on`（不要コード削除）や`--dynlibOverride: posix`で一部シンボルを無効化するなどの対策が考えられます。また、ICなど独自のシステムAPIしか使えない環境では、`import ic0`のような専用モジュールを使い、標準のI/Oを使わないようにすることも検討します。
+
+* **IC Canister用の設定**: Internet Computer上でNimを動かす場合、Rust CDKに相当するランタイムは存在しないため、自前でSystem API（ic0）を呼ぶ必要があります。`config.nims`で`--exportTable`（関数テーブルエクスポート）や`--noMain`（自動エントリポイント無効化）等を設定し、ICシステムが要求するエントリポイント関数名（`canister_update <name>`など）を`{.exportc.}`で用意する、といった工夫が要ります。本設計の範囲を超えますが、**WASMモジュールの出力形式**も用途に応じて`config.nims`で切り替える必要がある点に注意してください。
+
+### `asyncmacro`で利用可能な構文と制限
+
+NimでRustライクなasync/awaitを再現する際、マクロによる変換により**どこまでの構文がサポートできるか**を整理します。
+
+* **サポートする構文**:
+
+  * 基本的な逐次処理、条件分岐、ループの中での`await`。例えば`if/else`内や`for`ループ内で`await`を使うことは可能です。状態機械変換では各ブロックごとに状態を分けることで対応します。
+  * ネストした非同期呼び出し。つまりAからBをawaitし、BがCをawaitする、といった入れ子も可能です。マクロが再帰的に適用され、各awaitごとに中断ポイントを作ります。
+  * 複数のFutureを`await`せず収集し、最後にまとめて待つパターン。例えばRustで言う`join!`に相当するものは、Nimでは`waitFor fut1 and fut2`という構文で可能です。内部的には`and`で2つのFutureの完了を待つ新たなFutureを作り`waitFor`します。
+
+* **制限事項**:
+
+  * **例外処理**: 非同期処理中に例外（Exception）が投げられた場合の扱いです。RustのFutureは`Result`型でエラーを運ぶのが一般的ですが、Nimでは例外はGCヒープ上に伝播します。`async`マクロは例外も捕捉して`Future.error`に格納する処理を挿入する必要があります。例えば各`await`の直後や非同期関数の先頭に`try/except`を入れることになるでしょう。このため、ユーザが明示的に`try/except`を書いた場合との兼ね合いに注意します。
+  * **再入可能性**: Rustのasync関数は使い捨てのFutureですが、Nimのiteratorベース実装では複数回回せない、一度完了したら再使用できないといった制約があります（通常それで問題ありませんが）。さらに**関数ポインタとしてasync関数を扱えない**可能性があります。Rustでは`async fn`は普通の関数ではなく`impl Future`を返す別物なので型として取り出せませんが、Nimでも同様に`proc Foo {.async.}`は型が`Future[T]`に崩れるので、高階関数に渡す際などは注意です。
+  * **スレッド不使用の前提**: 現状の設計は全て単一スレッド上で完結するため、マルチスレッド環境でスレッド間にFutureを渡すことは想定していません。Nimはデフォルトでスレッド間の共有メモリをサポートしません（分離ヒープモデル）し、ICやWASIも基本シングルスレッドです。将来的にNimでスレッドプール実行をする場合は、別途ロックやスレッドセーフキューの実装が必要になります。
+  * **相互再帰**: `proc A(): Future {.async.} = await B()`かつ`proc B(): Future {.async.} = await A()`のような相互再帰的なasyncは扱いが難しいです。コンパイラが先に型を確定できないためですが、Nimでは`proc A(): Future[int] {.async.}`と**型を明示**することで回避できます。設計上、このようなケースはエラーメッセージでガイドするか、ドキュメントで注意喚起します。
+
+* **他の制約**:
+
+  * 現状の`asyncdispatch`実装同様、**一度に一つのエベントループ**しか動かさない前提です。マルチエージェントや複数ディスパッチャを使う場合は慎重な取り扱いが必要ですが、ICのように単一エグゼキュータで十分なケースでは問題にならないでしょう。
+  * コルーチンとしての`iterator`機構に依存するため、言語仕様変更による影響を受ける可能性があります。Nimコンパイラの将来のバージョンで`async`が言語サポートされると、互換性に注意が必要です。
+
+### 擬似コード例: 非同期関数とFuture\[T]の動作
+
+最後に、簡単な非同期関数の例と、それを用いたFutureの動作を擬似コードで示します。Nim風の構文で書きますが、実際にはマクロが変換してくれる部分も含めて説明します。
+
+```nim
+import asyncdispatch  # 非同期ランタイム（設計に基づくモジュール）
+
+# 非同期関数の定義例（整数を取得するために1秒待つ擬似処理）
+proc fetchValue(x: int): Future[int] {.async.} =
+  echo "Fetching value for ", x
+  await sleepAsync(1000)               # 1000ms待つ（実際にはDispatcherにタイマー登録）
+  return x * 2
+
+# 複数の非同期処理を並行して行う例
+proc exampleParallel(): Future[void] {.async.} =
+  # 2つの非同期タスクを開始（spawnしてFuture取得）
+  let fut1 = fetchValue(10)
+  let fut2 = fetchValue(20)
+  echo "Launched tasks, now awaiting results..."
+  let result1 = await fut1            # fut1完了を待つ（完了までこのprocは中断され他の処理実行可）
+  let result2 = await fut2            # fut2完了を待つ
+  echo "Results: ", result1, " and ", result2
+
+# メイン処理（エントリーポイント）
+when isMainModule:
+  # exampleParallelを実行し、完了するまで待機
+  waitFor exampleParallel()
+  echo "All tasks completed."
+```
+
+上記の動作を説明します:
+
+* `fetchValue(x)`を呼ぶと即座に`Future[int]`が返りますが、この時点で中の処理（echoとsleepAsync）はまだ実行途中です。実際には`fetchValue`の本体が最初から最後まで走るのではなく、`sleepAsync`で`await`したところで中断され、呼び出し元（ここではexampleParallel）の実行に戻ります。`fetchValue(10)`と`fetchValue(20)`の呼び出しにより、2つのタスクFutureが**Dispatcherに登録**されます。
+
+* `exampleParallel`内で最初の`await fut1`に到達すると、もし`fut1`がまだ完了していなければ（もちろん1秒待つので未完了）、`exampleParallel`自体が中断されます。内部的には、`fut1`の`callbacks`に`exampleParallel`を再開する処理が登録され、`exampleParallel`の実行はここで一旦停止します。
+
+* Dispatcher（イベントループ）は`waitFor exampleParallel()`の中で回されています。この間、`sleepAsync(1000)`がタイマーに登録され、1秒後にタイマーイベントが発生するとDispatcherが`fut1`および`fut2`を完了状態にします。それにより、それぞれ登録されていたコールバックが呼ばれます。`fut1`完了のコールバックは`exampleParallel`の継続を再開するものなので、1秒経過後に`exampleParallel`の中断地点（await後）から実行が再開され、`result1`に値がセットされます。続いて次の行で`await fut2`がありますが、この時点では`fut2`もおそらく完了している（1秒経過している）ため即座に`result2`が得られます。両結果を揃えてからメッセージを出力し、`exampleParallel`は終了します。すると`waitFor`ループも終了条件を満たし、プログラムの最後のechoが表示されます。
+
+* **出力の時系列イメージ**:
+
+  ```
+  Fetching value for 10
+  Fetching value for 20
+  Launched tasks, now awaiting results...
+  (1秒経過...)
+  Results: 20 and 40
+  All tasks completed.
+  ```
+
+  先に「Launched...」が出てから結果が出ることに注目してください。これは`await`によって非同期に待っている間に他の処理やタイマーが進行しているためです。実際、上記では`fetchValue(10)`と`(20)`が並行動作し、両方の結果が1秒後に揃う形になります。
+
+このようにして、Nim上でもRustの`async/await`に類似した非同期プログラミングモデルを構築できます。**状態機械**の考え方や**協調スケジューリング**、**エグゼキュータによるポーリング**といった核心部分はRustと共通しており、言語の違いは実装アプローチ（コンパイラによる変換かマクロによる変換か、など）に現れるのみです。適切に設計・実装すれば、WASM環境においても効率的かつ信頼性の高い非同期処理をNimで実現できるでしょう。
+
+## Motokoの非同期処理実装構造（Internet Computer向け）
+
+### 1. Actorモデルと共有関数（shared functions）
+
+MotokoはActor Model（アクターモデル）を基盤とした言語設計になっており、非同期処理は言語レベルで組み込まれています。主な特徴：
+
+* **Actor単位での状態封じ込め**: 各Actorは独立した状態を持ち、他のActorとは**メッセージ送信**のみで通信します。Actor間の直接的なメモリ共有はありません。
+
+* **Shared Functions**: Actor間通信は`shared`キーワードで宣言された関数を通じて行われます。これらの関数は：
+  - 必ず`async T`型を返す（Futureに相当）
+  - 引数と戻り値は**shared types**（共有可能型）でなければならない
+  - 不変データ、Actorリファレンス、共有関数リファレンスのみ送信可能
+  - ローカル関数リファレンスや可変データ（`var`、可変配列）は送信不可
+
+* **型システムレベルでの制約**: コンパイル時に「共有可能でないデータの送信」を防ぐことで、メモリ安全性と並行性の問題を回避。
+
+### 2. Future型（`async T`）とawaitの仕組み
+
+MotokoのFutureは**即座に返される未来値**で、以下の特徴があります：
+
+* **即時返却**: shared関数や`async { ... }`ブロックを呼び出すと、処理の完了を待たずに即座に`async T`が返されます。
+
+* **非ブロッキング**: Future生成と同時にメッセージがキューイングされ、呼び出し元は他の処理を継続できます。
+
+* **`await`による値取得**: `await f`でFutureの完了を待ち、結果値を取得します。`await`は**コミットポイント**（後述）となり、それまでの状態変更が確定されます。
+
+### 3. コミットポイントとトラップ（例外処理）
+
+Motokoの最も特徴的な機能の一つが**コミットポイント**による状態管理です：
+
+#### コミットポイント
+状態変更やメッセージ送信が「仮適用→確定」される地点：
+1. **shared関数の正常終了**（return）
+2. **明示的なthrow**
+3. **`await`の実行**
+
+#### トラップとロールバック
+* **トラップ**：回復不可能な実行時エラー（ゼロ除算、配列範囲外アクセス、数値オーバーフロー、サイクル制限超過、アサーション失敗、`Debug.trap()`呼び出し）
+
+* **原子性保証**：`await`を含まないshared関数は**原子的**に実行され、トラップ時には全変更がロールバックされます。
+
+* **部分コミット**：`await`を含む関数では、各`await`でコミットが発生し、トラップ時は**最後のコミットポイント以降の変更のみ**がロールバックされます。
+
+#### 実装例による説明
+```motoko
+actor Atomicity {
+  var s = 0;
+  var pinged = false;
+
+  public func ping() : async () {
+    pinged := true;
+  };
+
+  // 原子的メソッド
+  public func atomic() : async () {
+    s := 1;
+    ignore ping();        // メッセージをキューに追加
+    ignore 0/0;          // トラップ発生！
+  };
+  // 結果：全変更がロールバック（s=0, pinged=false, ping()未送信）
+
+  // 非原子的メソッド  
+  public func nonAtomic() : async () {
+    s := 1;
+    let f = ping();      // メッセージキューイング
+    s := 2;
+    await f;             // コミット！（s=2, ping()送信確定）
+    s := 3;
+    await f;             // 再コミット！（s=3確定）
+    ignore 0/0;          // トラップ！
+  };
+  // 結果：s=3, pinged=true（最後のawait以降のみロールバック）
+}
+```
+
+### 4. 計算型（`async*`/`await*`）による最適化
+
+通常の`async`/`await`では各呼び出しがメッセージ送信となりオーバーヘッドが発生するため、Motokoでは**計算型**という最適化機能を提供：
+
+* **`async*`**：実行を遅延させる「計算の記述」を作成（即座には実行されない）
+* **`await*`**：計算を実際に実行（メッセージ送信ではなく関数呼び出し相当）
+* **コミットポイントではない**：`await*`はコミットポイントにならないため、内部の`await`によってのみコミットが発生
+
+```motoko
+actor class (Logger : actor { log : Text -> async () }) {
+  var logging = true;
+
+  func maybeLog(msg : Text) : async* () {
+    if (logging) { await Logger.log(msg) };  // 条件付きログ
+  };
+
+  func doStuff() : async () {
+    // 処理
+    await* maybeLog("Log entry #1");  // 関数呼び出し相当の実行
+    // さらなる処理
+    await* maybeLog("Log entry #2");  // オーバーヘッドなし
+  }
+}
+```
+
+### 5. メッセージ駆動実行とIC特有の制約
+
+Internet Computer上での実行には特殊な制約があります：
+
+* **シングルメッセージ実行**：一度に1つのメッセージハンドラのみ実行され、`await`中は他のメッセージ処理に進む
+
+* **メッセージキューイング**：shared関数呼び出しは即座にキューに追加され、ICシステムが順次配送
+
+* **応答待機とコールバック**：`await`でメッセージ応答を待つ間、現在の実行は一時停止し、応答到着時にコールバック（継続）が呼び出される
+
+* **サイクル管理**：メッセージ送信時に`cycles`属性でリソース（サイクル）を指定可能
+
+```motoko
+// サイクルとタイムアウトの指定例
+let result = await (service.method() with cycles = 1000000; timeout = 60);
+```
+
+### 6. 例外処理（`try`/`catch`/`finally`）
+
+Motokoでは構造化された例外処理をサポート：
+
+```motoko
+public shared func placeOrder(order : Text) : async Text {
+  try {
+    Debug.print("Processing order: " # order);
+    // 注文処理ロジック
+    orders := newOrders;
+    return "Order received: " # order
+  } catch (e) {
+    // 明示的throw または await結果のエラーをキャッチ
+    Debug.print("Error processing order: " # debug_show(e));
+    throw e;  // 再スロー
+  } finally {
+    Debug.print("Order processed: " # order);  // 必ず実行
+  };
+};
+```
+
+**重要な制限**：`catch`は以下のケースでのみエラーをキャッチします：
+1. 明示的な`throw`文
+2. `await`式が返すエラー
+
+ローカルトラップ（ゼロ除算等）は`catch`されず、直接ロールバックが発生します。
+
+### 7. Rustとの比較における特徴
+
+| 要素 | Rust | Motoko |
+|------|------|--------|
+| **Future生成** | 遅延実行（poll駆動） | 即時実行（メッセージ送信） |
+| **状態管理** | 状態機械による保存 | コミットポイント＋ロールバック |
+| **エラー処理** | `Result<T,E>`型 | 例外＋ロールバック |
+| **並行性制御** | Waker/Executor | ICシステム＋メッセージキュー |
+| **最適化** | コンパイル時変換 | `async*`による呼び出し最適化 |
+| **メモリ安全性** | 借用チェッカー | Shared型制約 |
+
+### 8. IC環境での実行フロー
+
+1. **メッセージ受信**：ICシステムがCanisterにメッセージを配送
+2. **shared関数実行**：対応するエントリーポイントが呼び出される
+3. **await発生**：他Actor呼び出しで実行が一時停止、コミット実行
+4. **応答待機**：ICシステムがコールバックを登録、Canister実行終了
+5. **応答受信**：ICシステムが応答をCanisterに配送
+6. **実行再開**：登録されたコールバック（継続）から実行再開
+7. **完了/エラー**：最終的な結果がメッセージ送信者に返される
+
+このように、MotokoはIC特有のメッセージ駆動環境に最適化された非同期処理モデルを提供しており、**言語レベルでの状態管理とエラー処理**により、分散システムでの安全な並行処理を実現しています。Rustのような汎用的な実装とは異なり、**ICプラットフォーム専用**に設計された特殊性が最大の特徴です。
