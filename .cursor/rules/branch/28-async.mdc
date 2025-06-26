@@ -13,7 +13,7 @@ alwaysApply: true
 ## 進捗
 - [x] RustのWASM向け非同期処理実装方式を調査
 - [x] Motokoの非同期処理実装方式を調査
-- [ ] 調査結果に基づくNimでの実装方針ドキュメント作成
+- [x] 調査結果に基づくNimでの実装方針ドキュメント作成
 - [ ] Nim用asyncdispatch互換API設計
 - [ ] 実装環境のセットアップ（wasm32-unknown-unknownターゲット設定）
 - [ ] 初期プロトタイプの実装と動作確認
@@ -24,6 +24,7 @@ alwaysApply: true
 - Motoko: Actors & async data (https://internetcomputer.org/docs/motoko/fundamentals/actors-async)
 - Nim: asyncdispatchモジュール (https://nim-lang.org/docs/asyncdispatch.html)
 - Nim WASM (JSBackend) (https://nim-lang.org/docs/jsbackend.html)
+- 実装方針ドキュメント: docs/ja/refarence/nim-async-wasm-implementation.md
 
 ## 調査結果・設計まとめ
 
@@ -277,28 +278,85 @@ Rustで言うエグゼキュータ／スケジューラに当たるものを、N
 
 ### WASMターゲットでのコンパイル/リンク時の考慮点（config.nims）
 
-NimをWASM向けにコンパイルする際には、いくつか特別な設定が必要です。プロジェクトの`config.nims`を利用して、ターゲットやリンクオプションを調整します:
+NimをWASM向けにコンパイルする際には、特別な設定が必要です。Internet Computer上でNimを動作させるための`config.nims`の設定は既に確立されており、nicp_cdkを使用するとプロジェクト作成時に自動生成されます。
 
-* **ターゲット指定**: NimはC言語やJavaScriptを経由してコードを生成します。WebAssembly用には主に2通りの方法があります:
+#### ICPでのNim WASM設定例
 
-  1. **Emscripten経由**: NimをCコードにコンパイルし、Emscriptenを用いてWASMに変換する方法です。`config.nims`にて、コンパイルコマンドに`--cc: clang --clang.exe: "emcc"`等の指定を行い、emscriptenを使うようにします。また`--os: linux --cpu: wasm32`のようにプラットフォーム指定も行います。EmscriptenはPOSIX的APIを提供するため、Nimの非同期IO（epoll等）も一部機能する可能性がありますが、ブラウザ上での制約を踏まえ**asyncdispatchは使用せず、asyncjsを使う**選択もあります（後述）。
-  2. **WASI向けクロスコンパイル**: Clangの`--target=wasm32-wasi`を使用し、純粋なWASIモジュールを出力します。`config.nims`で例えば:
+nicp_cdkで生成される`config.nims`の主要設定：
 
-     ```nim
-     when defined(wasi):
-       switch("target", "clang")
-       switch("cpu", "wasm32")
-       switch("os", "wasi")
-       passL:"-mexec-model=reactor"  # WASIモジュールをreactorモデルで出力（_initialize関数対応）
-     ```
+```nim
+import std/os
 
-     のような設定を行います。WASIでは標準ライブラリ（libc相当）が使えるため、Nimの`asyncdispatch`中の`select/epoll`も、WASIの`poll_oneoff`にマッピングされて動作する可能性があります。ただし、現在のNim標準ライブラリがWASIに公式対応しているかは検証が必要です。**もし未対応なら、`asyncdispatch`のポーリング部分をWASIシステムコールに置き換える修正**や、Yoshua氏のRustランタイムのように独自実装した方が確実です。
+--mm: "orc"                    # ORCメモリ管理（WASMに最適化）
+--threads: "off"               # スレッド機能無効化（WASM制約）
+--cpu: "wasm32"                # WASM32アーキテクチャ指定
+--os: "linux"                  # 基本OSとしてLinux指定
+--nomain                       # 自動main関数生成無効化
+--cc: "clang"                  # Clangコンパイラ使用
+--define: "useMalloc"          # 標準mallocの使用
 
-* **JavaScriptバックエンド**: NimにはJavaScriptコードを直接生成するバックエンドもあります。もしブラウザ環境で動かすなら、WASMではなくJSを出力し、必要な部分をWebAssemblyで書く手もあります。しかし本設計ではRust同様に**すべてをWASM上で完結**させる想定とします。したがってJavaScriptバックエンド（`--backend:js`）は使いません。ただしNim標準の`asyncjs`モジュールから学べる点として、JavaScriptの`async/await`構文にコンパイルしていることが挙げられます。WASM向けにはそれが使えないため、Cバックエンド＋WASI/emscriptenを用いる形になります。
+# WASI向けターゲット設定
+switch("passC", "-target wasm32-wasi")
+switch("passL", "-target wasm32-wasi")
+switch("passL", "-static")           # 静的リンク
+switch("passL", "-nostartfiles")     # 標準スタートアップファイル無効
+switch("passL", "-Wl,--no-entry")    # エントリーポイント強制無効
+switch("passC", "-fno-exceptions")   # 例外処理無効化
+```
 
-* **リンク時の問題**: WebAssemblyでは利用できない機能（例えばスレッド、シグナル、ソケット直接操作など）があります。Nimの標準ライブラリからそれらを呼んでいるとリンクエラーになります。`asyncdispatch`は内部でソケットやOSイベント機構を使うため、**不要な機能を切るかスタブ実装に差し替える**必要があります。`config.nims`で`--deadCodeElim:on`（不要コード削除）や`--dynlibOverride: posix`で一部シンボルを無効化するなどの対策が考えられます。また、ICなど独自のシステムAPIしか使えない環境では、`import ic0`のような専用モジュールを使い、標準のI/Oを使わないようにすることも検討します。
+#### IC特有の設定
 
-* **IC Canister用の設定**: Internet Computer上でNimを動かす場合、Rust CDKに相当するランタイムは存在しないため、自前でSystem API（ic0）を呼ぶ必要があります。`config.nims`で`--exportTable`（関数テーブルエクスポート）や`--noMain`（自動エントリポイント無効化）等を設定し、ICシステムが要求するエントリポイント関数名（`canister_update <name>`など）を`{.exportc.}`で用意する、といった工夫が要ります。本設計の範囲を超えますが、**WASMモジュールの出力形式**も用途に応じて`config.nims`で切り替える必要がある点に注意してください。
+```nim
+# ic0.h ヘッダーパス（IC System API）
+let cHeadersPath = "/root/.ic-c-headers"
+switch("passC", "-I" & cHeadersPath)
+switch("passL", "-L" & cHeadersPath)
+
+# IC WASI polyfillライブラリ
+let icWasiPolyfillPath = getEnv("IC_WASI_POLYFILL_PATH")
+switch("passL", "-L" & icWasiPolyfillPath)
+switch("passL", "-lic_wasi_polyfill")
+
+# WASI SDK sysroot設定
+let wasiSysroot = getEnv("WASI_SDK_PATH") / "share/wasi-sysroot"
+switch("passC", "--sysroot=" & wasiSysroot)
+switch("passL", "--sysroot=" & wasiSysroot)
+switch("passC", "-I" & wasiSysroot & "/include")
+
+# WASI信号エミュレーション
+switch("passC", "-D_WASI_EMULATED_SIGNAL")
+switch("passL", "-lwasi-emulated-signal")
+```
+
+#### 最適化設定
+
+```nim
+when defined(release):
+  switch("passC", "-Os")       # サイズ最適化
+  switch("passC", "-flto")     # リンク時最適化（コンパイラ）
+  switch("passL", "-flto")     # リンク時最適化（リンカー）
+```
+
+#### 非同期処理実装への影響
+
+上記設定により、以下の制約と利点があります：
+
+* **制約事項**:
+  - `--threads: "off"`：マルチスレッド非同期は使用不可
+  - `-fno-exceptions`：標準例外処理が制限される
+  - `-nostartfiles`、`--no-entry`：独自エントリーポイント必須
+
+* **利点**:
+  - IC WASI polyfillによりWASI APIが利用可能
+  - ic0 System APIへの直接アクセス
+  - 静的リンクによる自己完結型モジュール
+
+* **非同期実装への配慮**:
+  - 標準`asyncdispatch`は制限されるため、独自実装が必要
+  - WASI `poll_oneoff`システムコールを活用可能
+  - IC System APIとの統合で高効率な非同期処理実現
+
+この確立された設定基盤を活用することで、ICPに最適化された非同期処理ライブラリの実装が可能になります。標準のNim非同期機能の制約を回避しつつ、IC特有のメッセージ駆動モデルと親和性の高い設計を実現できます。
 
 ### `asyncmacro`で利用可能な構文と制限
 
@@ -541,3 +599,27 @@ public shared func placeOrder(order : Text) : async Text {
 7. **完了/エラー**：最終的な結果がメッセージ送信者に返される
 
 このように、MotokoはIC特有のメッセージ駆動環境に最適化された非同期処理モデルを提供しており、**言語レベルでの状態管理とエラー処理**により、分散システムでの安全な並行処理を実現しています。Rustのような汎用的な実装とは異なり、**ICプラットフォーム専用**に設計された特殊性が最大の特徴です。
+
+### 9. Motokoコンパイラによる内部実装詳細
+
+MotokoのWebAssembly向けコンパイル時の内部実装についての詳細調査結果：
+
+#### コンパイル時変換
+* **言語レベルサポート**: RustやNimとは異なり、Motokoでは`async/await`が言語仕様に組み込まれているため、特別なマクロ変換は不要
+* **直接WebAssembly生成**: ICプラットフォーム専用の最適化が施され、IC System APIとの統合が言語レベルで実現
+* **状態機械最適化**: コミットポイントとロールバック機構により、ICのメッセージ駆動モデルに特化した効率的な状態管理
+
+#### ICプラットフォーム最適化
+* **メッセージパッシング**: shared関数呼び出しは即座にFutureを返し、実際のメッセージ送信はICシステムレベルで処理
+* **自動callback管理**: `await`による一時停止時、ICシステムが自動的にコールバック（継続）を登録・管理
+* **最小オーバーヘッド**: IC専用設計により、汎用的なRustのようなランタイムオーバーヘッドを最小化
+
+#### コード生成戦略
+Motokoコンパイラは以下の最適化戦略を採用：
+
+1. **インライン化**: 頻繁に呼び出される処理は直接展開してメッセージ送信コストを削減
+2. **状態最小化**: コミットポイント間で必要最小限の状態のみ保持
+3. **デッドコード除去**: 到達不可能なasyncパスを静的解析で除去
+4. **メモリ効率化**: ICの制約メモリ環境に最適化されたメモリレイアウト
+
+これらの特徴により、MotokoはIC環境において他言語では実現困難な高効率な非同期処理を提供しています。

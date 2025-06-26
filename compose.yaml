@@ -8,3 +8,13 @@ services:
       - .:/application
     ports:
       - 4943:4943
+
+  gemini:
+    build:
+      context: .
+      dockerfile: docker/gemini/develop.Dockerfile
+    tty: true
+    volumes:
+      - .:/application
+    ports:
+      - 39559:39559

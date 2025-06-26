@@ -7,3 +7,6 @@ nimcache
 
 *.wasm
 *.wat
+.env
+node_modules
+.pnpm-store
