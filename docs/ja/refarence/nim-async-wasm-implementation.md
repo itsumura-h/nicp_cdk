@@ -11,9 +11,18 @@
 - **軽量実装**: Asyncifyに依存しない独自の状態機械実装
 
 ### 1.2 対象環境
-- **Primary**: Internet Computer (IC) Canister環境
-- **Secondary**: WASI (WebAssembly System Interface)
-- **考慮外**: ブラウザ環境（別途JS Bridge実装予定）
+- **Primary**: Internet Computer (IC) Canister環境（独自ランタイム・wasmtimeベース）
+- **Secondary**: WASI (WebAssembly System Interface) 標準環境
+- **ビルド環境**: Clang + WASI SDK（Emscripten不使用）
+- **実行環境**: スタンドアローンWASM（JSからの呼び出しは不要・Dfinityが提供）
+
+### 1.3 ICPキャニスター環境の特徴と制約
+- **独自WASMランタイム**: wasmtimeベースの独自実装でスタンドアローン実行
+- **JSブリッジ不要**: DfinityがJS側インターフェースを提供済み
+- **メインスレッドアクセス不可**: WASMモジュールとしてICPで実行されるため、メインスレッドへの直接アクセスは不可能
+- **メッセージ駆動モデル**: 各処理はメッセージ受信をトリガーとして実行され、処理完了時に自動的にレスポンスが送信される
+- **waitFor実装不可**: ブロッキングな待機処理は実装できない（ICPシステムが自動的にメッセージ処理の継続を管理）
+- **シングルメッセージ処理**: 一度に1つのメッセージハンドラのみ実行され、awaitによる中断時は他のメッセージ処理に進む
 
 ## 2. アーキテクチャ設計
 
@@ -95,26 +104,26 @@ type
     messageContext: ICMessageContext    # ICメッセージコンテキスト
     callbackRegistry: Table[CallId, Future[void]]  # inter-canisterコール管理
     
-proc runUntilComplete*(executor: ICExecutor, future: Future[T]): T =
-  ## ICメッセージハンドラ内でFutureが完了するまで実行
-  while not future.finished:
-    case pollIC(executor):
-    of ICEvent.IncomingCall:
-      handleIncomingCall(executor)
-    of ICEvent.CallResponse:
-      resumeWaitingCall(executor)
-    of ICEvent.Timer:
-      processTimers(executor)
-    of ICEvent.NoMoreEvents:
-      break  # メッセージ処理完了
-      
-  if future.error != nil:
-    raise future.error
-  result = future.value
+proc executeAsync*(executor: ICExecutor, future: Future[T]) =
+  ## ICメッセージハンドラ内でFutureを実行開始（ノンブロッキング）
+  ## 完了時はICPシステムが自動的にレスポンスを送信
+  executor.currentTask = future
+  
+  # 初回実行を試行
+  if future.finished:
+    # 既に完了している場合は即座に結果を返す
+    if future.error != nil:
+      ic_reply_error(future.error.msg.cstring)
+    else:
+      ic_reply_success(serialize(future.value))
+  else:
+    # 未完了の場合は await 処理に任せる
+    # ICPシステムがコールバック経由で継続処理を行う
+    discard
 ```
 
-#### 2.3.2 WASI汎用エグゼキュータ
-WASI環境での汎用的な非同期処理：
+#### 2.3.2 WASI汎用エグゼキュータ（参考実装）
+標準WASI環境での汎用的な非同期処理（ICPでは使用しないが参考として記載）：
 
 ```nim
 # src/asyncwasm/wasi_executor.nim
@@ -124,6 +133,7 @@ type
     
 proc poll*(executor: WASIExecutor, timeout: Duration): int =
   ## WASI poll_oneoffを使用したイベント待機
+  ## 注意: ICPキャニスター環境では独自ランタイムを使用
   var subscriptions = executor.pollSubscriptions
   var events: array[32, WASIEvent]
   
@@ -179,10 +189,14 @@ proc spawnAsync*[T](asyncProc: proc(): Future[T]): Future[T] =
   result = asyncProc()
   getGlobalExecutor().addTask(result)
 
-proc waitFor*[T](future: Future[T]): T =
-  ## Futureの完了を同期的に待機（メインスレッドでのみ使用）
+proc spawnAndForget*[T](future: Future[T]) =
+  ## Futureをバックグラウンドで実行（結果を待機しない）
+  ## ICPキャニスター環境では結果は自動的にレスポンスとして送信される
   let executor = getGlobalExecutor()
-  result = executor.runUntilComplete(future)
+  executor.executeAsync(future)
+
+# 注意: waitFor は ICPキャニスター環境では実装不可
+# メインスレッドへのアクセスができないため、ブロッキング待機は不可能
 ```
 
 ### 3.3 I/O操作
@@ -272,6 +286,113 @@ proc heartbeatAsync*(): Future[void] =
     
   setGlobalTimer(Duration.fromSeconds(1), heartbeatHandler)
 ```
+
+### 4.3 Clang + WASI SDKビルド環境での実装考慮点
+
+#### 4.3.1 ビルド環境の特徴
+
+NimをWASM向けにコンパイルする際は、**EmscriptenではなくClang + WASI SDK**を使用します。この選択により以下の利点があります：
+
+#### Emscripten vs Clang + WASI SDK
+| 項目 | Emscripten | Clang + WASI SDK |
+|-----|-----------|-----------------|
+| **ビルドチェーン** | 複雑（独自ツールチェーン） | シンプル（標準Clang使用） |
+| **非同期実装** | Asyncify依存 | 独自状態機械（軽量） |
+| **WASI対応** | エミュレーション | ネイティブサポート |
+| **バイナリサイズ** | 大きい | 小さい |
+| **パフォーマンス** | オーバーヘッドあり | 最適化済み |
+
+#### 4.3.2 実際のconfig.nims設定
+
+nicp_cdkで生成される`config.nims`の設定例：
+
+```nim
+import std/os
+
+# 基本設定
+--mm: "orc"                    # ORCメモリ管理（WASMに最適化）
+--threads: "off"               # スレッド機能無効化（WASM制約）
+--cpu: "wasm32"                # WASM32アーキテクチャ指定
+--os: "linux"                  # 基本OSとしてLinux指定
+--nomain                       # 自動main関数生成無効化
+--cc: "clang"                  # Clangコンパイラ使用（Emscripten不使用）
+--define: "useMalloc"          # 標準mallocの使用
+
+# WASI向けターゲット設定
+switch("passC", "-target wasm32-wasi")
+switch("passL", "-target wasm32-wasi")
+switch("passL", "-static")           # 静的リンク
+switch("passL", "-nostartfiles")     # 標準スタートアップファイル無効
+switch("passL", "-Wl,--no-entry")    # エントリーポイント強制無効
+switch("passC", "-fno-exceptions")   # 例外処理無効化
+
+# 最適化設定
+when defined(release):
+  switch("passC", "-Os")       # サイズ最適化
+  switch("passC", "-flto")     # リンク時最適化
+  switch("passL", "-flto")
+
+# IC特有の設定
+let cHeadersPath = "/root/.ic-c-headers"
+switch("passC", "-I" & cHeadersPath)
+switch("passL", "-L" & cHeadersPath)
+
+let icWasiPolyfillPath = getEnv("IC_WASI_POLYFILL_PATH")
+switch("passL", "-L" & icWasiPolyfillPath)
+switch("passL", "-lic_wasi_polyfill")
+
+let wasiSysroot = getEnv("WASI_SDK_PATH") / "share/wasi-sysroot"
+switch("passC", "--sysroot=" & wasiSysroot)
+switch("passL", "--sysroot=" & wasiSysroot)
+switch("passC", "-I" & wasiSysroot & "/include")
+
+switch("passC", "-D_WASI_EMULATED_SIGNAL")
+switch("passL", "-lwasi-emulated-signal")
+```
+
+#### 4.3.3 非同期実装への影響
+
+この設定により、非同期処理実装に以下の影響があります：
+
+##### 制約事項
+- **`--threads: "off"`**: マルチスレッド非同期は使用不可
+- **`-fno-exceptions`**: 標準例外処理が制限される
+- **`-nostartfiles`、`--no-entry`**: 独自エントリーポイント必須
+
+##### 利点
+- **Emscripten不要**: Asyncifyのオーバーヘッドなし
+- **WASI polyfill**: IC環境でのWASI API利用可能
+- **ic0 System API**: IC固有機能への直接アクセス
+- **静的リンク**: 自己完結型モジュール
+
+#### 4.3.4 実装戦略への反映
+
+```nim
+# EmscriptenのAsyncifyを使わない軽量な状態機械実装
+type
+  AsyncState = enum
+    StateInit,     # 初期状態
+    StateWaiting,  # await待機中
+    StateResumed,  # 再開後
+    StateComplete  # 完了
+
+  AsyncContext[T] = ref object
+    state: AsyncState
+    continuation: proc()  # 継続処理
+    result: T
+    error: ref Exception
+    
+# WASI poll_oneoffを直接利用
+proc wasiPoll(subscriptions: ptr WASISubscription, 
+              events: ptr WASIEvent): int =
+  {.importc: "poll_oneoff", header: "wasi/api.h".}
+
+# IC System APIとの統合
+proc icSystemCall(method: cstring, args: cstring): cstring =
+  {.importc: "ic0_call_simple", header: "ic0.h".}
+```
+
+この設計により、EmscriptenのAsyncifyに依存しない、ICPに最適化された軽量な非同期処理ライブラリの実装が可能になります。
 
 ## 5. 最適化戦略
 
@@ -385,16 +506,23 @@ suite "Basic Future Operations":
     proc testProc(): Future[int] {.async.} =
       return 42
       
-    let result = waitFor testProc()
-    check result == 42
+    # 注意: ICPキャニスター環境ではwaitForは使用不可
+    # 代わりにコールバック形式でテスト
+    let future = testProc()
+    future.addCallback proc() =
+      check future.finished
+      check future.value == 42
     
   test "Future with await":
     proc asyncAdd(a, b: int): Future[int] {.async.} =
       await sleepAsync(10)  # 10ms待機
       return a + b
       
-    let result = waitFor asyncAdd(5, 3)
-    check result == 8
+    # ICPキャニスター環境向けテスト
+    let future = asyncAdd(5, 3)
+    future.addCallback proc() =
+      check future.finished
+      check future.value == 8
 ```
 
 ### 7.2 統合テスト
@@ -411,8 +539,11 @@ proc testICCall(): Future[string] {.async.} =
 when defined(ic):
   suite "IC Integration Tests":
     test "inter-canister call":
-      let result = waitFor testICCall()
-      check result.contains("Hello, World")
+      # ICPキャニスター環境向けテスト（waitFor不使用）
+      let future = testICCall()
+      future.addCallback proc() =
+        check future.finished
+        check future.value.contains("Hello, World")
 ```
 
 ## 8. ドキュメント化とAPI参考資料
@@ -421,20 +552,23 @@ when defined(ic):
 | Nim標準asyncdispatch | 本実装 | 備考 |
 |-------------------|-------|------|
 | `asyncCheck` | `spawnAsync` | タスクのバックグラウンド実行 |
-| `waitFor` | `waitFor` | 完全互換 |
+| `waitFor` | **実装不可** | ICPキャニスター環境ではメインスレッドアクセス不可 |
 | `sleepAsync` | `sleepAsync` | 完全互換 |
-| `asyncdispatch.runForever` | `runForever` | IC環境では制限あり |
+| `asyncdispatch.runForever` | **実装不可** | ICPではメッセージ駆動モデルのため不要 |
+| 新規追加 | `spawnAndForget` | ICPでの非同期実行（結果は自動レスポンス送信） |
 
 ### 8.2 使用例ドキュメント
 ```nim
-# 基本的な使用例
+# 基本的な使用例（ICPキャニスター環境向け）
 proc example1(): Future[string] {.async.} =
+  ## updateメソッドとして使用
   echo "処理開始"
   await sleepAsync(1000)  # 1秒待機
-  return "完了"
+  return "完了"  # 結果は自動的にレスポンスとして送信
 
 # IC固有機能の使用例
 proc example2(): Future[void] {.async.} =
+  ## queryメソッドとして使用
   let balance = await callAsync[nat](
     ic.managementCanister,
     "canister_status",
@@ -451,6 +585,17 @@ proc example3(): Future[string] {.async.} =
     echo "Async error: ", e.msg
     echo "Stack: ", e.futureStack
     raise
+
+# ICPでのエントリーポイント使用例
+{.exportc.}
+proc canister_update_process_data(args: cstring): cstring =
+  ## ICPエントリーポイント（同期関数）
+  let future = example1()  # 非同期処理を開始
+  spawnAndForget(future)   # バックグラウンドで実行
+  return nil  # 即座に制御を返す（結果は後でレスポンス送信）
+
+# 注意: waitForは使用不可
+# let result = waitFor example1()  # ← これはコンパイルエラーになる
 ```
 
 ## 9. 実装ロードマップ
@@ -477,6 +622,18 @@ proc example3(): Future[string] {.async.} =
 
 ## 10. まとめ
 
-本実装方針は、RustとMotokoの調査結果を基に、Nimの言語特性を活かしたWASM向け非同期処理ライブラリの設計を提供します。特にInternet Computer環境での高効率な動作を重視し、既存のNim `asyncdispatch` APIとの互換性を保ちながら、WASM特有の制約に対応した実装となっています。
+本実装方針は、RustとMotokoの調査結果を基に、Nimの言語特性を活かしたWASM向け非同期処理ライブラリの設計を提供します。特に以下の特徴があります：
 
-実装完了により、Nimでも他の主要言語と同等の非同期プログラミング体験をWASM環境で提供できるようになります。 
+### 主要な特徴
+- **Clang + WASI SDK使用**: EmscriptenのAsyncifyに依存しない軽量実装
+- **ICPキャニスター特化**: 独自WASMランタイム（wasmtimeベース）に最適化
+- **スタンドアローン実行**: JSブリッジ不要（DfinityがJS側を提供済み）
+- **waitFor非対応**: メインスレッドアクセス不可の制約に対応
+- **独自状態機械**: コンパイル時最適化による高効率実行
+
+### 実装環境
+- **ビルド環境**: Clang + WASI SDK（config.nimsで設定済み）
+- **ランタイム環境**: ICPキャニスター独自ランタイム（wasmtimeベース）
+- **実行モデル**: スタンドアローンWASM、シングルスレッド、メッセージ駆動
+
+実装完了により、ICPキャニスター環境の独自ランタイムで、EmscriptenやJSブリッジに依存しない、軽量で高効率な非同期プログラミング体験を提供できるようになります。 
