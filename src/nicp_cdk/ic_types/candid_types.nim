@@ -6,36 +6,8 @@ import ./ic_principal
 
 
 # ================================================================================
-# ECDSA 関連
+# Candid 型タグの定義
 # ================================================================================
-type
-  EcdsaCurve* {.pure.} = enum
-    secp256k1 = 0
-    secp256r1 = 1
-
-  EcdsaKeyId* = object
-    curve*: EcdsaCurve
-    name*: string
-
-  EcdsaPublicKeyArgs* = object
-    canister_id*: Option[Principal]
-    derivation_path*: seq[seq[uint8]]
-    key_id*: EcdsaKeyId
-
-  EcdsaSignArgs* = object
-    message_hash*: seq[uint8]
-    derivation_path*: seq[seq[uint8]]
-    key_id*: EcdsaKeyId
-
-  EcdsaPublicKeyResult* = object
-    public_key*: seq[uint8]
-    chain_code*: seq[uint8]
-
-  SignWithEcdsaResult* = object
-    signature*: seq[uint8]
-
-
-#---- Candid 型タグの定義 ----
 type
   CandidType* = enum
     ctNull, ctBool, 
@@ -204,14 +176,14 @@ proc `$`*(value: CandidValue): string =
   of ctFloat64:
     result = $value.float64Val
   of ctText:
-    result = """ & value.textVal & """
+    result = "\"" & value.textVal & "\""
   of ctPrincipal:
-    result = "principal "" & $value.principalVal & """
+    result = "principal \"" & $value.principalVal & "\""
   of ctBlob:
     var hexValues: seq[string] = @[]
     for b in value.blobVal:
       hexValues.add(b.toHex())
-    result = "blob "" & hexValues.join("") & """
+    result = "blob \"" & hexValues.join("") & "\""
   of ctRecord:
     result = "record {"
     var first = true
@@ -236,11 +208,11 @@ proc `$`*(value: CandidValue): string =
       result.add($elem)
     result.add("]")
   of ctFunc:
-    result = "func "" & $value.funcVal.principal & ""." & value.funcVal.methodName
+    result = "func \"" & $value.funcVal.principal & "\"." & value.funcVal.methodName
     if value.funcVal.annotations.len > 0:
       result.add(" " & value.funcVal.annotations.join(" "))
   of ctService:
-    result = "service "" & $value.serviceVal & """
+    result = "service \"" & $value.serviceVal & "\""
   of ctReserved:
     result = "reserved"
   of ctEmpty:
