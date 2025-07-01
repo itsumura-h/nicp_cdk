@@ -528,7 +528,7 @@ proc candidValueToCandidRecord*(cv: CandidValue): CandidRecord =
   of ctBlob:
     newCBlobRecord(cv.blobVal)
   of ctPrincipal:
-    newCPrincipalRecord(cv.principalVal.value)
+    newCPrincipalRecord($cv.principalVal)
   of ctVec:
     var arrayRecord = newCArrayRecord()
     for elem in cv.vecVal:
@@ -547,9 +547,9 @@ proc candidValueToCandidRecord*(cv: CandidValue): CandidRecord =
   of ctVariant:
     CandidRecord(kind: ckVariant, variantVal: cv.variantVal)
   of ctFunc:
-    CandidRecord(kind: ckFunc, funcRef: (cv.funcVal.principal.value, cv.funcVal.methodName))
+    CandidRecord(kind: ckFunc, funcRef: ($cv.funcVal.principal, cv.funcVal.methodName))
   of ctService:
-    CandidRecord(kind: ckService, serviceId: cv.serviceVal.value)
+    CandidRecord(kind: ckService, serviceId: $cv.serviceVal)
   else:
     newCNull()  # 未対応の型はnullとして扱う
 
@@ -861,7 +861,7 @@ proc `%`*(blob: seq[uint8]): CandidRecord =
 
 proc `%`*(p: Principal): CandidRecord =
   ## Principal値をCandidRecordに変換
-  CandidRecord(kind: ckPrincipal, principalId: p.value)
+  CandidRecord(kind: ckPrincipal, principalId: $p)
 
 proc `%`*(cr: CandidRecord): CandidRecord =
   ## CandidRecord自身をそのまま返す（asBlob()などの戻り値に対する%演算子対応）

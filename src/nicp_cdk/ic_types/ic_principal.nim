@@ -17,7 +17,7 @@ const
 
 type Principal* = object
   bytes*: seq[byte]
-  value*: string
+  value: string
 
 proc `$`*(self: Principal): string =
   return self.value
