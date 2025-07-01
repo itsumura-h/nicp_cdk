@@ -1,3 +1,4 @@
 service : {
-  "getPublicKey" : () -> (text);
+  "getNewPublicKey" : () -> (text);
+  "getPublicKey" : () -> (text) query;
 };
