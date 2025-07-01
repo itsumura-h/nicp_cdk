@@ -36,111 +36,87 @@ proc onReply3(env: uint32) {.exportc.} =
 `await`マクロにより、上記のコードを以下のように記述できるようにする：
 
 ```nim
+import asyncwasm/asyncdipatch
+
 # 目標とする書き方
-proc handler() {.update.} = async:
-  let result1 = await callCanister1(args1)
-  let result2 = await callCanister2(args2) 
-  let result3 = await callCanister3(args3)
-  reply(result3)
+proc handler() {.update, async.} =
+  try:
+    let result1 = await callCanister1(args1)
+    let result2 = await callCanister2(args2) 
+    let result3 = await callCanister3(args3)
+    reply(result3)
+  except CatchableError as e:
+    reject("An error occurred: " & e.msg)
 ```
 
 マクロが自動的にコールバック関数を生成し、手続き型の記述を実現する。
 
-### 2.3. 非同期処理ではないことの明確化
+### 2.3. 設計目標とICP環境における制約
 
-本実装は以下を**含まない**：
+本実装は、`async_await_in_nim.md`で解説されているNim標準の`async`/`await`機構を参考に、Futureとイテレータをベースとした非同期処理モデルの実現を目的とする。
 
-- ❌ **処理の一時停止**: 実行コンテキストの保存や復元
-- ❌ **IOブロッキング待機**: ネットワークやファイルI/Oの完了待ち
-- ❌ **イベントループ**: タスクスケジューリングやディスパッチ
-- ❌ **並行実行**: 複数タスクの同時実行管理
-- ❌ **本格的なFuture型**: 状態管理やWaker機構
+ただし、ICPのWASM環境には独自の制約があるため、以下の点を考慮する：
 
-✅ **含むもの**: 手続き型コードのコールバック変換のみ
+- ❗ **受動的ディスパッチモデル**: ICPキャニスターは、OSのスレッドやI/Oイベントを能動的にポーリングし続けるイベントループを実装できない。すべての非同期処理は、ICからのメッセージ（応答コールバック）をトリガーとする**受動的なディスパッチモデル**で動作する必要がある。
+- ❗ **`await`は実行中断**: 外部キャニスターを呼び出す`await`は、ICの実行モデル上、現在の関数の実行を中断・終了し、ICに応答を待つよう指示することを意味する。応答が返ってきた際に、ICシステムが指定されたコールバック関数を呼び出すことで、処理が再開される。
 
 ## 3. 実装設計
 
-### 3.1. 簡略化されたFuture型
+### 3.1. Future型
 
-本格的なFuture実装ではなく、コールバック管理のための最小限の型を定義：
+非同期処理の結果を管理するため、Nim標準ライブラリの `std/asyncfutures` が提供する `Future[T]` 型を全面的に採用する。これにより、標準ライブラリとの互換性を確保する。
 
-```nim
-type
-  FutureCallback[T] = ref object
-    onSuccess: proc(value: T)
-    onError: proc(error: string)
-    completed: bool
-    result: T
-    errorMsg: string
-```
+`Future[T]`は以下の主要なフィールドを持つ参照オブジェクトである：
+*   `value: T`: 成功時の結果を保持する値。
+*   `finished: bool`: Futureが完了したか（成功または失敗）を示すフラグ。
+*   `error: ref Exception`: 失敗時の例外オブジェクト。
+*   `callbacks: seq[proc(future: Future[T])]`: Future完了時に呼び出されるコールバック関数のリスト。`await`の継続処理はここに登録される。
 
 ### 3.2. `async`マクロ
 
-Nim標準の`std/asyncmacro`に倣い、`async`を**マクロ**として実装する。このマクロはプロシージャを解析し、非同期風の記述を可能にするコード変換を行う：
+Nim標準の`std/asyncmacro`に倣い、`{.async.}`プラグマを処理する`async`マクロを実装する。このマクロは、プロシージャの本体（AST）を解析し、`await`キーワードを持つ箇所で処理を中断・再開できる**クロージャ・イテレータ**に変換する。
 
 ```nim
+# async_await_in_nim.md で解説されている変換方針
 macro async(prc: untyped): untyped =
-  # プロシージャを解析してコールバック変換コードを生成
-  # awaitキーワードを含む処理を適切に変換
-```
-
-使用方法（プラグマとして呼び出し）：
-```nim
-proc handler() {.update, async.} =
-  # awaitが使用可能になる
-  let result = await callCanister("test")
-  reply(result)
+  # プロシージャをクロージャ・イテレータに変換するコードを生成
 ```
 
 ### 3.3. `await`テンプレートの動作
 
-Nim標準の実装に倣い、`await`を**テンプレート**として実装する。テンプレートは以下の変換を行う：
-
-```nim
-template await[T](f: typed): auto =
-  # コールバック登録とコードの継続処理
-  # 実際の型チェックと変換はコンパイル時に実行
-```
-
-#### 変換処理の詳細
-
-1. **型の解析**: `await`に渡された式の型を解析
-2. **継続の生成**: `await`以降のコードをテンプレート展開で継続として抽出
-3. **コールバック登録**: 生成された継続をコールバックとして登録
-4. **実行制御**: 現在の実行を適切に終了
+`await`は、`Future[T]`を引数にとるテンプレートとして実装する。`{.async.}`で変換されたイテレータ内では、`await`は`yield`文に展開される。これにより、指定されたFutureが完了するまでイテレータの実行を中断する。
 
 #### 変換例
 
+`async_await_in_nim.md`で示されているように、マクロは同期的に見えるコードを非同期実行可能なイテレータに変換する。
+
 ```nim
 # ユーザーが書くコード
-proc example() {.update, async.} =
+proc example(): Future[string] {.async.} =
   echo "Before call"
-  let result = await callOtherCanister("test")
+  let result = await callOtherCanister("test") # これはFuture[string]を返す
   echo "After call: ", result
-  reply("done")
+  return "done"
 
-# async マクロとawait テンプレートが生成するコード（概念）
-proc example() {.update.} =
+# asyncマクロが生成するコード（概念）
+iterator exampleIter(): FutureBase {.closure.} =
   echo "Before call"
-  
-  proc continuation(result: string) =
-    echo "After call: ", result
-    reply("done")
-  
-  proc errorHandler(error: string) =
-    reject(error)
-  
-  callOtherCanister("test", continuation, errorHandler)
-  return  # ここで現在の実行終了
+  let future = callOtherCanister("test")
+  yield future # futureが完了するまで中断
+  let result = future.read()
+  echo "After call: ", result
+  # 完了したFutureを返すヘルパーを介して最終結果を返す
+  return newCompletedFuture("done") 
+
+proc example(): Future[string] =
+  # イテレータを駆動し、最終的なFutureを返すヘルパー関数
+  return iterToFuture(exampleIter())
 ```
+この`iterToFuture`のようなヘルパー関数が、イテレータをステップ実行し、`yield`されたFutureの完了を待ち、次のステップに進める役割を担う。これがICP環境における**受動的ディスパッチャ**の中核となる。
 
 ### 3.4. 標準ライブラリとの整合性
 
-[Nim標準の`std/asyncmacro`](https://nim-lang.org/docs/asyncmacro.html#18)との整合性を保つため：
-
-- **`async`マクロ**: `macro async(prc: untyped): untyped`として実装
-- **`await`テンプレート**: `template await[T](f: Future[T]): auto`として実装
-- **Future型**: 標準の`asyncfutures`モジュールとの互換性を考慮
+[Nim標準の`std/asyncmacro`](https://nim-lang.org/docs/asyncmacro.html#18)との互換性を可能な限り保つことで、Nim開発者にとって直感的なAPIを目指す。
 
 ## 4. 実装予定API
 
@@ -150,8 +126,8 @@ proc example() {.update.} =
 # asyncマクロ - プロシージャを非同期変換
 macro async*(prc: untyped): untyped
 
-# awaitテンプレート - 非同期呼び出しの待機
-template await*[T](f: typed): auto
+# awaitテンプレート - Futureの完了を待機
+template await*[T](f: Future[T]): T
 
 # エラーハンドリング用テンプレート
 template reject*(message: string)
@@ -161,11 +137,9 @@ template reply*[T](value: T)
 ### 4.2. サポート関数
 
 ```nim
-# ICPキャニスター呼び出し用ヘルパー
+# ICPキャニスター呼び出し用ヘルパー（Futureを返す）
 proc callCanister*[T](canister_id: Principal, method: string, 
-                     args: seq[byte], 
-                     onSuccess: proc(result: T),
-                     onError: proc(error: string))
+                     args: seq[byte]): Future[T]
 ```
 
 ## 5. 利用例
@@ -176,48 +150,53 @@ proc callCanister*[T](canister_id: Principal, method: string,
 import asyncwasm/asyncdipatch
 
 proc getUserData() {.update, async.} =
-  let userData = await getUserCanister.getUser(userId)
-  reply(userData)
+  try:
+    let userData = await getUserCanister.getUser(userId)
+    reply(userData)
+  except CatchableError as e:
+    reject("Failed to get user data: " & e.msg)
 ```
 
 ### 5.2. 複数の呼び出し
 
 ```nim
 proc processOrder() {.update, async.} =
-  let user = await userCanister.getUser(userId)
-  let inventory = await inventoryCanister.checkStock(productId)
-  
-  if inventory.available:
-    let order = await orderCanister.createOrder(user, productId)
-    reply(order)
-  else:
-    reject("Out of stock")
+  try:
+    let user = await userCanister.getUser(userId)
+    let inventory = await inventoryCanister.checkStock(productId)
+    
+    if inventory.available:
+      let order = await orderCanister.createOrder(user, productId)
+      reply(order)
+    else:
+      reject("Out of stock")
+  except CatchableError as e:
+    reject("Order processing failed: " & e.msg)
 ```
 
 ### 5.3. エラーハンドリング
+
+`try/except`構文が自然に利用できる。非同期処理で発生した例外は`await`呼び出し元で捕捉可能。
 
 ```nim
 proc robustCall() {.update, async.} =
   try:
     let result = await riskyCanister.process(data)
     reply(result)
-  except:
-    reject("Processing failed")
+  except CatchableError as e:
+    reject("Processing failed: " & e.msg)
 ```
 
 ## 6. 制限事項
 
 ### 6.1. 機能的制限
 
-- **真の非同期処理ではない**: 実行の一時停止・再開は行わない
-- **シーケンシャル実行のみ**: 並行実行や並列処理は非サポート
-- **単純なコールバック変換**: 複雑な制御フローは対応困難
+- **受動的実行のみ**: 実行の再開はICからのコールバックに依存
+- **シーケンシャル実行**: `await`は直列実行。並行実行 (`waitFor all(@[fut1, fut2])`) のサポートは将来的な課題。
 
 ### 6.2. 構文制限
 
-- **`async`マクロ使用プロシージャ内のみ**: `await`は`async`マクロで変換されたプロシージャ内でのみ使用可能
-- **単一戻り値**: 複数の戻り値やタプルの直接サポートなし
-- **ネストした`await`**: `await`のネストには制限あり
+- **`{.async.}`プロシージャ内のみ**: `await`は`{.async.}`で変換されたプロシージャ内でのみ使用可能。
 
 ### 6.3. デバッグ制限
 
@@ -226,7 +205,7 @@ proc robustCall() {.update, async.} =
 
 ## 7. 実装例：管理キャニスター呼び出し
 
-### 7.1. 従来の実装
+### 7.1. 従来の実装（コールバック形式）
 
 ```nim
 # コールバック関数を事前定義
@@ -250,11 +229,16 @@ proc getPublicKey() {.update.} =
 
 ```nim
 import asyncwasm/asyncdipatch
+import nicp_cdk/canisters/async_management_canister
 
 proc getPublicKey() {.update, async.} =
   let args = EcdsaPublicKeyArgs(...)
-  let result = await callManagementCanister("ecdsa_public_key", encodeCandid(args))
-  reply(result)
+  try:
+    # publicKeyはFuture[EcdsaPublicKeyResult]を返す
+    let result = await asyncManagementCanister.publicKey(args)
+    reply(result)
+  except CatchableError as e:
+    reject("ECDSA call failed: " & e.msg)
 ```
 
 ## 8. プロジェクト構成
@@ -268,18 +252,12 @@ proc getPublicKey() {.update, async.} =
 ```nim
 # 基本マクロとテンプレートの定義（Nim標準asyncmacroに準拠）
 macro async*(prc: untyped): untyped
-template await*[T](f: typed): auto
+template await*[T](f: Future[T]): T
 template reject*(message: string)
 template reply*[T](value: T)
 
-# コールバック管理用の最小限の型
-type
-  FutureCallback[T] = ref object
-    onSuccess: proc(value: T)
-    onError: proc(error: string)
-    completed: bool
-    result: T
-    errorMsg: string
+# `std/asyncfutures` を利用
+import std/asyncfutures
 ```
 
 #### 非同期化した外部キャニスターの呼び出し
@@ -295,24 +273,31 @@ import ../ic_types/candid_message/candid_decode
 
 type ManagementCanister* = object
 
-proc publicKey*(_:type ManagementCanister, arg: EcdsaPublicKeyArgs, 
-                onReply: proc(result: EcdsaPublicKeyResult), 
-                onReject: proc(error: string)) =
+proc publicKey*(_:type ManagementCanister, arg: EcdsaPublicKeyArgs): Future[EcdsaPublicKeyResult] =
+  # 1. 結果を格納するための新しいFutureを生成
+  result = newFuture[EcdsaPublicKeyResult]("publicKey")
+
+  # 2. ICコールバック内でFutureを完了させるためのラッパープロシージャを定義
   proc onReplyWrapper(env: uint32) {.exportc.} =
     let size = ic0_msg_arg_data_size()
     var buf = newSeq[uint8](size)
     ic0_msg_arg_data_copy(ptrToInt(addr buf[0]), 0, size)
-    let result = decodeCandidMessage(buf, EcdsaPublicKeyResult)
-    onReply(result)
+    # Candidメッセージをデコードして結果を取得
+    let decoded = decodeCandidMessage(buf) 
+    let publicKeyResult = candidValueToEcdsaPublicKeyResult(decoded.values[0])
+    
+    # 成功した場合はFutureを完了させる
+    result.complete(publicKeyResult)
 
   proc onRejectWrapper(env: uint32) {.exportc.} =
     let err_size = ic0_msg_arg_data_size()
     var err_buf = newSeq[uint8](err_size)
     ic0_msg_arg_data_copy(ptrToInt(addr err_buf[0]), 0, err_size)
     let msg = "call failed: " & $err_buf
-    onReject(msg)
+    # 失敗した場合はFutureを失敗させる
+    result.fail(newException(Defect, msg))
 
-  # IC0 API呼び出し処理
+  # 3. IC0 API呼び出し処理
   let mgmtPrincipalBytes: seq[uint8] = @[]
   let destPtr = if mgmtPrincipalBytes.len > 0: mgmtPrincipalBytes[0].addr else: nil
   let destLen = mgmtPrincipalBytes.len
@@ -329,13 +314,14 @@ proc publicKey*(_:type ManagementCanister, arg: EcdsaPublicKeyArgs,
     reject_env = 0
   )
 
+  # ... (引数添付と実行)
   let candidValue = newCandidRecord(arg)
   let encoded = encodeCandidMessage(@[candidValue])
   ic0_call_data_append(ptrToInt(addr encoded[0]), encoded.len)
   
   let err = ic0_call_perform()
   if err != 0:
-    onReject("call_perform failed")
+    result.fail(newException(Defect, "call_perform failed with code: " & $err))
 
 let asyncManagementCanister* = ManagementCanister()
 ```
@@ -350,21 +336,18 @@ import ../../../../src/nicp_cdk/canisters/async_management_canister
 
 proc getPublicKey() {.update, async.} =
   let arg = EcdsaPublicKeyArgs(
-    canister_id: Principal.fromText("be2us-64aaa-aaaaa-qaabq-cai").some(),
+    canister_id: some(Principal.fromText("be2us-64aaa-aaaaa-qaabq-cai")),
     derivation_path: @[Msg.caller().bytes],
     key_id: EcdsaKeyId(
       curve: EcdsaCurve.secp256k1,
       name: "dfx_test_key"
     )
   )
-  asyncManagementCanister.publicKey(
-    arg,
-    proc(result: EcdsaPublicKeyResult) =
-      reply(result)
-    ,
-    proc(error: string) =
-      trap(error)
-  )
+  try:
+    let result = await asyncManagementCanister.publicKey(arg)
+    reply(result)
+  except CatchableError as e:
+    trap("Failed to get public key: " & e.msg)
 ```
 
 ### 8.2. 動作確認手順
@@ -409,4 +392,4 @@ dfx canister call async_t_ecdsa getPublicKey
 - **統合テスト**: 実際のキャニスター呼び出しでの動作確認
 - **エラーケース**: 異常系での適切なエラーハンドリング確認
 
-この設計により、ICPキャニスター開発での**コールバック地獄**を解消し、より読みやすく保守しやすいコードの記述を可能にする。完全な非同期処理システムではないが、実用的なコード記述支援ツールとして機能する。
+この設計により、ICPキャニスター開発での**コールバック地獄**を解消し、Nimの標準的な非同期処理に近い、より読みやすく保守しやすいコードの記述を可能にする。
