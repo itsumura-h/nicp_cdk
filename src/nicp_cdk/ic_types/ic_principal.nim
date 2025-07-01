@@ -3,7 +3,6 @@ import std/strutils
 import base32 # https://github.com/OpenSystemsLab/base32.nim :contentReference[oaicite:9]{index=9}
 import ../algorithm/crc32
 import ../algorithm/leb128
-import ./consts
 
 
 # https://wiki.internetcomputer.org/wiki/Principal
@@ -17,10 +16,10 @@ const
 
 type Principal* = object
   bytes*: seq[byte]
-  value: string
+  text*: string
 
 proc `$`*(self: Principal): string =
-  return self.value
+  return self.text
 
 
 # バイナリ → ハイフン区切りの Base32 文字列に変換
@@ -48,7 +47,7 @@ proc fromBlob*(_:type Principal, raw: seq[byte]): Principal =
       text.add '-'
 
   return Principal(
-    value: text,
+    text: text,
     bytes: raw
   )
 
@@ -77,7 +76,7 @@ proc fromText*(_:type Principal, text: string): Principal =
   let calculatedChecksum = crc32Bytes(result.bytes)
   assert checksum == calculatedChecksum, "Invalid Principal checksum"
   
-  result.value = text
+  result.text = text
 
 
 proc managementCanister*(_:type Principal): Principal =
@@ -111,6 +110,3 @@ proc readPrincipal*(data: seq[byte]; offset: var int): Principal =
   offset += principalLength
   let principal = Principal.fromBlob(principalBytes)
   return principal
-
-
-
