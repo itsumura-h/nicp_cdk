@@ -5,7 +5,9 @@ import std/strutils
 import ./ic_principal
 
 
-#---- Candid 型タグの定義 ----
+# ================================================================================
+# Candid 型タグの定義
+# ================================================================================
 type
   CandidType* = enum
     ctNull, ctBool, 
@@ -699,26 +701,3 @@ proc isVecNat8*(cv: CandidValue): bool =
 proc canConvertToBlob*(cv: CandidValue): bool =
   ## CandidValueがBlob型に変換可能かチェック
   return isVecNat8(cv)
-
-
-# ================================================================================
-# ECDSA 関連
-# ================================================================================
-type
-  EcdsaCurve* {.pure.} = enum
-    secp256k1 = 0
-    secp256r1 = 1
-
-  EcdsaKeyId* = object
-    curve*: EcdsaCurve
-    name*: string
-
-  EcdsaPublicKeyArgs* = object
-    canister_id*: Option[Principal]
-    derivation_path*: seq[seq[uint8]]
-    key_id*: EcdsaKeyId
-
-  EcdsaSignArgs* = object
-    message_hash*: seq[uint8]
-    derivation_path*: seq[seq[uint8]]
-    key_id*: EcdsaKeyId

@@ -1,0 +1,8 @@
+service : {
+  "getPublicKey" : () -> (
+    record {
+      public_key : blob;
+      chain_code : blob;
+    }
+  );
+};
