@@ -39,7 +39,7 @@ suite "ic_func tests":
     let encoded = encodeCandidMessage(@[funcValue])
     let decoded = decodeCandidMessage(encoded)
     check decoded.values[0].kind == ctFunc
-    check decoded.values[0].funcVal.principal.value == principal.value
+    check decoded.values[0].funcVal.principal.text == principal.text
     check decoded.values[0].funcVal.methodName == "test_method"
 
 
@@ -49,7 +49,7 @@ suite "ic_func tests":
     let encoded = encodeCandidMessage(@[funcValue])
     let decoded = decodeCandidMessage(encoded)
     check decoded.values[0].kind == ctFunc
-    check decoded.values[0].funcVal.principal.value == principal.value
+    check decoded.values[0].funcVal.principal.text == principal.text
     check decoded.values[0].funcVal.methodName == "get_balance"
 
 
@@ -59,7 +59,7 @@ suite "ic_func tests":
     let encoded = encodeCandidMessage(@[funcValue])
     let decoded = decodeCandidMessage(encoded)
     check decoded.values[0].kind == ctFunc
-    check decoded.values[0].funcVal.principal.value == principal.value
+    check decoded.values[0].funcVal.principal.text == principal.text
     check decoded.values[0].funcVal.methodName == ""
 
 
@@ -73,13 +73,13 @@ suite "ic_func tests":
     let decoded = decodeCandidMessage(encoded)
     check decoded.values.len == 3
     check decoded.values[0].kind == ctFunc
-    check decoded.values[0].funcVal.principal.value == principal1.value
+    check decoded.values[0].funcVal.principal.text == principal1.text
     check decoded.values[0].funcVal.methodName == "method1"
     check decoded.values[1].kind == ctFunc
-    check decoded.values[1].funcVal.principal.value == principal2.value
+    check decoded.values[1].funcVal.principal.text == principal2.text
     check decoded.values[1].funcVal.methodName == "method2"
     check decoded.values[2].kind == ctFunc
-    check decoded.values[2].funcVal.principal.value == principal1.value
+    check decoded.values[2].funcVal.principal.text == principal1.text
     check decoded.values[2].funcVal.methodName == "method3"
 
 
@@ -97,7 +97,7 @@ suite "ic_func tests":
       let encoded = encodeCandidMessage(@[funcValue])
       let decoded = decodeCandidMessage(encoded)
       check decoded.values[0].kind == ctFunc
-      check decoded.values[0].funcVal.principal.value == principal.value
+      check decoded.values[0].funcVal.principal.text == principal.text
       check decoded.values[0].funcVal.methodName == methodNames[i]
 
 
@@ -105,7 +105,7 @@ suite "ic_func tests":
     let principal = Principal.fromText("aaaaa-aa")
     let funcValue = newCandidFunc(principal, "test_method")
     check funcValue.kind == ctFunc
-    check funcValue.funcVal.principal.value == principal.value
+    check funcValue.funcVal.principal.text == principal.text
     check funcValue.funcVal.methodName == "test_method"
 
 
@@ -115,7 +115,7 @@ suite "ic_func tests":
     let encoded = encodeCandidMessage(@[funcValue])
     let decoded = decodeCandidMessage(encoded)
     check decoded.values[0].kind == ctFunc
-    check decoded.values[0].funcVal.principal.value == principal.value
+    check decoded.values[0].funcVal.principal.text == principal.text
     check decoded.values[0].funcVal.methodName == "テスト_メソッド"
 
 
@@ -125,5 +125,5 @@ suite "ic_func tests":
     let encoded = encodeCandidMessage(@[funcValue])
     let decoded = decodeCandidMessage(encoded)
     check decoded.values[0].kind == ctFunc
-    check decoded.values[0].funcVal.principal.value == principal.value
+    check decoded.values[0].funcVal.principal.text == principal.text
     check decoded.values[0].funcVal.methodName == "method_with-special.chars:123" 

@@ -1,10 +1,11 @@
 discard """
-  cmd:"nim c --skipUserCfg -d:nimOldCaseObjects tests/test_candid_decode.nim"
+  cmd:"nim c --skipUserCfg -d:nimOldCaseObjects $file"
 """
 # nim c -r --skipUserCfg -d:nimOldCaseObjects tests/test_candid_decode.nim
 
 import unittest
-include ../src/nicp_cdk/ic_types/candid
+import ../src/nicp_cdk/ic_types/candid_message/candid_decode
+import ../src/nicp_cdk/ic_types/candid_types
 
 
 proc toBytes*(data: seq[int]): seq[byte] =

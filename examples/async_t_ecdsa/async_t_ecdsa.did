@@ -1,4 +1,0 @@
-service : {
-  "getNewPublicKey" : () -> (text);
-  "getPublicKey" : () -> (text) query;
-};

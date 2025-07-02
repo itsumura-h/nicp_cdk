@@ -1,4 +1,4 @@
-# Candid型定義
+# Candid Type Definitions
 # https://github.com/dfinity/candid/blob/master/spec/Candid.md#types
 #[
 

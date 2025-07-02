@@ -17,7 +17,7 @@ proc new*(_:type Request): Request =
   return Request(values: decodedResult.values)
 
 
-# 指定されたインデックスの引数を bool として取得する
+# Get the argument at the specified index as a bool
 proc getBool*(self:Request, index:int): bool =
   ## Get the argument at the specified index as a bool
   assert self.values[index].kind == ctBool
@@ -54,35 +54,35 @@ proc getNat64*(self:Request, index:int): uint64 =
   return self.values[index].nat64Val
 
 
-# 指定されたインデックスの引数を int として取得する
+# Get the argument at the specified index as an int
 proc getInt*(self:Request, index:int): int =
   ## Get the argument at the specified index as an int
   assert self.values[index].kind == ctInt, "Expected int type, got: " & $self.values[index].kind
   return self.values[index].intVal
 
 
-# 指定されたインデックスの引数を int8 として取得する
+# Get the argument at the specified index as an int8
 proc getInt8*(self:Request, index:int): int8 =
   ## Get the argument at the specified index as an int8
   assert self.values[index].kind == ctInt8, "Expected int8 type, got: " & $self.values[index].kind
   return self.values[index].int8Val
 
 
-# 指定されたインデックスの引数を int16 として取得する
+# Get the argument at the specified index as an int16
 proc getInt16*(self:Request, index:int): int16 =
   ## Get the argument at the specified index as an int16
   assert self.values[index].kind == ctInt16, "Expected int16 type, got: " & $self.values[index].kind
   return self.values[index].int16Val
 
 
-# 指定されたインデックスの引数を int32 として取得する
+# Get the argument at the specified index as an int32
 proc getInt32*(self:Request, index:int): int32 =
   ## Get the argument at the specified index as an int32
   assert self.values[index].kind == ctInt32, "Expected int32 type, got: " & $self.values[index].kind
   return self.values[index].int32Val
 
 
-# 指定されたインデックスの引数を int64 として取得する
+# Get the argument at the specified index as an int64
 proc getInt64*(self:Request, index:int): int64 =
   ## Get the argument at the specified index as an int64
   assert self.values[index].kind == ctInt64, "Expected int64 type, got: " & $self.values[index].kind
@@ -90,49 +90,49 @@ proc getInt64*(self:Request, index:int): int64 =
 
 
 
-# 指定されたインデックスの引数を float32 として取得する
+# Get the argument at the specified index as a float32
 proc getFloat*(self:Request, index:int): float32 =
   ## Get the argument at the specified index as a float32
   assert self.values[index].kind == ctFloat32, "Expected float32 type, got: " & $self.values[index].kind
   return self.values[index].float32Val
 
 
-# 指定されたインデックスの引数を float32 として取得する
+# Get the argument at the specified index as a float32
 proc getFloat32*(self:Request, index:int): float32 =
   ## Get the argument at the specified index as a float32
   assert self.values[index].kind == ctFloat32, "Expected float32 type, got: " & $self.values[index].kind
   return self.values[index].float32Val
 
 
-# 指定されたインデックスの引数を float64 として取得する
+# Get the argument at the specified index as a float64
 proc getFloat64*(self:Request, index:int): float64 =
   ## Get the argument at the specified index as a float64
   assert self.values[index].kind == ctFloat64, "Expected float64 type, got: " & $self.values[index].kind
   return self.values[index].float64Val
 
 
-# 指定されたインデックスの引数を文字列として取得する
+# Get the argument at the specified index as a string
 proc getStr*(self:Request, index:int): string =
   ## Get the argument at the specified index as a string
   assert self.values[index].kind == ctText, "Expected text type, got: " & $self.values[index].kind
   return self.values[index].textVal
 
 
-# 指定されたインデックスの引数を Principal として取得する
+# Get the argument at the specified index as a Principal
 proc getPrincipal*(self:Request, index:int): Principal =
   ## Get the argument at the specified index as a principal
   assert self.values[index].kind == ctPrincipal, "Expected principal type, got: " & $self.values[index].kind
   return self.values[index].principalVal
 
 
-# 指定されたインデックスの引数を blob として取得する
+# Get the argument at the specified index as a blob
 proc getBlob*(self:Request, index:int): seq[uint8] =
   ## Get the argument at the specified index as a blob (accepts both ctBlob and ctVec of nat8)
   case self.values[index].kind:
   of ctBlob:
     return self.values[index].blobVal
   of ctVec:
-    # vec nat8として受信された場合は、各要素からbyte列を構築
+    # If received as vec nat8, construct a byte array from each element
     var arr = newSeq[uint8](self.values[index].vecVal.len)
     for i, val in self.values[index].vecVal:
       assert val.kind == ctNat8, "Vector elements must be nat8 for blob conversion"
@@ -142,7 +142,7 @@ proc getBlob*(self:Request, index:int): seq[uint8] =
     assert false, "Expected blob or vec nat8, got: " & $self.values[index].kind
 
 
-# 指定されたインデックスの引数を Option として取得する
+# Get the argument at the specified index as an Option
 proc getOpt*(self:Request, index:int): Option[CandidValue] =
   ## Get the argument at the specified index as an optional value
   assert self.values[index].kind == ctOpt, "Expected opt type, got: " & $self.values[index].kind
@@ -152,21 +152,21 @@ proc getOpt*(self:Request, index:int): Option[CandidValue] =
     return none(CandidValue)
 
 
-# 指定されたインデックスの引数を Vector として取得する
+# Get the argument at the specified index as a Vector
 proc getVec*(self:Request, index:int): seq[CandidValue] =
   ## Get the argument at the specified index as a vector
   assert self.values[index].kind == ctVec, "Expected vec type, got: " & $self.values[index].kind
   return self.values[index].vecVal
 
 
-# 指定されたインデックスの引数を Variant として取得する
+# Get the argument at the specified index as a Variant
 proc getVariant*(self:Request, index:int): CandidVariant =
   ## Get the argument at the specified index as a variant
   assert self.values[index].kind == ctVariant, "Expected variant type, got: " & $self.values[index].kind
   return self.values[index].variantVal
 
 
-# 指定されたインデックスの引数を Function として取得する
+# Get the argument at the specified index as a Function
 proc getFunc*(self:Request, index:int): CandidFunc =
   ## Get the argument at the specified index as a function
   assert self.values[index].kind == ctFunc, "Expected func type, got: " & $self.values[index].kind
@@ -182,10 +182,10 @@ proc getService*(self:Request, index:int): Principal =
 proc getEmpty*(self:Request, index:int) =
   ## Get the argument at the specified index as empty (validation only)
   assert self.values[index].kind == ctEmpty, "Expected empty type, got: " & $self.values[index].kind
-  # Empty型は値を持たないため、型チェックのみ実行
+  # Empty type has no value, only type check is performed
 
 
-# 指定されたインデックスの引数を Record として取得する
+# Get the argument at the specified index as a Record
 proc getRecord*(self:Request, index:int): CandidRecord =
   ## Get the argument at the specified index as a record
   assert self.values[index].kind == ctRecord, "Expected record type, got: " & $self.values[index].kind
@@ -193,7 +193,7 @@ proc getRecord*(self:Request, index:int): CandidRecord =
 
 
 # ================================================================================
-# Enum型サポート関数
+# Enum Type Support Functions
 # ================================================================================
 
 proc getEnum*[T: enum](self: Request, index: int, enumType: typedesc[T]): T =
@@ -214,9 +214,9 @@ proc getEnum*[T: enum](self: Request, index: int, enumType: typedesc[T]): T =
 
 
 # ================================================================================
-# テスト用ヘルパー関数
+# Test Helper Functions
 # ================================================================================
 
 proc newMockRequest*(values: seq[CandidValue]): Request =
-  ## テスト用のRequestオブジェクトを作成
+  ## Creates a Request object for testing
   Request(values: values)

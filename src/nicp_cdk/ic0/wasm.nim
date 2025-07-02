@@ -1,6 +1,6 @@
 import std/macros
 
-# 引用
+# Reference
 # https://github.com/yglukhov/wasmrt/blob/master/wasmrt.nim#L4-L10
 
 macro exportwasm*(p: untyped): untyped =

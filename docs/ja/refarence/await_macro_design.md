@@ -229,7 +229,7 @@ proc getPublicKey() {.update.} =
 
 ```nim
 import asyncwasm/asyncdipatch
-import nicp_cdk/canisters/async_management_canister
+import nicp_cdk/canisters/management_canister
 
 proc getPublicKey() {.update, async.} =
   let args = EcdsaPublicKeyArgs(...)
@@ -261,7 +261,7 @@ import std/asyncfutures
 ```
 
 #### 非同期化した外部キャニスターの呼び出し
-**`src/nicp_cdk/canisters/async_management_canister.nim`**
+**`src/nicp_cdk/canisters/management_canister.nim`**
 ```nim
 import std/options
 import std/asyncfutures
@@ -332,7 +332,7 @@ let asyncManagementCanister* = ManagementCanister()
 import std/options
 import std/asyncfutures
 import ../../../../src/nicp_cdk
-import ../../../../src/nicp_cdk/canisters/async_management_canister
+import ../../../../src/nicp_cdk/canisters/management_canister
 
 proc getPublicKey() {.update, async.} =
   let arg = EcdsaPublicKeyArgs(

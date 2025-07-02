@@ -9,14 +9,14 @@ import ../candid_types
 
 type 
   # ================================================================================
-  # Candid Message Decoder/Encoder 共通型
+  # Common types for Candid Message Decoder/Encoder
   # ================================================================================
   
-  # 型テーブルエントリを表す型
+  # Type representing a type table entry
   TypeTableEntry* = ref object
     case kind*: CandidType
     of ctRecord:
-      recordFields*: seq[tuple[hash: uint32, fieldType: int]]  # int は型テーブルインデックスまたは負の型コード
+      recordFields*: seq[tuple[hash: uint32, fieldType: int]]  # int is a type table index or a negative type code
     of ctVariant:
       variantFields*: seq[tuple[hash: uint32, fieldType: int]]
     of ctOpt:
@@ -24,7 +24,7 @@ type
     of ctVec:
       vecElementType*: int
     of ctBlob:
-      discard  # BlobはVecと同じ処理だが、型情報は異なる
+      discard  # Blob is processed like Vec, but type info is different
     of ctFunc:
       funcArgs*: seq[int]
       funcReturns*: seq[int]
@@ -34,42 +34,42 @@ type
     else:
       discard
 
-  # デコード結果を格納する型
+  # Type to store decoding results
   CandidDecodeResult* = object
     typeTable*: seq[TypeTableEntry]
     values*: seq[CandidValue]
 
-  # 型テーブル構築用の型情報
+  # Type information for type table construction
   TypeDescriptor* = ref object
     case kind*: CandidType
     of ctRecord:
-      recordFields*: seq[tuple[hash: uint32, fieldType: TypeDescriptor]]  # ハッシュ値を直接保持
+      recordFields*: seq[tuple[hash: uint32, fieldType: TypeDescriptor]]  # Directly holds hash values
     of ctVariant:
-      variantFields*: seq[tuple[hash: uint32, fieldType: TypeDescriptor]]  # ハッシュ値を直接保持
+      variantFields*: seq[tuple[hash: uint32, fieldType: TypeDescriptor]]  # Directly holds hash values
     of ctOpt:
       optInnerType*: TypeDescriptor
     of ctVec:
       vecElementType*: TypeDescriptor
     of ctBlob:
-      discard  # BlobはVecと同じ処理だが、型情報は異なる
+      discard  # Blob is processed like Vec, but type info is different
     of ctFunc:
       funcArgs*: seq[TypeDescriptor]
       funcReturns*: seq[TypeDescriptor]
       funcAnnotations*: seq[byte]
     of ctService:
-      serviceMethods*: seq[tuple[hash: uint32, methodType: TypeDescriptor]]  # ハッシュ値を直接保持
+      serviceMethods*: seq[tuple[hash: uint32, methodType: TypeDescriptor]]  # Directly holds hash values
     else:
       discard
 
-  # 型テーブル構築時の作業用データ
+  # Working data for type table construction
   TypeBuilder* = object
     typeTable*: seq[TypeTableEntry]
-    typeIndexMap*: Table[string, int]  # 型のハッシュ→インデックスのマップ
+    typeIndexMap*: Table[string, int]  # Map from type hash to index
 
-# デコードエラー
+# Decoding error
 type CandidDecodeError* = object of CatchableError
 
 
 proc `$`*(entry: TypeTableEntry): string =
-  ## TypeTableEntry を文字列に変換する
+  ## Converts TypeTableEntry to a string
   result = $entry.kind

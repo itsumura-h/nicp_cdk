@@ -4,7 +4,7 @@ import std/sequtils
 import std/strutils
 import std/tables
 import ../../../../src/nicp_cdk
-import ../../../../src/nicp_cdk/canisters/async_management_canister
+import ../../../../src/nicp_cdk/canisters/management_canister
 
 
 var keys = initTable[Principal, string]()
@@ -13,13 +13,11 @@ proc getNewPublicKey*() {.async.} =
   let caller = Msg.caller()
 
   if keys.hasKey(caller):
-    echo "=== getPublicKeyAsync: already has key ==="
     reply(keys[caller])
     return
 
-  echo "=== getPublicKeyAsync: no key ==="
   let arg = EcdsaPublicKeyArgs(
-    canister_id: Principal.fromText("be2us-64aaa-aaaaa-qaabq-cai").some(),
+    canister_id: Principal.fromText("bd3sg-teaaa-aaaaa-qaaba-cai").some(),
     derivation_path: @[caller.bytes],
     key_id: EcdsaKeyId(
       curve: EcdsaCurve.secp256k1,
