@@ -11,4 +11,4 @@ import ./nicp_cdk/ic_types/candid_types; export candid_types;
 import ./nicp_cdk/ic_types/candid_funcs; export candid_funcs;
 import ./nicp_cdk/ic_api; export ic_api;
 import ./nicp_cdk/async/ic_async; export ic_async;
-import ./nicp_cdk/canisters/async_management_canister; export async_management_canister;
+import ./nicp_cdk/canisters/management_canister; export management_canister;

@@ -4,7 +4,7 @@ import std/sequtils
 import std/strutils
 import std/tables
 import ../../../../src/nicp_cdk
-import ../../../../src/nicp_cdk/canisters/async_management_canister
+import ../../../../src/nicp_cdk/canisters/management_canister
 
 
 var keys = initTable[Principal, string]()
