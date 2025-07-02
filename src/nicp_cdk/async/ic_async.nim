@@ -3,34 +3,34 @@ import std/asyncfutures
 import std/strutils
 
 # -----------------------------------------------------------------------------
-#  async/await を再エクスポート
+#  Re-export async/await
 # -----------------------------------------------------------------------------
 export asyncmacro, asyncfutures
 
 # -----------------------------------------------------------------------------
-#  ICP System API とのブリッジ
+#  Bridge to ICP System API
 # -----------------------------------------------------------------------------
 
 import ../ic0/ic0
-import ../reply  # 既存の reply プロシージャ群を利用
-import ../ic_types/candid_types  # ptrToInt を利用
+import ../reply  # Utilize existing reply procedures
+import ../ic_types/candid_types  # Utilize ptrToInt
 
-export reply  # ライブラリを使う側で `reply()` が見えるように再エクスポート
+export reply  # Re-export so `reply()` is visible to library users
 
 # -----------------------------------------------------------------------------
-#  reject(_: string) ― Candid Text を返してエラー応答
+#  reject(_: string) - Respond with an error by returning Candid Text
 # -----------------------------------------------------------------------------
 
 proc reject*(message: string) {.noreturn, inline.} =
-  ## 指定したメッセージで現在の呼び出しを reject する。
+  ## Rejects the current call with the specified message.
   ##
-  ##   * message: UTF-8 文字列をそのままエラー本文として送信します。
+  ##   * message: The UTF-8 string will be sent as the error body.
   ##
-  ## 返り値はなく、呼び出し後は Wasm 実行が trap します（戻ってこない）。
+  ## This function does not return; Wasm execution will trap after its call.
   ic0_msg_reject(ptrToInt(addr message[0]), message.len)
 
 # -----------------------------------------------------------------------------
-#  便利関数: reject で数値や bool などを送る場合は文字列化して reject
+#  Utility function: Reject with stringified numeric or boolean values
 # -----------------------------------------------------------------------------
 
 proc reject*(value: bool) {.inline, noreturn.} =

@@ -12,8 +12,8 @@ proc replyNull*() =
   ic0_msg_reply()
 
 proc replyEmpty*() =
-  # Candidの() -> ()は空のタプルを意味する
-  # 空の値リストでCandidメッセージをエンコード
+  # Candid's () -> () signifies an empty tuple.
+  # Encode Candid message with an empty list of values.
   let encoded = encodeCandidMessage(@[])
   ic0_msg_reply_data_append(ptrToInt(addr encoded[0]), encoded.len)
   ic0_msg_reply()
@@ -194,7 +194,7 @@ proc reply*(msg: object) =
   ic0_msg_reply()
 
 # ================================================================================
-# Enum型サポート関数
+# Enum Type Support Functions
 # ================================================================================
 
 proc reply*(msg: CandidValue) =
@@ -207,12 +207,12 @@ proc reply*(msg: CandidValue) =
 proc reply*[T: enum](enumValue: T) =
   ## Reply with an enum value (automatically converted to Variant)
   try:
-    let value = newCandidVariant(enumValue)  # Enum→Variant変換
+    let value = newCandidVariant(enumValue)  # Convert Enum to Variant
     let encoded = encodeCandidMessage(@[value])
     ic0_msg_reply_data_append(ptrToInt(addr encoded[0]), encoded.len)
     ic0_msg_reply()
   except ValueError as e:
-    # Enum変換エラーの場合、エラーメッセージを返す
+    # If enum conversion fails, return an error message
     let errorText = "Enum conversion error: " & e.msg
     let errorValue = newCandidText(errorText)
     let encoded = encodeCandidMessage(@[errorValue])

@@ -2,44 +2,45 @@ import ../ic0/ic0
 import ../ic_types/ic_principal
 import ../ic_types/candid_types
 import ../ic_types/candid_message/candid_encode
+import ./async_management_canister
 
 
-# ecdsa_public_key の呼び出し結果を処理するコールバック
+# Callback to handle the result of `ecdsa_public_key` call
 proc onPublicKeyReply(env: uint32) {.exportc.} =
   echo "=== onPublicKeyReply start ==="
-  let size = ic0_msg_arg_data_size() # 応答データのサイズ取得
+  let size = ic0_msg_arg_data_size() # Get reply data size
   echo "size: ", $size
   var buf = newSeq[uint8](size)              
-  # 応答データ（公開鍵とチェインコード）のコピー
+  # Copy reply data (public key and chain code)
   ic0_msg_arg_data_copy(ptrToInt(addr buf[0]), 0, size)
   echo "buf: ", buf.toString()
-  # ※ここでbufには EcdsaPublicKeyResult のCandidエンコードが格納される
-  # 必要に応じて buf から公開鍵bytesとチェインコードbytesをデコード
-  # 例では単にそのまま呼び出し元に転送
-  ic0_msg_reply_data_append(ptrToInt(addr buf[0]), size) # データを返信メッセージにセット
+  # Note: buf contains the Candid encoding of EcdsaPublicKeyResult here.
+  # Decode public key bytes and chain code bytes from buf as needed.
+  # For this example, simply forward to the caller.
+  ic0_msg_reply_data_append(ptrToInt(addr buf[0]), size) # Set data to reply message
   ic0_msg_reply()         
   echo "=== onPublicKeyReply end ==="
-  # 元の呼び出し元に返信を返す
+  # Return reply to the original caller
 
 
-# ecdsa_public_key の呼び出し結果を処理するコールバック
+# Callback to handle the rejection of `ecdsa_public_key` call
 proc onPublicKeyReject(env: uint32) {.exportc.} =
   echo "=== onPublicKeyReject start ==="
   let err_size = ic0_msg_arg_data_size()
   var err_buf = newSeq[uint8](err_size)
-  ic0_msg_arg_data_copy(ptrToInt(addr err_buf[0]), 0, err_size) # エラー内容の取得
+  ic0_msg_arg_data_copy(ptrToInt(addr err_buf[0]), 0, err_size) # Get error content
   ic0_trap(cast[int](err_buf.addr), err_size)
   echo "=== onPublicKeyReject end ==="
 
 
 proc fetchECDSAPublicKey(arg: EcdsaPublicKeyArgs) =
   echo "=== fetchECDSAPublicKey start ==="
-  ## 1. 管理キャニスター "aaaaa-aa" の Principal（空のバイト列）を明示
-  let mgmtPrincipalBytes: seq[uint8] = @[] # "aaaaa-aa" のバイナリは空
+  ## 1. Explicitly specify the Principal of the management canister "aaaaa-aa" (empty byte sequence)
+  let mgmtPrincipalBytes: seq[uint8] = @[] # The binary of "aaaaa-aa" is empty
   let destPtr   = if mgmtPrincipalBytes.len > 0: mgmtPrincipalBytes[0].addr else: nil
   let destLen   = mgmtPrincipalBytes.len # 0
 
-  ## 2. 管理キャニスター呼び出しの設定
+  ## 2. Set up the call to the management canister
   let methodName = "ecdsa_public_key".cstring
   ic0_call_new(
     callee_src = cast[int](destPtr),
@@ -52,7 +53,7 @@ proc fetchECDSAPublicKey(arg: EcdsaPublicKeyArgs) =
     reject_env = 0
   )
 
-  ## 3. 引数データを添付して実行
+  ## 3. Append argument data and perform the call
   let candidValue = newCandidRecord(arg)
   let encoded = encodeCandidMessage(@[candidValue])
   ic0_call_data_append(ptrToInt(addr encoded[0]), encoded.len)

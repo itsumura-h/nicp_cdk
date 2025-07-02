@@ -14,7 +14,7 @@ import ./candid_message_types
 # Private Procedures
 # ================================================================================
 proc getTypeSignature(typeDesc: TypeDescriptor): string =
-  ## 型の一意な文字列表現を生成（重複除去用）
+  ## Generates a unique string representation of the type (for deduplication)
   case typeDesc.kind:
   of ctRecord:
     result = "record{"
@@ -53,63 +53,63 @@ proc getTypeSignature(typeDesc: TypeDescriptor): string =
       result.add($rowMethod.hash & ":" & getTypeSignature(rowMethod.methodType) & ";")
     result.add("}")
   else:
-    # 基本型や未処理の型のフォールバック
+    # Fallback for primitive or unprocessed types
     result = $typeDesc.kind
 
 
 
 proc inferTypeDescriptor(value: CandidValue): TypeDescriptor =
-  ## CandidValueから型記述子を推論
+  ## Infers type descriptor from CandidValue
   result = TypeDescriptor(kind: value.kind)
   case value.kind:
   of ctRecord:
     result.recordFields = @[]
     for fieldName, fieldValue in value.recordVal.fields:
-      # フィールド名からハッシュ値を計算
+      # Calculate hash value from field name
       let fieldHash = candidHash(fieldName)
       result.recordFields.add((hash: fieldHash, fieldType: inferTypeDescriptor(fieldValue)))
   of ctVariant:
-    # バリアントの場合、選択されたタグのみから型を推論
+    # For variants, infer type only from the selected tag
     result.variantFields = @[(hash: value.variantVal.tag, fieldType: inferTypeDescriptor(value.variantVal.value))]
   of ctOpt:
     if value.optVal.isSome:
       result.optInnerType = inferTypeDescriptor(value.optVal.get())
     else:
-      # null値の場合、内部型を推論できないため、とりあえずnullとする
+      # If null value, inner type cannot be inferred, so assume null for now
       result.optInnerType = TypeDescriptor(kind: ctNull)
   of ctVec:
     if value.vecVal.len > 0:
       let firstElement = value.vecVal[0]
       if firstElement.kind == ctBlob:
-        # vec blob の場合、要素はblob型（これはvec nat8として扱われる）
+        # For vec blob, elements are blob type (treated as vec nat8)
         result.vecElementType = TypeDescriptor(kind: ctVec, vecElementType: TypeDescriptor(kind: ctNat8))
       else:
         result.vecElementType = inferTypeDescriptor(firstElement)
     else:
-      # 空ベクタの場合、要素型を推論できないため、emptyとする
+      # If empty vector, element type cannot be inferred, so assume empty
       result.vecElementType = TypeDescriptor(kind: ctEmpty)
   of ctBlob:
-    # Blobは常にvec nat8として処理される
+    # Blob is always processed as vec nat8
     discard
   else:
     discard
 
 
 proc addTypeToTable(builder: var TypeBuilder, typeDesc: TypeDescriptor): int =
-  ## 型テーブルに型を追加し、インデックスを返す（重複チェック付き）
+  ## Adds type to table and returns index (with duplicate check)
   let signature = getTypeSignature(typeDesc)
   if signature in builder.typeIndexMap:
     return builder.typeIndexMap[signature]
   
-  # 新しい型エントリを作成
+  # Create new type entry
   let newIndex = builder.typeTable.len
   builder.typeIndexMap[signature] = newIndex
   
-  # まず空のエントリを追加してインデックスを確保
+  # First, add empty entry to ensure index
   var entry = TypeTableEntry(kind: typeDesc.kind)
   builder.typeTable.add(entry)
   
-  # その後詳細を設定
+  # Then, set details
   entry = TypeTableEntry(kind: typeDesc.kind)
   
   case typeDesc.kind:
@@ -151,7 +151,7 @@ proc addTypeToTable(builder: var TypeBuilder, typeDesc: TypeDescriptor): int =
       addTypeToTable(builder, typeDesc.vecElementType)
   
   of ctBlob:
-    # Blobはvec nat8として処理される
+    # Blob is processed as vec nat8
     discard
   
   of ctFunc:
@@ -185,16 +185,16 @@ proc addTypeToTable(builder: var TypeBuilder, typeDesc: TypeDescriptor): int =
   else:
     discard
   
-  # エントリの詳細を更新
+  # Update entry details
   builder.typeTable[newIndex] = entry
   return newIndex
 
 
 proc encodeTypeTableEntry(entry: TypeTableEntry): seq[byte] =
-  ## 型テーブルエントリをエンコード
+  ## Encodes type table entry
   result = @[]
   
-  # 型コードをSLEB128でエンコード
+  # Encode type code with SLEB128
   let typeCode = typeCodeFromCandidType(entry.kind)
   result.add(encodeSLEB128(int32(typeCode)))
   
@@ -218,7 +218,7 @@ proc encodeTypeTableEntry(entry: TypeTableEntry): seq[byte] =
     result.add(encodeSLEB128(int32(entry.vecElementType)))
   
   of ctBlob:
-    # Blobはvec nat8として処理されるため、nat8の型コードを出力
+    # Blob is processed as vec nat8, so output nat8 type code
     result.add(encodeSLEB128(int32(typeCodeFromCandidType(ctNat8))))
   
   of ctFunc:
@@ -244,12 +244,12 @@ proc encodeTypeTableEntry(entry: TypeTableEntry): seq[byte] =
 
 
 proc encodePrimitiveValue(value: CandidValue): seq[byte] =
-  ## 基本型の値をエンコード
+  ## Encodes value of primitive type
   result = @[]
   
   case value.kind:
   of ctNull:
-    discard  # nullは値を持たない
+    discard  # null has no value
   
   of ctBool:
     result.add(if value.boolVal: byte(1) else: byte(0))
@@ -297,7 +297,7 @@ proc encodePrimitiveValue(value: CandidValue): seq[byte] =
     littleEndian64(addr result[0], addr val)
   
   of ctFloat:
-    # floatはfloat32として扱う
+    # float is treated as float32
     result.setLen(4)
     var float32Val = float32(value.floatVal)
     littleEndian32(addr result[0], unsafeAddr float32Val)
@@ -317,44 +317,44 @@ proc encodePrimitiveValue(value: CandidValue): seq[byte] =
   
   of ctPrincipal:
     let principalBytes = value.principalVal.bytes
-    result.add(1.byte) # IDフォーム識別子
+    result.add(1.byte) # ID form identifier
     result.add(encodeULEB128(uint(principalBytes.len)))
     result.add(principalBytes)
   
   of ctBlob:
-    # Blobはvec nat8として処理される
+    # Blob is processed as vec nat8
     result.add(encodeULEB128(uint(value.blobVal.len)))
     for byteVal in value.blobVal:
       result.add(byteVal)
   
   of ctReserved:
-    discard  # reservedは値を持たない
+    discard  # reserved has no value
   
   of ctEmpty:
-    discard  # emptyは値を持たない
+    discard  # empty has no value
   
   else:
     raise newException(ValueError, "Not a primitive type: " & $value.kind)
 
 
 proc encodeValue(value: CandidValue, typeRef: int, typeTable: seq[TypeTableEntry]): seq[byte] =
-  ## 値をエンコード（基本型・複合型両対応）
+  ## Encodes value (both primitive and composite types)
   result = @[]
   
   if typeRef < 0:
-    # 基本型
+    # Primitive type
     result.add(encodePrimitiveValue(value))
   else:
-    # 複合型
+    # Composite type
     let typeEntry = typeTable[typeRef]
     case typeEntry.kind:
     of ctRecord:
-      # レコードの各フィールドを型テーブルの順序でエンコード
+      # Encode each field of record in order of type table
       for fieldInfo in typeEntry.recordFields:
         var foundField: bool = false
         var fieldValue: CandidValue
         
-        # レコード内のフィールドを検索（フィールド名のハッシュ値で比較）
+        # Search for field in record (compare by field name hash)
         for fieldName, fieldVal in value.recordVal.fields:
           if candidHash(fieldName) == fieldInfo.hash:
             foundField = true
@@ -367,9 +367,9 @@ proc encodeValue(value: CandidValue, typeRef: int, typeTable: seq[TypeTableEntry
           raise newException(ValueError, "Missing field in record: " & $fieldInfo.hash)
     
     of ctVariant:
-      # valueの種類を確認してからvariantVal にアクセス
+      # Check value type before accessing variantVal
       if value.kind == ctVariant:
-        # 選択されたタグのインデックスを探す
+        # Find index of selected tag
         var tagIndex = -1
         for i, fieldInfo in typeEntry.variantFields:
           if fieldInfo.hash == value.variantVal.tag:
@@ -394,24 +394,24 @@ proc encodeValue(value: CandidValue, typeRef: int, typeTable: seq[TypeTableEntry
     
     of ctVec:
       if value.kind == ctBlob:
-        # ctBlobの場合は特別処理（vec nat8として処理）
+        # Special case for ctBlob (processed as vec nat8)
         result.add(encodeULEB128(uint(value.blobVal.len)))
         for byteVal in value.blobVal:
           result.add(byteVal)
       else:
-        # 通常のvec処理
+        # Normal vec processing
         result.add(encodeULEB128(uint(value.vecVal.len)))
         for element in value.vecVal:
           result.add(encodeValue(element, typeEntry.vecElementType, typeTable))
     
     of ctBlob:
-      # ctBlobケースを復活 - vec blob対応のため必要
+      # Special case for ctBlob - necessary for vec blob processing
       result.add(encodeULEB128(uint(value.blobVal.len)))
       for byteVal in value.blobVal:
         result.add(byteVal)
     
     of ctFunc:
-      # 関数参照: principal + method name
+      # Function reference: principal + method name
       let principalBytes = value.funcVal.principal.bytes
       result.add(encodeULEB128(uint(principalBytes.len)))
       result.add(principalBytes)
@@ -421,7 +421,7 @@ proc encodeValue(value: CandidValue, typeRef: int, typeTable: seq[TypeTableEntry
       result.add(methodNameBytes)
     
     of ctService:
-      # サービス参照: principal のみ
+      # Service reference: only principal
       let principalBytes = value.serviceVal.bytes
       result.add(encodeULEB128(uint(principalBytes.len)))
       result.add(principalBytes)
@@ -434,27 +434,27 @@ proc encodeValue(value: CandidValue, typeRef: int, typeTable: seq[TypeTableEntry
 # Public Procedures
 # ================================================================================
 proc encodeCandidMessage*(values: seq[CandidValue]): seq[byte] =
-  ## Candidメッセージをエンコードする
+  ## Encodes Candid message
   result = @[]
   
-  # 1. 魔法数を追加
+  # 1. Add magic number
   result.add(magicHeader)
  
-  # 2. 型テーブルを構築
+  # 2. Build type table
   var builder = TypeBuilder(
     typeTable: @[],
     typeIndexMap: initTable[string, int]()
   )
 
   var valueTypes: seq[int] = @[]
-  # 各値の型を分析して型テーブルに追加
+  # Analyze each value and add to type table
   for value in values:
     let typeRef = if value.kind == ctBlob:
-      # Blobはvec nat8として型テーブルに追加（基本型でなく複合型として扱う）
+      # Add vec type to type table as non-primitive (used as composite type)
       let vecTypeDesc = TypeDescriptor(kind: ctVec, vecElementType: TypeDescriptor(kind: ctNat8))
       addTypeToTable(builder, vecTypeDesc)
     elif value.kind == ctVec and value.vecVal.len > 0 and value.vecVal[0].kind == ctBlob:
-      # vec blob (seq[seq[uint8]]) の場合の特別処理
+      # Special processing for vec blob (seq[seq[uint8]])
       let blobTypeDesc = TypeDescriptor(kind: ctVec, vecElementType: TypeDescriptor(kind: ctNat8))
       let vecBlobTypeDesc = TypeDescriptor(kind: ctVec, vecElementType: blobTypeDesc)
       addTypeToTable(builder, vecBlobTypeDesc)
@@ -465,16 +465,16 @@ proc encodeCandidMessage*(values: seq[CandidValue]): seq[byte] =
       addTypeToTable(builder, typeDesc)
     valueTypes.add(typeRef)
   
-  # 3. 型テーブルをエンコード
+  # 3. Encode type table
   result.add(encodeULEB128(uint(builder.typeTable.len)))
   for entry in builder.typeTable:
     result.add(encodeTypeTableEntry(entry))
 
-  # 4. 型シーケンスをエンコード
+  # 4. Encode type sequence
   result.add(encodeULEB128(uint(valueTypes.len)))
   for typeRef in valueTypes:
     result.add(encodeSLEB128(int32(typeRef)))
   
-  # 5. 値シーケンスをエンコード
+  # 5. Encode value sequence
   for i, value in values:
     result.add(encodeValue(value, valueTypes[i], builder.typeTable))

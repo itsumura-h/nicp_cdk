@@ -10,7 +10,7 @@ import ../ic_principal
 import ./candid_message_types
 
 
-#---- 型タグバイトを CandidType に変換 ----
+#---- Convert Type Tag Byte to CandidType ----
 # proc parseTypeTag(b: byte): CandidType =
 #   ## Parse a byte and return a CandidType
 #   case b
@@ -48,7 +48,7 @@ import ./candid_message_types
 # Private Procedures
 # ================================================================================
 proc typeCodeToCandidType(typeCode: int): CandidType =
-  ## 型コードをCandidTypeに変換する
+  ## Converts a type code to CandidType
   case typeCode:
   of -1: ctNull
   of -2: ctBool
@@ -79,7 +79,7 @@ proc typeCodeToCandidType(typeCode: int): CandidType =
 
 
 proc decodeTypeTableEntry(data: seq[byte], offset: var int): TypeTableEntry =
-  ## 型テーブルエントリをデコードする
+  ## Decodes a type table entry
   let typeCode = decodeSLEB128(data, offset)
   let candidType = typeCodeToCandidType(typeCode)
   
@@ -93,7 +93,7 @@ proc decodeTypeTableEntry(data: seq[byte], offset: var int): TypeTableEntry =
       let hash = uint32(decodeULEB128(data, offset))
       let fieldType = decodeSLEB128(data, offset)
       result.recordFields[i] = (hash: hash, fieldType: fieldType)
-    # フィールドをハッシュ順でソート
+    # Sort fields by hash order
     result.recordFields.sort(proc(a, b: tuple[hash: uint32, fieldType: int]): int = 
       cmp(a.hash, b.hash))
   
@@ -104,7 +104,7 @@ proc decodeTypeTableEntry(data: seq[byte], offset: var int): TypeTableEntry =
       let hash = uint32(decodeULEB128(data, offset))
       let fieldType = decodeSLEB128(data, offset)
       result.variantFields[i] = (hash: hash, fieldType: fieldType)
-    # フィールドをハッシュ順でソート
+    # Sort fields by hash order
     result.variantFields.sort(proc(a, b: tuple[hash: uint32, fieldType: int]): int = 
       cmp(a.hash, b.hash))
   
@@ -115,9 +115,9 @@ proc decodeTypeTableEntry(data: seq[byte], offset: var int): TypeTableEntry =
     result.vecElementType = decodeSLEB128(data, offset)
   
   of ctBlob:
-    # Blobはvec nat8として処理されるが、要素型は確認のみ
+    # Blob is processed as vec nat8, but only the element type is checked
     let elementType = decodeSLEB128(data, offset)
-    # nat8でない場合はエラー（実際にはBlob専用の処理ではないが、一貫性のため）
+    # Error if not nat8 (though not strictly for Blob, for consistency)
     if elementType != typeCodeFromCandidType(ctNat8):
       raise newException(CandidDecodeError, "Blob element type must be nat8")
   
@@ -145,7 +145,7 @@ proc decodeTypeTableEntry(data: seq[byte], offset: var int): TypeTableEntry =
       let hash = uint32(decodeULEB128(data, offset))
       let methodType = decodeSLEB128(data, offset)
       result.serviceMethods[i] = (hash: hash, methodType: methodType)
-    # メソッドをハッシュ順でソート
+    # Sort methods by hash order
     result.serviceMethods.sort(proc(a, b: tuple[hash: uint32, methodType: int]): int = 
       cmp(a.hash, b.hash))
   
@@ -154,12 +154,12 @@ proc decodeTypeTableEntry(data: seq[byte], offset: var int): TypeTableEntry =
 
 
 proc decodePrimitiveValue(data: seq[byte], offset: var int, candidType: CandidType): CandidValue =
-  ## 基本型の値をデコードする
+  ## Decodes a primitive value
   result = CandidValue(kind: candidType)
   
   case candidType:
   of ctNull:
-    discard  # nullは値を持たない
+    discard  # Null has no value
   
   of ctBool:
     if offset >= data.len:
@@ -259,7 +259,7 @@ proc decodePrimitiveValue(data: seq[byte], offset: var int, candidType: CandidTy
     offset += int(textLength)
   
   of ctPrincipal:
-    # IDフォーム識別子をスキップ（値は1のはず）
+    # Skip ID form identifier (value should be 1)
     let idForm = data[offset]
     inc offset
     if idForm != 1:
@@ -273,11 +273,11 @@ proc decodePrimitiveValue(data: seq[byte], offset: var int, candidType: CandidTy
     offset += int(principalLength)
   
   of ctReserved:
-    # reservedは値を無視する
+    # reserved ignores the value
     discard
   
   of ctEmpty:
-    # emptyは値を持たない（何もしない）
+    # empty has no value (does nothing)
     discard
   
   else:
@@ -286,15 +286,15 @@ proc decodePrimitiveValue(data: seq[byte], offset: var int, candidType: CandidTy
 
 proc decodeValue(data: seq[byte], offset: var int, typeRef: int, typeTable: seq[TypeTableEntry]): CandidValue =
   proc decodeCompositeValue(data: seq[byte], offset: var int, typeEntry: TypeTableEntry, typeTable: seq[TypeTableEntry]): CandidValue =
-    ## 複合型の値をデコードする
+    ## Decodes a composite value
     result = CandidValue(kind: typeEntry.kind)
     case typeEntry.kind:
     of ctRecord:
       result.recordVal = CandidRecord(kind: ckRecord, fields: initOrderedTable[string, CandidValue]())
-      # フィールドは型テーブルで定義された順序で値が並んでいる
+      # Fields are ordered by the type table definition
       for fieldInfo in typeEntry.recordFields:
         let fieldValue = decodeValue(data, offset, fieldInfo.fieldType, typeTable)
-        # ハッシュ値をフィールド名として使用（実際の実装では名前の逆引きが必要）
+        # Use hash value as field name (actual implementation requires reverse lookup of names)
         result.recordVal.fields[$fieldInfo.hash] = fieldValue
     of ctVariant:
       let tagIndex = decodeULEB128(data, offset)
@@ -316,39 +316,39 @@ proc decodeValue(data: seq[byte], offset: var int, typeRef: int, typeTable: seq[
       else:
         raise newException(CandidDecodeError, "Invalid optional tag: " & $hasValue)
     of ctVec:
-      # Vec/Blob統一処理: vec nat8とblobを同一内部表現として処理
+      # Vec/Blob unified processing: treat vec nat8 and blob as the same internal representation
       let elementCount = decodeULEB128(data, offset)
       
-      # 要素型がnat8かつ、型がCtVecの場合は統一処理
+      # If element type is nat8 and type is CtVec, apply unified processing
       if typeEntry.vecElementType == typeCodeFromCandidType(ctNat8):
-        # Vec nat8 / Blob 統一内部表現: vecValに統一的に格納
+        # Vec nat8 / Blob unified internal representation: store uniformly in vecVal
         result.vecVal = newSeq[CandidValue](int(elementCount))
         for i in 0..<int(elementCount):
           if offset >= data.len:
             raise newException(CandidDecodeError, "Unexpected end of data in vec")
-          # nat8値をCandidValueとして格納
+          # Store nat8 value as CandidValue
           result.vecVal[i] = CandidValue(kind: ctNat8, nat8Val: uint8(data[offset]))
           offset += 1
       else:
-        # 通常のvec処理（非nat8要素）
+        # Normal vec processing (non-nat8 elements)
         result.vecVal = newSeq[CandidValue](int(elementCount))
         for i in 0..<int(elementCount):
           result.vecVal[i] = decodeValue(data, offset, typeEntry.vecElementType, typeTable)
     
     of ctBlob:
-      # Vec/Blob統一処理: ctBlobケースもvec nat8として統一処理
+      # Vec/Blob unified processing: ctBlob case also processed uniformly as vec nat8
       let elementCount = decodeULEB128(data, offset)
-      # blobもvecValに統一的に格納（後でgetBlob()で適切に変換）
-      result.kind = ctVec  # 内部的にはvecとして処理
+      # Blob also stored uniformly in vecVal (converted appropriately by getBlob() later)
+      result.kind = ctVec  # Internally processed as vec
       result.vecVal = newSeq[CandidValue](int(elementCount))
       for i in 0..<int(elementCount):
         if offset >= data.len:
           raise newException(CandidDecodeError, "Unexpected end of data in blob")
-        # nat8値をCandidValueとして格納
+        # Store nat8 value as CandidValue
         result.vecVal[i] = CandidValue(kind: ctNat8, nat8Val: uint8(data[offset]))
         offset += 1
     of ctFunc:
-      # 関数参照: principal + method name
+      # Function reference: principal + method name
       let principalLength = decodeULEB128(data, offset)
       if offset + int(principalLength) > data.len:
         raise newException(CandidDecodeError, "Unexpected end of data")
@@ -373,7 +373,7 @@ proc decodeValue(data: seq[byte], offset: var int, typeRef: int, typeTable: seq[
       )
       result.funcVal = funcRef
     of ctService:
-      # サービス参照: principal のみ
+      # Service reference: principal only
       let principalLength = decodeULEB128(data, offset)
       if offset + int(principalLength) > data.len:
         raise newException(CandidDecodeError, "Unexpected end of data")
@@ -383,13 +383,13 @@ proc decodeValue(data: seq[byte], offset: var int, typeRef: int, typeTable: seq[
     else:
       raise newException(CandidDecodeError, "Unexpected composite type: " & $typeEntry.kind)
   
-  ## 値をデコードする
+  ## Decodes a value
   if typeRef < 0:
-    # 基本型
+    # Primitive type
     let candidType = typeCodeToCandidType(typeRef)
     return decodePrimitiveValue(data, offset, candidType)
   else:
-    # 複合型（型テーブル参照）
+    # Composite type (type table reference)
     if typeRef >= typeTable.len:
       raise newException(CandidDecodeError, "Invalid type table reference: " & $typeRef)
     
@@ -400,7 +400,7 @@ proc decodeValue(data: seq[byte], offset: var int, typeRef: int, typeTable: seq[
 # Public Procedures
 # ================================================================================
 proc `$`*(decodeResult: CandidDecodeResult): string =
-  ## CandidDecodeResult を文字列に変換する
+  ## Converts CandidDecodeResult to a string
   result = "CandidDecodeResult(\n"
   result.add("  typeTable: [")
   for i, typeEntry in decodeResult.typeTable:
@@ -417,10 +417,10 @@ proc `$`*(decodeResult: CandidDecodeResult): string =
 
 
 proc decodeCandidMessage*(data: seq[byte]): CandidDecodeResult =
-  ## Candidメッセージをデコードする
+  ## Decodes a Candid message
   var offset = 0
   
-  # 1. 魔法数の確認
+  # 1. Check magic header
   if data.len < 4:
     raise newException(CandidDecodeError, "Message too short")
   
@@ -429,26 +429,26 @@ proc decodeCandidMessage*(data: seq[byte]): CandidDecodeResult =
   
   offset = 4
   
-  # 2. 型テーブルのデコード
+  # 2. Decode type table
   let typeTableSize = decodeULEB128(data, offset)
   var typeTable = newSeq[TypeTableEntry](int(typeTableSize))
   
   for i in 0..<int(typeTableSize):
     typeTable[i] = decodeTypeTableEntry(data, offset)
   
-  # 3. 型シーケンスのデコード
+  # 3. Decode type sequence
   let valueCount = decodeULEB128(data, offset)
   var valueTypes = newSeq[int](int(valueCount))
   
   for i in 0..<int(valueCount):
     valueTypes[i] = decodeSLEB128(data, offset)
   
-  # 4. 値シーケンスのデコード
+  # 4. Decode value sequence
   var values = newSeq[CandidValue](int(valueCount))
   for i in 0..<int(valueCount):
     values[i] = decodeValue(data, offset, valueTypes[i], typeTable)
   
-  # 5. 全データが消費されたかチェック
+  # 5. Check if all data has been consumed
   if offset != data.len:
     raise newException(CandidDecodeError, "Unexpected data at end of message")
   

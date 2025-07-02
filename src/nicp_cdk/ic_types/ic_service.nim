@@ -1,9 +1,9 @@
 import ./candid_types
 
-# Service型の定義
+# Definition of Service type
 type Service* = object
 
-# Service型のコンストラクタ関数
+# Constructor function for Service type
 proc new*(_: type Service, principal: string): CandidRecord =
-  ## Principal IDからService型のCandidRecordを生成
+  ## Generates a CandidRecord of Service type from Principal ID
   newCandidService(principal) 
