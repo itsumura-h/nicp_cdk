@@ -266,6 +266,63 @@ proc updateAsync*[T](methodProc: proc(): Future[T]): Future[T] =
   getICExecutor().executeInMessageContext(result)
 ```
 
+#### 4.1.1 グローバル変数を使わないコールバック設計
+
+> **アンチパターン:** `var gPendingPublicKey: Future[...]` のように "いま飛んでいるリクエストは 1 つだけ" という前提で **単一の Future をグローバルに保持** する実装は、簡易サンプルとしては動作しますが以下の理由で推奨しません。
+> 1. 多重リクエストが来ると上書き・メモリリーク・予期せぬ失敗を引き起こす
+> 2. テストでグローバル状態を毎回初期化する必要があり、保守コストが高い
+> 3. ライブラリ化した際にスレッド／メッセージ境界をまたぐ安全性が保証できない
+
+代わりに **コールごとに生成した `Future` を `reply_env` / `reject_env` に埋め込む**、または `callId → Future` のテーブルに登録する方式を採用します。
+これにより
+
+* 何件リクエストを並列に送っても衝突しない
+* `Future` が完了した時点で GC が回収するため後始末が簡単
+* セキュリティ面でもグローバル可変状態を露出しない
+
+低レベル API (env にポインタを渡す版) の最小例は以下です。
+```nim
+proc publicKeyAsync*(arg: EcdsaPublicKeyArgs): Future[EcdsaPublicKeyResult] =
+  ## 管理キャニスターの `ecdsa_public_key` を呼び出す非同期ラッパー
+  let fut = newFuture[EcdsaPublicKeyResult]("publicKey")
+  let ctx = cast[pointer](fut)             # Future への生ポインタを環境に渡す
+
+  ic0_call_new(
+    callee_src = 0, callee_size = 0,
+    name_src   = cast[int](cstring("ecdsa_public_key")),
+    name_size  = 16,
+    reply_fun  = cast[int](onReply),
+    reply_env  = cast[int](ctx),   # ここに渡す
+    reject_fun = cast[int](onReject),
+    reject_env = cast[int](ctx)
+  )
+
+  let encoded = encodeCandidMessage(@[newCandidRecord(arg)])
+  ic0_call_data_append(ptrToInt(addr encoded[0]), encoded.len)
+  discard ic0_call_perform()
+  return fut
+
+proc onReply(env: uint32) {.exportc.} =
+  let fut = cast[Future[EcdsaPublicKeyResult]](env)
+  if not fut.finished:
+    # 受信データをデコードして完了させる
+    let size = ic0_msg_arg_data_size()
+    var buf = newSeq[uint8](size)
+    ic0_msg_arg_data_copy(ptrToInt(addr buf[0]), 0, size)
+    let decoded = decodeCandidMessage(buf)
+    let result  = candidValueToEcdsaPublicKeyResult(decoded.values[0])
+    complete(fut, result)
+
+proc onReject(env: uint32) {.exportc.} =
+  let fut = cast[Future[EcdsaPublicKeyResult]](env)
+  if not fut.finished:
+    fail(fut, newException(ValueError, "ecdsa_public_key rejected"))
+```
+
+上位レベル API (`callAsync`) ではポインタを直接渡さず、`callId` をキーとした `Table[CallId, Future]` に登録しておき、`onReply` 側で `callId` から逆引きして `Future` を完了させる実装でも構いません。これらはいずれも **グローバル変数を使用しない** ことによりスケールと安全性を確保しています。
+
+> **メモ:** 既存のドキュメントに登場するサンプルコードにグローバル変数方式が残っている場合は、順次この方式に置き換えてください。
+
 ### 4.2 タイマーとハートビート
 ```nim
 # src/asyncwasm/ic_timers.nim
