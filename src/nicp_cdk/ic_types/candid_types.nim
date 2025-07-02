@@ -157,8 +157,16 @@ proc `$`*(value: CandidValue): string =
     result = "null"
   of ctBool:
     result = $value.boolVal
-  of ctNat, ctNat8, ctNat16, ctNat32, ctNat64:
+  of ctNat:
     result = $value.natVal
+  of ctNat8:
+    result = $value.nat8Val
+  of ctNat16:
+    result = $value.nat16Val
+  of ctNat32:
+    result = $value.nat32Val
+  of ctNat64:
+    result = $value.nat64Val
   of ctInt:
     result = $value.intVal
   of ctInt8:

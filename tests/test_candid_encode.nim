@@ -1,5 +1,5 @@
 discard """
-  cmd:"nim c --skipUserCfg -d:nimOldCaseObjects tests/test_candid_encode.nim"
+  cmd:"nim c --skipUserCfg -d:nimOldCaseObjects $file"
 """
 # nim c -r --skipUserCfg -d:nimOldCaseObjects tests/test_candid_encode.nim
 
@@ -7,9 +7,10 @@ import std/unittest
 import std/options
 import std/tables
 import std/sequtils
-import ../src/nicp_cdk/ic_types/candid
-import ../src/nicp_cdk/ic_types/ic_record
+import ../src/nicp_cdk/ic_types/candid_message/candid_encode
+import ../src/nicp_cdk/ic_types/candid_message/candid_decode
 import ../src/nicp_cdk/ic_types/ic_principal
+import ../src/nicp_cdk/ic_types/ic_record
 import ../src/nicp_cdk/ic_types/candid_types
 
 proc toBytes*(data: seq[int]): seq[byte] =
@@ -132,10 +133,10 @@ suite("Candid encoding tests"):
     echo "Encoded vec: ", encoded.mapIt(it.int)
 
   test("record with string fields"):
-    # レコード用のテーブルを作成
-    var recordFields = initTable[string, CandidValue]()
-    recordFields["name"] = newCandidText("Alice")
-    recordFields["age"] = newCandidInt(30)
+    let recordFields = %*{
+      "name": "Alice",
+      "age": 30
+    }
     let recordValue = newCandidRecord(recordFields)
     let encoded = encodeCandidMessage(@[recordValue])
     echo "Encoded record: ", encoded.mapIt(it.int)
@@ -177,7 +178,7 @@ suite("Candid round-trip tests"):
     let decoded = decodeCandidMessage(encoded)
     check decoded.values.len == 1
     check decoded.values[0].kind == ctPrincipal
-    check decoded.values[0].principalVal.value == "rrkah-fqaaa-aaaaa-aaaaq-cai"
+    check decoded.values[0].principalVal.text == "rrkah-fqaaa-aaaaa-aaaaq-cai"
     check decoded.values[0].principalVal.bytes == originalPrincipal.bytes
 
   test("encode-decode round trip anonymous principal"):
@@ -187,7 +188,7 @@ suite("Candid round-trip tests"):
     let decoded = decodeCandidMessage(encoded)
     check decoded.values.len == 1
     check decoded.values[0].kind == ctPrincipal
-    check decoded.values[0].principalVal.value == "2vxsx-fae"
+    check decoded.values[0].principalVal.text == "2vxsx-fae"
     check decoded.values[0].principalVal.bytes == originalPrincipal.bytes
 
   test("encode-decode round trip multiple values"):

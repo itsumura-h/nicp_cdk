@@ -138,7 +138,7 @@ suite "ic_variant tests":
     check decoded.values[0].kind == ctVariant
     check decoded.values[0].variantVal.tag == candidHash("owner")
     check decoded.values[0].variantVal.value.kind == ctPrincipal
-    check decoded.values[0].variantVal.value.principalVal.value == "aaaaa-aa"
+    check decoded.values[0].variantVal.value.principalVal.text == "aaaaa-aa"
 
   test "variant with float64 value":
     let floatValue = newCandidFloat64(3.14159)

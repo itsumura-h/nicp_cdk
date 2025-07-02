@@ -1,5 +1,4 @@
 import std/endians
-import std/sequtils
 import std/options
 import std/algorithm
 import std/tables

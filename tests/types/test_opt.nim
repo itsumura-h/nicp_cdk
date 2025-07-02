@@ -112,4 +112,4 @@ suite "ic_opt tests":
     check decoded.values[0].kind == ctOpt
     check decoded.values[0].optVal.isSome()
     check decoded.values[0].optVal.get().kind == ctPrincipal
-    check decoded.values[0].optVal.get().principalVal.value == "aaaaa-aa" 
+    check decoded.values[0].optVal.get().principalVal.text == "aaaaa-aa"

@@ -15,14 +15,14 @@ suite "ic_principal tests":
     let principal = Principal.fromText("aaaaa-aa")
     let principalValue = newCandidValue(principal)
     check principalValue.kind == ctPrincipal
-    check principalValue.principalVal.value == "aaaaa-aa"
+    check principalValue.principalVal.text == "aaaaa-aa"
 
 
   test "newCandidValue with governance canister principal":
     let principal = Principal.fromText("rrkah-fqaaa-aaaaa-aaaaq-cai")
     let principalValue = newCandidValue(principal)
     check principalValue.kind == ctPrincipal
-    check principalValue.principalVal.value == "rrkah-fqaaa-aaaaa-aaaaq-cai"
+    check principalValue.principalVal.text == "rrkah-fqaaa-aaaaa-aaaaq-cai"
 
 
   test "encode with management canister principal":
@@ -52,7 +52,7 @@ suite "ic_principal tests":
     let decoded = decodeCandidMessage(encoded)
     check decoded.values.len == 1
     check decoded.values[0].kind == ctPrincipal
-    check decoded.values[0].principalVal.value == "aaaaa-aa"
+    check decoded.values[0].principalVal.text == "aaaaa-aa"
 
 
   test "encode and decode with governance canister principal":
@@ -62,7 +62,7 @@ suite "ic_principal tests":
     let decoded = decodeCandidMessage(encoded)
     check decoded.values.len == 1
     check decoded.values[0].kind == ctPrincipal
-    check decoded.values[0].principalVal.value == "rrkah-fqaaa-aaaaa-aaaaq-cai"
+    check decoded.values[0].principalVal.text == "rrkah-fqaaa-aaaaa-aaaaq-cai"
 
 
   test "multiple principal values":
@@ -74,9 +74,9 @@ suite "ic_principal tests":
     let decoded = decodeCandidMessage(encoded)
     check decoded.values.len == 2
     check decoded.values[0].kind == ctPrincipal
-    check decoded.values[0].principalVal.value == "aaaaa-aa"
+    check decoded.values[0].principalVal.text == "aaaaa-aa"
     check decoded.values[1].kind == ctPrincipal
-    check decoded.values[1].principalVal.value == "rrkah-fqaaa-aaaaa-aaaaq-cai"
+    check decoded.values[1].principalVal.text == "rrkah-fqaaa-aaaaa-aaaaq-cai"
 
 
   test "principal from blob conversion":
