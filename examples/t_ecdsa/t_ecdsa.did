@@ -1,4 +1,5 @@
 service : {
   "getNewPublicKey" : () -> (text);
   "getPublicKey" : () -> (text) query;
+  "signMessage" : (text) -> (text);
 };

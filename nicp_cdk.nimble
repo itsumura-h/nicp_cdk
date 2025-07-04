@@ -18,7 +18,8 @@ requires "nim >= 2.2.2"
 requires "cligen >= 1.8.3"
 requires "illwill >= 0.4.1"
 requires "base32 >= 0.1.3"
-
+requires "nimcrypto >= 0.6.3"
+requires "secp256k1 >= 0.5.2"
 
 task test, "Run tests":
   exec """testament p "tests/test_*.nim" """

@@ -25,15 +25,15 @@ type
     canister_id*: Option[Principal]
     derivation_path*: seq[seq[uint8]]
     key_id*: EcdsaKeyId
+  
+  EcdsaPublicKeyResult* = object
+    public_key*: seq[uint8]
+    chain_code*: seq[uint8]
 
   EcdsaSignArgs* = object
     message_hash*: seq[uint8]
     derivation_path*: seq[seq[uint8]]
     key_id*: EcdsaKeyId
-
-  EcdsaPublicKeyResult* = object
-    public_key*: seq[uint8]
-    chain_code*: seq[uint8]
 
   SignWithEcdsaResult* = object
     signature*: seq[uint8]

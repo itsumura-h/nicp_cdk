@@ -5,6 +5,9 @@ import std/strutils
 import std/tables
 import ../../../../src/nicp_cdk
 import ../../../../src/nicp_cdk/canisters/management_canister
+import ../../../../src/nicp_cdk/ic_types/candid_types
+import ../../../../src/nicp_cdk/ic_types/ic_record
+import ../../../../src/nicp_cdk/algorithm/eth_address
 
 
 var keys = initTable[Principal, string]()
@@ -26,8 +29,10 @@ proc getNewPublicKey*() {.async.} =
   )
 
   try:
-    let result = await ManagementCanister.publicKey(arg)
-    let publicKey = "0x" & result.public_key.map(proc(x: uint8): string = x.toHex()).join("")
+    let publicKeyResult = await ManagementCanister.publicKey(arg)
+    let publicKeyBytes = publicKeyResult.public_key
+    let publicKey = icpPublicKeyToEvmAddress(publicKeyBytes)
+    echo "publicKey: ", publicKey
     keys[caller] = publicKey
     reply(publicKey)
   except ValueError as e:
@@ -40,3 +45,10 @@ proc getPublicKey*() =
     reply(keys[caller])
   else:
     reject("No key found")
+
+
+proc signMessage*() =
+  let caller = Msg.caller()
+  let request = Request.new() 
+  let message = request.getStr(0)
+  reply(message)
