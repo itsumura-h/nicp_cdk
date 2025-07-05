@@ -55,6 +55,18 @@ proc candidValueToEcdsaPublicKeyResult*(candidValue: CandidValue): EcdsaPublicKe
     chain_code: chainCodeVal
   )
 
+proc candidValueToSignWithEcdsaResult*(candidValue: CandidValue): SignWithEcdsaResult =
+  ## Converts a CandidValue to SignWithEcdsaResult
+  if candidValue.kind != ctRecord:  
+    raise newException(CandidDecodeError, "Expected record type for SignWithEcdsaResult")
+
+  let recordVal = candidValueToCandidRecord(candidValue)
+  let signatureVal = recordVal["signature"].getBlob()
+
+  return SignWithEcdsaResult(
+    signature: signatureVal
+  )
+
 
 # ================================================================================
 # Global callback functions
@@ -80,7 +92,7 @@ proc onCallOuterCanisterReject(env: uint32) {.exportc.} =
   let err_size = ic0_msg_arg_data_size()
   var err_buf = newSeq[uint8](err_size)
   ic0_msg_arg_data_copy(ptrToInt(addr err_buf[0]), 0, err_size)
-  let msg = "ECDSA publicKey call rejected: " & $err_buf
+  let msg = "ECDSA call rejected: " & $err_buf
   fail(fut, newException(ValueError, msg))
 
 
@@ -96,6 +108,38 @@ proc publicKey*(_:type ManagementCanister, arg: EcdsaPublicKeyArgs): Future[Ecds
   let destLen   = mgmtPrincipalBytes.len
 
   let methodName = "ecdsa_public_key".cstring
+  ic0_call_new(
+    callee_src = cast[int](destPtr),
+    callee_size = destLen,
+    name_src = cast[int](methodName),
+    name_size = methodName.len,
+    reply_fun = cast[int](onCallOuterCanister),
+    reply_env = cast[int](result),
+    reject_fun = cast[int](onCallOuterCanisterReject),
+    reject_env = cast[int](result)
+  )
+
+  ## 3. Attach argument data and execute
+  let candidValue = newCandidRecord(arg)
+  let encoded = encodeCandidMessage(@[candidValue])
+  ic0_call_data_append(ptrToInt(addr encoded[0]), encoded.len)
+  let err = ic0_call_perform()
+  if err != 0:
+    let msg = "call_perform failed"
+    fail(result, newException(ValueError, msg))
+    return
+
+
+proc sign*(_:type ManagementCanister, arg: EcdsaSignArgs): Future[SignWithEcdsaResult] =
+  ## Calls `sign_with_ecdsa` of the Management Canister (ic0) and returns the result as a Future.
+
+  result = newFuture[SignWithEcdsaResult]("sign")
+
+  let mgmtPrincipalBytes: seq[uint8] = @[]
+  let destPtr   = if mgmtPrincipalBytes.len > 0: mgmtPrincipalBytes[0].addr else: nil
+  let destLen   = mgmtPrincipalBytes.len
+
+  let methodName = "sign_with_ecdsa".cstring
   ic0_call_new(
     callee_src = cast[int](destPtr),
     callee_size = destLen,

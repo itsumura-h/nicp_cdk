@@ -47,8 +47,19 @@ proc getPublicKey*() =
     reject("No key found")
 
 
-proc signMessage*() =
+proc signMessage*() {.async.} =
   let caller = Msg.caller()
   let request = Request.new() 
   let message = request.getStr(0)
-  reply(message)
+
+  let arg = EcdsaSignArgs(
+    message_hash: message.mapIt(it.uint8),
+    derivation_path: @[caller.bytes],
+    key_id: EcdsaKeyId(
+      curve: EcdsaCurve.secp256k1,
+      name: "dfx_test_key"
+    )
+  )
+  let signatureResult = await ManagementCanister.sign(arg)
+  let signature = "0x" & signatureResult.signature.mapIt(it.toHex(2)).join("")
+  reply(signature)
