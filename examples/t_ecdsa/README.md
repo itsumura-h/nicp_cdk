@@ -19,6 +19,55 @@ dfx help
 dfx canister --help
 ```
 
+## ECDSA Signature Verification
+
+This project includes ECDSA signature verification functionality using secp256k1. The following functions are available:
+
+### Available Functions
+
+1. **`getNewPublicKey()`** - Get a new ECDSA public key for the caller
+2. **`getPublicKey()`** - Get the stored public key for the caller
+3. **`signMessage(text)`** - Sign a message using ECDSA
+4. **`verifySignature(ethereumAddress, message, signature, publicKey)`** - Verify ECDSA signature with Ethereum address
+5. **`verifyWithHash(publicKey, messageHash, signature)`** - Verify ECDSA signature with pre-hashed message
+6. **`verifyWithPublicKey(publicKey, message, signature)`** - Verify ECDSA signature with public key and message
+
+### Usage Examples
+
+#### Verify with Ethereum Address
+```bash
+dfx canister call t_ecdsa verifySignature '("0x742d35Cc6634C0532925a3b8D4C9db96C4b4d8b6", "Hello World", "0x1234...", "0x02...")'
+```
+
+#### Verify with Public Key
+```bash
+dfx canister call t_ecdsa verifyWithPublicKey '("0x02...", "Hello World", "0x1234...")'
+```
+
+#### Verify with Pre-hashed Message
+```bash
+dfx canister call t_ecdsa verifyWithHash '("0x02...", "0x1234...", "0x5678...")'
+```
+
+### Implementation Details
+
+The verification uses:
+- **secp256k1** for ECDSA signature verification
+- **Keccak-256** for message hashing (Ethereum standard)
+- **nimcrypto** for cryptographic operations
+- **status-im/nim-secp256k1** wrapper for secp256k1 operations
+
+### Signature Format
+
+Signatures should be provided in hex format:
+- **64 bytes**: `0x` + 128 hex characters (r + s)
+- **65 bytes**: `0x` + 130 hex characters (r + s + v)
+
+### Public Key Format
+
+Public keys should be provided in compressed format:
+- **33 bytes**: `0x02` or `0x03` + 32 bytes of key data
+
 ## Running the project locally
 
 If you want to test your project locally, you can use the following commands:

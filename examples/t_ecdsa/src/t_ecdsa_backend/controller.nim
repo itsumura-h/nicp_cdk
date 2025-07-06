@@ -8,7 +8,7 @@ import ../../../../src/nicp_cdk/canisters/management_canister
 import ../../../../src/nicp_cdk/ic_types/candid_types
 import ../../../../src/nicp_cdk/ic_types/ic_record
 import ../../../../src/nicp_cdk/algorithm/eth_address
-
+import ./ecdsa
 
 var keys = initTable[Principal, string]()
 
@@ -48,18 +48,25 @@ proc getPublicKey*() =
 
 
 proc signMessage*() {.async.} =
-  let caller = Msg.caller()
+  echo "=== signMessage"
   let request = Request.new() 
   let message = request.getStr(0)
+  echo "message: ", message
+  let caller = Msg.caller()
+  echo "caller: ", caller.text
+
+  let messageHash = keccak256Hash(message)
+  echo "messageHash: ", messageHash
 
   let arg = EcdsaSignArgs(
-    message_hash: message.mapIt(it.uint8),
+    message_hash: messageHash,
     derivation_path: @[caller.bytes],
     key_id: EcdsaKeyId(
       curve: EcdsaCurve.secp256k1,
       name: "dfx_test_key"
     )
   )
+  echo "arg: ", arg
   let signatureResult = await ManagementCanister.sign(arg)
-  let signature = "0x" & signatureResult.signature.mapIt(it.toHex(2)).join("")
+  let signature = "0x" & signatureResult.signature.mapIt(it.toHex(2)).join("").toLowerAscii()
   reply(signature)

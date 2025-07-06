@@ -71,7 +71,7 @@ proc candidValueToSignWithEcdsaResult*(candidValue: CandidValue): SignWithEcdsaR
 # ================================================================================
 # Global callback functions
 # ================================================================================
-proc onCallOuterCanister(env: uint32) {.exportc.} =
+proc onCallPublicKeyCanister(env: uint32) {.exportc.} =
   ## Success callback: Restore Future from env and complete it
   let fut = cast[Future[EcdsaPublicKeyResult]](env)
   if fut == nil or fut.finished:
@@ -82,6 +82,19 @@ proc onCallOuterCanister(env: uint32) {.exportc.} =
   let decoded = decodeCandidMessage(buf)
   let publicKeyResult = candidValueToEcdsaPublicKeyResult(decoded.values[0])
   complete(fut, publicKeyResult)
+
+
+proc onCallSignCanister(env: uint32) {.exportc.} =
+  ## Success callback: Restore Future from env and complete it
+  let fut = cast[Future[SignWithEcdsaResult]](env)
+  if fut == nil or fut.finished:
+    return
+  let size = ic0_msg_arg_data_size()
+  var buf = newSeq[uint8](size)
+  ic0_msg_arg_data_copy(ptrToInt(addr buf[0]), 0, size)
+  let decoded = decodeCandidMessage(buf)
+  let signResult = candidValueToSignWithEcdsaResult(decoded.values[0])
+  complete(fut, signResult)
 
 
 proc onCallOuterCanisterReject(env: uint32) {.exportc.} =
@@ -113,7 +126,7 @@ proc publicKey*(_:type ManagementCanister, arg: EcdsaPublicKeyArgs): Future[Ecds
     callee_size = destLen,
     name_src = cast[int](methodName),
     name_size = methodName.len,
-    reply_fun = cast[int](onCallOuterCanister),
+    reply_fun = cast[int](onCallPublicKeyCanister),
     reply_env = cast[int](result),
     reject_fun = cast[int](onCallOuterCanisterReject),
     reject_env = cast[int](result)
@@ -145,7 +158,7 @@ proc sign*(_:type ManagementCanister, arg: EcdsaSignArgs): Future[SignWithEcdsaR
     callee_size = destLen,
     name_src = cast[int](methodName),
     name_size = methodName.len,
-    reply_fun = cast[int](onCallOuterCanister),
+    reply_fun = cast[int](onCallSignCanister),
     reply_env = cast[int](result),
     reject_fun = cast[int](onCallOuterCanisterReject),
     reject_env = cast[int](result)
