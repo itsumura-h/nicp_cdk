@@ -2,4 +2,5 @@ service : {
   "getNewPublicKey" : () -> (text);
   "getPublicKey" : () -> (text) query;
   "signMessage" : (text) -> (text);
+  "verify": (message:text, signature:text) -> (bool);
 };
