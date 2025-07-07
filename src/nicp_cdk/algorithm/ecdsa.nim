@@ -14,13 +14,10 @@ type
   SignatureFormatError* = object of CatchableError
 
 
-proc toHexString*(data: seq[uint8], prefix: bool = true): string =
+proc toHexString*(data: seq[uint8]): string =
   ## Convert byte sequence to hex string
   let hexStr = data.mapIt(it.toHex(2)).join("")
-  if prefix:
-    return "0x" & hexStr.toLowerAscii()
-  else:
-    return hexStr.toLowerAscii()
+  return hexStr.toLowerAscii()
 
 
 proc hexToBytes*(hexStr: string): seq[uint8] =
@@ -47,42 +44,36 @@ proc keccak256Hash*(message: string): seq[uint8] =
     result[i] = hash.data[i]
 
 
-proc parseSignature*(signatureHex: string): tuple[r: seq[uint8], s: seq[uint8], v: uint8] =
-  ## Parse ECDSA signature from hex string
-  ## Expected format: 0x + 64 bytes (32 bytes r + 32 bytes s) or 65 bytes (r + s + v)
+proc parseSignature*(signatureBytes: seq[uint8]): tuple[r: seq[uint8], s: seq[uint8], v: uint8] =
+  ## Parse ECDSA signature from byte array
+  ## Expected format: 64 bytes (32 bytes r + 32 bytes s) or 65 bytes (r + s + v)
   
-  let cleanSig = if signatureHex.startsWith("0x"): signatureHex[2..^1] else: signatureHex
-  
-  if cleanSig.len != 128 and cleanSig.len != 130:
+  if signatureBytes.len != 64 and signatureBytes.len != 65:
     raise newException(SignatureFormatError, 
-                      "Invalid signature length. Expected 64 or 65 bytes, got " & $cleanSig.len)
+                      "Invalid signature length. Expected 64 or 65 bytes, got " & $signatureBytes.len)
   
   # Parse r and s (first 64 bytes)
-  let rHex = cleanSig[0..63]
-  let sHex = cleanSig[64..127]
-  
-  let r = hexToBytes(rHex)
-  let s = hexToBytes(sHex)
+  let r = signatureBytes[0..31]
+  let s = signatureBytes[32..63]
   
   # Parse v (recovery id) if present
   var v: uint8 = 0
-  if cleanSig.len == 130:
-    let vHex = cleanSig[128..129]
-    v = parseHexInt(vHex).uint8
+  if signatureBytes.len == 65:
+    v = signatureBytes[64]
   
   return (r: r, s: s, v: v)
 
 
 proc verifyEcdsaSignature*(
-  publicKey: seq[uint8], 
-  messageHash: seq[uint8], 
-  signatureHex: string
+  messageHash: seq[uint8],
+  signature: seq[uint8],
+  publicKey: seq[uint8]
 ): bool =
   ## Verify ECDSA signature using secp256k1
   
   try:
     # Parse signature
-    let (r, s, v) = parseSignature(signatureHex)
+    let (r, s, v) = parseSignature(signature)
     
     # Create secp256k1 signature object
     # Combine r and s into a single byte array
@@ -132,8 +123,11 @@ proc verifyEthereumSignature*(
     # Hash the message using Keccak-256 (Ethereum standard)
     let messageHash = keccak256Hash(message)
     
+    # Convert hex signature to bytes
+    let signatureBytes = hexToBytes(signatureHex)
+    
     # Verify the signature
-    return verifyEcdsaSignature(publicKey, messageHash, signatureHex)
+    return verifyEcdsaSignature(publicKey, messageHash, signatureBytes)
     
   except Exception as e:
     echo "Ethereum signature verification error: ", e.msg
@@ -154,8 +148,11 @@ proc verifyWithPublicKey*(
     # Hash the message
     let messageHash = keccak256Hash(message)
     
+    # Convert hex signature to bytes
+    let signatureBytes = hexToBytes(signatureHex)
+    
     # Verify signature
-    return verifyEcdsaSignature(publicKey, messageHash, signatureHex)
+    return verifyEcdsaSignature(publicKey, messageHash, signatureBytes)
     
   except Exception as e:
     echo "Public key verification error: ", e.msg
@@ -176,8 +173,11 @@ proc verifyWithHash*(
     # Convert hex message hash to bytes
     let messageHash = hexToBytes(messageHashHex)
     
+    # Convert hex signature to bytes
+    let signatureBytes = hexToBytes(signatureHex)
+    
     # Verify signature
-    return verifyEcdsaSignature(publicKey, messageHash, signatureHex)
+    return verifyEcdsaSignature(publicKey, messageHash, signatureBytes)
     
   except Exception as e:
     echo "Hash verification error: ", e.msg

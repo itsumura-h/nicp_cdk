@@ -1,7 +1,7 @@
-## Ethereum Address Conversion Module
+## Evm Address Conversion Module
 ## 
 ## This module provides functionality to convert ICP ECDSA public keys 
-## to Ethereum addresses using nimcrypto library.
+## to Evm addresses using nimcrypto library.
 
 import std/strutils
 import std/sequtils
@@ -68,8 +68,8 @@ proc decompressPublicKey(compressedKey: seq[uint8]): seq[uint8] =
                       "secp256k1 decompression failed: " & getCurrentExceptionMsg())
 
 
-proc publicKeyToEthereumAddress(pubKey: seq[uint8]): string =
-  ## Convert public key (compressed or uncompressed) to Ethereum address
+proc publicKeyToEvmAddress(pubKey: seq[uint8]): string =
+  ## Convert public key (compressed or uncompressed) to Evm address
   var uncompressedKey: seq[uint8]
   
   let format = detectPublicKeyFormat(pubKey)
@@ -93,7 +93,7 @@ proc publicKeyToEthereumAddress(pubKey: seq[uint8]): string =
   keccakCtx.update(coordinateData)
   let hash = keccakCtx.finish()
   
-  # Take the last 20 bytes of the hash as Ethereum address
+  # Take the last 20 bytes of the hash as Evm address
   let addressBytes = hash.data[12..^1] # Last 20 bytes
   
   # Convert to hex string with 0x prefix
@@ -101,7 +101,7 @@ proc publicKeyToEthereumAddress(pubKey: seq[uint8]): string =
 
 
 proc icpPublicKeyToEvmAddress*(icpPublicKey: seq[uint8]): string =
-  ## Convert ICP ECDSA public key (33 bytes compressed) to Ethereum address
+  ## Convert ICP ECDSA public key (33 bytes compressed) to Evm address
   ## This is the main function for ICP integration
   if icpPublicKey.len != 33:
     raise newException(EthereumConversionError, 
@@ -111,11 +111,11 @@ proc icpPublicKeyToEvmAddress*(icpPublicKey: seq[uint8]): string =
     raise newException(EthereumConversionError, 
                       "ICP public key must have valid compression prefix (0x02 or 0x03)")
   
-  return publicKeyToEthereumAddress(icpPublicKey)
+  return publicKeyToEvmAddress(icpPublicKey)
 
 
 proc convertToEthereumAddress*(publicKeyHex: string): string =
-  ## Convert hex string public key to Ethereum address
+  ## Convert hex string public key to Evm address
   try:
     # Hex文字列をbytesに変換
     let hexStr = if publicKeyHex.startsWith("0x"): publicKeyHex[2..^1] else: publicKeyHex
