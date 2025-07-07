@@ -102,8 +102,8 @@ COPY --from=wasi-tools /root/.cargo/bin/* /root/.cargo/bin/
 
 ENV PATH $PATH:/root/.cargo/bin
 
-# gemini
 WORKDIR /root
+# Claude code / Gemini CLI
 # node
 # https://nodejs.org/en/download/prebuilt-binaries
 ARG NODE_VERSION=22.17.0
@@ -112,8 +112,6 @@ RUN tar -xvf node-v${NODE_VERSION}-linux-x64.tar.xz
 RUN rm node-v${NODE_VERSION}-linux-x64.tar.xz
 RUN mv node-v${NODE_VERSION}-linux-x64 .node
 ENV PATH $PATH:/root/.node/bin
-# pnpm
-RUN curl -fsSL https://get.pnpm.io/install.sh | bash -s -- -y
 
 RUN git config --global --add safe.directory /application
 WORKDIR /application

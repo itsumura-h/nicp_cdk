@@ -11,4 +11,11 @@ service : {
   ) -> (bool);
   "getEvmAddress": () -> (text) query;
   "signWithEvm": (text) -> (text);
+  "verifyEvm": (
+    record{
+      message:text;
+      signature:text;
+      address:text;
+    }
+  ) -> (bool);
 };

@@ -59,7 +59,7 @@ proc signWithEcdsa*() {.async.} =
   if not keys.hasKey(caller):
     reject("No public key generated")
 
-  let messageHash = keccak256Hash(message)
+  let messageHash = ecdsa.keccak256Hash(message)
   echo "messageHash: ", messageHash
 
   let arg = EcdsaSignArgs(
@@ -81,7 +81,7 @@ proc verifyWithEcdsa*() {.async.} =
   let argRecord = request.getRecord(0)
   let message = argRecord["message"].getStr()
   echo "message: ", message
-  let messageHash = keccak256Hash(message)
+  let messageHash = ecdsa.keccak256Hash(message)
   echo "messageHash: ", messageHash
   let signature = argRecord["signature"].getStr()
   echo "signature: ", signature
@@ -105,14 +105,16 @@ proc getEvmAddress*() =
 
 
 proc signWithEvm*() {.async.} =
+  echo "=== signWithEvm"
   let caller = Msg.caller()
   if not keys.hasKey(caller):
     reject("No public key generated")
 
   let request = Request.new()
   let message = request.getStr(0)
-
-  let messageHash = keccak256Hash(message)
+  echo "message: ", message
+  let messageHash = ethereum.keccak256Hash(message)
+  echo "messageHash: ", messageHash
   let arg = EcdsaSignArgs(
     message_hash: messageHash,
     derivation_path: @[caller.bytes],
@@ -121,6 +123,19 @@ proc signWithEvm*() {.async.} =
       name: "dfx_test_key"
     )
   )
+  echo "arg: ", arg
   let signatureResult = await ManagementCanister.sign(arg)
-  let signature = signatureResult.signature.toHexString()
+  echo "signatureResult: ", signatureResult
+  let signature = signatureResult.signature.toEvmHexString()
+  echo "signature: ", signature
   reply(signature)
+
+
+proc verifyEvm*() =
+  let request = Request.new()
+  let argRecord = request.getRecord(0)
+  let message = argRecord["message"].getStr()
+  let signature = argRecord["signature"].getStr()
+  let evmAddress = argRecord["address"].getStr()
+  let result = verifyEthereumSignatureWithAddress(evmAddress, message, signature)
+  reply(result)

@@ -2,11 +2,117 @@
 
 ## 概要
 
-このドキュメントでは、ICP（Internet Computer Protocol）とEthereum間での暗号学的変換と署名検証について説明します。主に以下の3つの機能を扱います：
+このドキュメントでは、ICP（Internet Computer Protocol）とEthereum間での暗号学的変換と署名検証について説明します。実装は2つのモジュールに分かれています：
 
-1. **ICP公開鍵からEthereumアドレスへの変換**
-2. **Ethereumアドレスから公開鍵への逆変換**
-3. **Ethereum標準に準じた署名検証**
+1. **`ecdsa.nim`**: 純粋なECDSA暗号に基づく署名の作成と検証（0xプレフィックスなし）
+2. **`ethereum.nim`**: EthereumのEIP形式に基づく署名の作成と検証、アドレスの作成（0xプレフィックス付き）
+
+## モジュール設計
+
+### ecdsa.nim - 純粋なECDSA暗号処理
+
+このモジュールは、暗号学的なECDSA署名の基本操作を提供します：
+
+- **入力形式**: 生のバイト配列（0xプレフィックスなし）
+- **出力形式**: 生のバイト配列（0xプレフィックスなし）
+- **用途**: 低レベルな暗号学操作、ICP内部での署名処理
+
+#### 主要機能
+
+```nim
+# 基本的なECDSA署名検証
+proc verifyEcdsaSignature*(
+  messageHash: seq[uint8],
+  signature: seq[uint8],
+  publicKey: seq[uint8]
+): bool
+
+# 16進数文字列からの変換
+proc hexToBytes*(hexStr: string): seq[uint8]
+proc toHexString*(data: seq[uint8]): string
+
+# 署名の解析
+proc parseSignature*(signatureBytes: seq[uint8]): tuple[r: seq[uint8], s: seq[uint8], v: uint8]
+```
+
+#### 使用例
+
+```nim
+import src/nicp_cdk/algorithm/ecdsa
+
+# 生のバイトデータでの検証
+let messageHash = keccak256Hash("Hello, World!")
+let signature = hexToBytes("1234567890abcdef...")  # 0xなし
+let publicKey = hexToBytes("02abcdef...")  # 0xなし
+
+let isValid = verifyEcdsaSignature(messageHash, signature, publicKey)
+echo "Signature valid: ", isValid
+```
+
+### ethereum.nim - Ethereum標準処理
+
+このモジュールは、Ethereumの標準に準拠した署名処理を提供します：
+
+- **入力形式**: 0xプレフィックス付き16進数文字列
+- **出力形式**: 0xプレフィックス付き16進数文字列
+- **用途**: Ethereumアドレスとの連携、Web3アプリケーション
+
+#### 主要機能
+
+```nim
+# Ethereumアドレスを使った署名検証（EIP-191形式）
+proc verifyEthereumSignatureWithAddress*(
+  ethereumAddress: string,
+  message: string,
+  signatureHex: string
+): bool
+
+# 個人化メッセージ検証（personal_sign）- EIP-191形式
+proc verifyPersonalMessageWithAddress*(
+  ethereumAddress: string,
+  message: string,
+  signatureHex: string
+): bool
+
+# 公開鍵からEthereumアドレスへの変換
+proc publicKeyToEthereumAddress*(pubKey: seq[uint8]): string
+
+# 署名からの公開鍵復元
+proc recoverPublicKeyFromSignature*(
+  messageHash: seq[uint8],
+  signatureHex: string,
+  recoveryId: uint8
+): seq[uint8]
+
+# EIP-191形式でのメッセージハッシュ化
+proc keccak256Hash*(data: string): seq[uint8]
+
+# 生のメッセージハッシュ化（EIP-191形式なし）
+proc keccak256HashRaw*(data: string): seq[uint8]
+```
+
+#### 使用例
+
+```nim
+import src/nicp_cdk/algorithm/ethereum
+
+# Ethereumアドレスを使った検証（EIP-191形式）
+let address = "0x742d35Cc6634C0532925a3b8D4C9db96C4b4d8b6"
+let message = "Hello, World!"
+let signature = "0x1234567890abcdef..."  # 0x付き
+
+let isValid = verifyEthereumSignatureWithAddress(address, message, signature)
+echo "Ethereum signature valid: ", isValid
+
+# 個人化メッセージ検証（EIP-191形式）
+let personalValid = verifyPersonalMessageWithAddress(address, message, signature)
+echo "Personal message valid: ", personalValid
+
+# 構造化メッセージ検証（生のハッシュ化）
+let domain = "MyDApp"
+let structuredValid = verifyStructuredMessageWithAddress(address, domain, message, signature)
+echo "Structured message valid: ", structuredValid
+```
 
 ## 1. ICP公開鍵からEthereumアドレスへの変換
 
@@ -20,31 +126,16 @@ Ethereumアドレスは以下の手順で生成されます：
 4. **アドレス抽出**: ハッシュの最後の20バイトを取得
 5. **フォーマット**: `0x`プレフィックスを付けて16進数文字列化
 
-### 1.2 実装例
+### 1.2 実装例（ethereum.nim）
 
 ```nim
-import std/strutils
-import std/sequtils
-import nimcrypto/keccak
-import secp256k1
-
-proc icpPublicKeyToEvmAddress*(icpPublicKey: seq[uint8]): string =
-  ## Convert ICP ECDSA public key (33 bytes compressed) to Ethereum address
-  if icpPublicKey.len != 33:
-    raise newException(EthereumConversionError, 
-                      "ICP public key must be 33 bytes (compressed format)")
-  
-  # Decompress public key using secp256k1
-  let pubkeyResult = SkPublicKey.fromRaw(icpPublicKey)
-  if pubkeyResult.isErr:
-    raise newException(EthereumConversionError, 
-                      "Failed to parse compressed public key")
-  
-  let pubkey = pubkeyResult.get()
-  let uncompressedArray = pubkey.toRaw()
+proc publicKeyToEthereumAddress*(pubKey: seq[uint8]): string =
+  ## Convert public key (65 bytes uncompressed) to Ethereum address
+  if pubKey.len != 65 or pubKey[0] != 0x04:
+    raise newException(EcdsaVerificationError, "Invalid uncompressed key format")
   
   # Remove 0x04 prefix to get 64-byte coordinate data
-  let coordinateData = uncompressedArray[1..^1]
+  let coordinateData = pubKey[1..^1]
   
   # Keccak-256 hash the coordinate data
   var keccakCtx: keccak256
@@ -56,7 +147,7 @@ proc icpPublicKeyToEvmAddress*(icpPublicKey: seq[uint8]): string =
   let addressBytes = hash.data[12..^1]
   
   # Convert to hex string with 0x prefix
-  return "0x" & addressBytes.mapIt(it.toHex(2)).join("").toLowerAscii()
+  return toHexString(addressBytes, true)
 ```
 
 ### 1.3 使用例
@@ -67,11 +158,54 @@ let icpPubKey = @[2'u8, 235, 128, 181, 135, 165, 54, 43, 7, 246, 7, 102,
                    40, 113, 66, 255, 248, 229, 251, 254, 153, 234, 201, 48, 
                    207, 165, 219, 132, 147, 168, 48, 200, 55]
 
-# Ethereumアドレスに変換
-let ethAddress = icpPublicKeyToEvmAddress(icpPubKey)
+# まず非圧縮形式に変換（ecdsa.nimの機能を使用）
+let uncompressedKey = decompressPublicKey(icpPubKey)
+
+# Ethereumアドレスに変換（ethereum.nimの機能）
+let ethAddress = publicKeyToEthereumAddress(uncompressedKey)
 echo "Ethereum address: ", ethAddress
 # 出力: 0xae895ecc3c56b6164afb6ef2c0feb6c860471225
 ```
+
+### 1.4 ICP公開鍵からEthereumアドレス変換の統合API
+
+ICPのECDSA公開鍵（33バイト圧縮形式）から直接Ethereumアドレスを得るには、`icpPublicKeyToEvmAddress` APIを利用します。
+このAPIは内部で公開鍵の非圧縮展開とアドレス変換を一括で行うため、ユーザーは公開鍵形式を意識せずに利用できます。
+
+```nim
+import src/nicp_cdk/algorithm/ethereum
+
+# ICP公開鍵（33バイト圧縮形式）からEthereumアドレスを取得
+let icpPubKey = @[2'u8, 127, 200, 32, 138, 4, 121, 14, 148, 52, 230, 98, 75, 46, 183, 126, 218, 215, 105, 209, 231, 112, 92, 38, 20, 148, 168, 216, 255, 199, 194, 108, 129]
+let ethAddress = icpPublicKeyToEvmAddress(icpPubKey)
+echo ethAddress  # 例: 0xde2679251e56eccb59558fa3e51fc14f19382e86
+```
+
+- **内部処理**: 圧縮公開鍵→非圧縮展開→Keccak-256→下位20バイト→0x16進数文字列
+- **エラー時**: 無効な公開鍵長や展開失敗時は`EthereumConversionError`例外
+
+### 1.5 コントローラ実装例
+
+Canisterコントローラでの利用例：
+
+```nim
+proc getEvmAddress*() =
+  let caller = Msg.caller()
+  if keys.hasKey(caller):
+    let publicKeyBytes = keys[caller]
+    let evmAddress = icpPublicKeyToEvmAddress(publicKeyBytes)
+    reply(evmAddress)
+  else:
+    reject("No public key generated")
+```
+
+---
+
+### 8.4 既知の落とし穴・注意点
+
+- ICPの`public_key`は**必ず33バイト圧縮形式**で返るため、Ethereumアドレス変換時は`icpPublicKeyToEvmAddress`を使うこと。
+- 直接`publicKeyToEthereumAddress`を使うと「Invalid uncompressed key format」エラーになる。
+- 変換APIは内部で`secp256k1`ライブラリを使い、暗号学的に正しい非圧縮展開を行う。
 
 ## 2. Ethereumアドレスを使った署名検証
 
@@ -87,7 +221,7 @@ echo "Ethereum address: ", ethAddress
 
 Ethereumアドレスから公開鍵を直接取得することはできませんが、**署名から公開鍵を復元して検証**する方法があります：
 
-#### 2.2.1 署名からの公開鍵復元と検証
+#### 2.2.1 署名からの公開鍵復元と検証（ethereum.nim）
 
 ```nim
 proc verifyEthereumSignatureWithAddress*(
@@ -96,16 +230,14 @@ proc verifyEthereumSignatureWithAddress*(
   signatureHex: string
 ): bool =
   ## Verify Ethereum signature using address (without needing the public key)
+  ## Uses EIP-191 format for message hashing by default
   
   try:
-    # Hash the message using Keccak-256
+    # Hash the message using Keccak-256 with EIP-191 format
     let messageHash = keccak256Hash(message)
     
-    # Parse signature
-    let (r, s, v) = parseSignature(signatureHex)
-    
-    # Try recovery with different recovery IDs (27 and 28)
-    for recoveryId in [27'u8, 28]:
+    # Try recovery with different recovery IDs (0 and 1)
+    for recoveryId in [0'u8, 1]:
       try:
         # Recover public key from signature
         let recoveredPubKey = recoverPublicKeyFromSignature(messageHash, signatureHex, recoveryId)
@@ -126,7 +258,7 @@ proc verifyEthereumSignatureWithAddress*(
     return false
 ```
 
-#### 2.2.2 公開鍵復元の実装
+#### 2.2.2 公開鍵復元の実装（ethereum.nim）
 
 ```nim
 proc recoverPublicKeyFromSignature*(
@@ -140,18 +272,20 @@ proc recoverPublicKeyFromSignature*(
     # Parse signature
     let (r, s, _) = parseSignature(signatureHex)
     
-    # Create secp256k1 signature object
-    var signatureBytes = newSeq[uint8](64)
+    # Create recoverable signature bytes (65 bytes: r + s + recoveryId)
+    var recoverableSignatureBytes = newSeq[uint8](65)
     for i in 0..<32:
-      signatureBytes[i] = r[i]
+      recoverableSignatureBytes[i] = r[i]
     for i in 0..<32:
-      signatureBytes[i+32] = s[i]
+      recoverableSignatureBytes[i+32] = s[i]
+    recoverableSignatureBytes[64] = recoveryId
     
-    let sigResult = SkSignature.fromRaw(signatureBytes)
-    if sigResult.isErr:
-      raise newException(EcdsaVerificationError, "Invalid signature")
+    # Create secp256k1 recoverable signature object
+    let recoverableSigResult = SkRecoverableSignature.fromRaw(recoverableSignatureBytes)
+    if recoverableSigResult.isErr:
+      raise newException(EcdsaVerificationError, "Invalid recoverable signature")
     
-    let signature = sigResult.get()
+    let recoverableSig = recoverableSigResult.get()
     
     # Recover public key
     var messageArray: array[32, byte]
@@ -159,7 +293,7 @@ proc recoverPublicKeyFromSignature*(
       messageArray[i] = messageHash[i].byte
     let message = SkMessage(messageArray)
     
-    let pubkeyResult = signature.recover(message, recoveryId)
+    let pubkeyResult = recoverableSig.recover(message)
     if pubkeyResult.isErr:
       raise newException(EcdsaVerificationError, "Failed to recover public key")
     
@@ -200,16 +334,13 @@ proc verifyPersonalMessageWithAddress*(
   signatureHex: string
 ): bool =
   ## Verify Ethereum personal_sign message using address
+  ## This function is now equivalent to verifyEthereumSignatureWithAddress
   
-  # Ethereum personal_sign format
-  let personalMessage = "\x19Ethereum Signed Message:\n" & $message.len & message
-  let messageHash = keccak256Hash(personalMessage)
-  
-  # Parse signature
-  let (r, s, v) = parseSignature(signatureHex)
+  # Use the standard EIP-191 format hashing
+  let messageHash = keccak256Hash(message)
   
   # Try recovery with different recovery IDs
-  for recoveryId in [27'u8, 28]:
+  for recoveryId in [0'u8, 1]:
     try:
       let recoveredPubKey = recoverPublicKeyFromSignature(messageHash, signatureHex, recoveryId)
       let recoveredAddress = publicKeyToEthereumAddress(recoveredPubKey)
@@ -233,15 +364,12 @@ proc verifyStructuredMessageWithAddress*(
 ): bool =
   ## Verify structured message (EIP-712 style) using address
   
-  # Create structured message hash
+  # Create structured message hash using raw hashing
   let structuredMessage = domain & message
-  let messageHash = keccak256Hash(structuredMessage)
-  
-  # Parse signature
-  let (r, s, v) = parseSignature(signatureHex)
+  let messageHash = keccak256HashRaw(structuredMessage)
   
   # Try recovery with different recovery IDs
-  for recoveryId in [27'u8, 28]:
+  for recoveryId in [0'u8, 1]:
     try:
       let recoveredPubKey = recoverPublicKeyFromSignature(messageHash, signatureHex, recoveryId)
       let recoveredAddress = publicKeyToEthereumAddress(recoveredPubKey)
@@ -332,22 +460,34 @@ Ethereumの`personal_sign`は以下の形式でメッセージをハッシュ化
 "\x19Ethereum Signed Message:\n" + length(message) + message
 ```
 
-#### 3.2.2 実装例
+#### 3.2.2 実装例（ethereum.nim）
 
 ```nim
-proc createPersonalMessageHash*(message: string): seq[uint8] =
-  ## Create personal_sign message hash (EIP-191 compliant)
+proc keccak256Hash*(data: string): seq[uint8] =
+  ## Hash string data using Keccak-256 with EIP-191 format
+  ## This follows the Ethereum personal_sign standard: "\x19Ethereum Signed Message:\n" + length + message
   
-  # Ethereum personal_sign format
-  let personalMessage = "\x19Ethereum Signed Message:\n" & $message.len & message
+  # EIP-191 personal_sign format
+  let personalMessage = "\x19Ethereum Signed Message:\n" & $data.len & data
   
-  # Hash using Keccak-256
   var keccakCtx: keccak256
   keccakCtx.init()
   keccakCtx.update(personalMessage)
   let hash = keccakCtx.finish()
   
-  # Convert to seq[uint8]
+  result = newSeq[uint8](32)
+  for i in 0..<32:
+    result[i] = hash.data[i]
+
+
+proc keccak256HashRaw*(data: string): seq[uint8] =
+  ## Hash string data using Keccak-256 without EIP-191 format (raw hashing)
+  
+  var keccakCtx: keccak256
+  keccakCtx.init()
+  keccakCtx.update(data)
+  let hash = keccakCtx.finish()
+  
   result = newSeq[uint8](32)
   for i in 0..<32:
     result[i] = hash.data[i]
@@ -356,10 +496,14 @@ proc createPersonalMessageHash*(message: string): seq[uint8] =
 #### 3.2.3 使用例
 
 ```nim
+# EIP-191形式でのメッセージハッシュ化
 let message = "Hello, World!"
-let messageHash = createPersonalMessageHash(message)
-echo "Personal message hash: ", toHexString(messageHash)
-# 出力例: 0x50b9c559b06a5f3bb135b917a8f1678ce67c411c3e2a7b6d8f0b6b0e6b4b8b8
+let messageHash = keccak256Hash(message)  # EIP-191形式
+echo "EIP-191 message hash: ", toHexString(messageHash)
+
+# 生のメッセージハッシュ化
+let rawHash = keccak256HashRaw(message)  # 生のハッシュ化
+echo "Raw message hash: ", toHexString(rawHash)
 ```
 
 ### 3.3 構造化メッセージハッシュ（EIP-712）
@@ -394,16 +538,9 @@ proc createEIP712DomainHash*(
     "verifyingContract": verifyingContract
   }
   
-  # Convert to canonical JSON and hash
+  # Convert to canonical JSON and hash using raw hashing
   let domainJson = $domainData
-  var keccakCtx: keccak256
-  keccakCtx.init()
-  keccakCtx.update(domainJson)
-  let hash = keccakCtx.finish()
-  
-  result = newSeq[uint8](32)
-  for i in 0..<32:
-    result[i] = hash.data[i]
+  return keccak256HashRaw(domainJson)
 
 proc createEIP712MessageHash*(
   domainHash: seq[uint8],
@@ -424,15 +561,9 @@ proc createEIP712MessageHash*(
   for i in 0..<32:
     messageBytes[34 + i] = dataHash[i]
   
-  # Hash the entire message
-  var keccakCtx: keccak256
-  keccakCtx.init()
-  keccakCtx.update(messageBytes)
-  let hash = keccakCtx.finish()
-  
-  result = newSeq[uint8](32)
-  for i in 0..<32:
-    result[i] = hash.data[i]
+  # Hash the entire message using raw hashing
+  let messageStr = messageBytes.mapIt(it.char).join("")
+  return keccak256HashRaw(messageStr)
 ```
 
 #### 3.3.3 使用例
@@ -446,7 +577,7 @@ let domainHash = createEIP712DomainHash(
   verifyingContract = "0x1234567890123456789012345678901234567890"
 )
 
-let dataHash = keccak256Hash("{\"amount\": 100, \"recipient\": \"0x...\"}")
+let dataHash = keccak256HashRaw("{\"amount\": 100, \"recipient\": \"0x...\"}")
 let messageHash = createEIP712MessageHash(domainHash, dataHash)
 
 echo "EIP-712 message hash: ", toHexString(messageHash)
@@ -642,17 +773,17 @@ Ethereumの署名検証は以下の手順で行われます：
 #### 3.8.1 基本的なハッシュ値作成
 
 ```nim
-# 個人化メッセージハッシュの作成
+# EIP-191形式でのメッセージハッシュ化
 let message = "Hello, Ethereum!"
-let personalHash = createPersonalMessageHash(message)
-echo "Personal message hash: ", toHexString(personalHash)
+let eip191Hash = keccak256Hash(message)  # EIP-191形式
+echo "EIP-191 message hash: ", toHexString(eip191Hash)
 
-# 標準メッセージハッシュの作成
-let standardHash = keccak256Hash(message)
-echo "Standard message hash: ", toHexString(standardHash)
+# 生のメッセージハッシュ化
+let rawHash = keccak256HashRaw(message)  # 生のハッシュ化
+echo "Raw message hash: ", toHexString(rawHash)
 
 # ハッシュ値の検証
-let isValid = verifyMessageHash(message, personalHash, "personal")
+let isValid = verifyMessageHash(message, eip191Hash, "personal")
 echo "Hash verification: ", isValid
 ```
 
@@ -667,9 +798,9 @@ let domainHash = createEIP712DomainHash(
   verifyingContract = "0x1234567890123456789012345678901234567890"
 )
 
-# データハッシュの作成
+# データハッシュの作成（生のハッシュ化）
 let dataJson = "{\"amount\": 100, \"recipient\": \"0x742d35Cc6634C0532925a3b8D4C9db96C4b4d8b6\"}"
-let dataHash = keccak256Hash(dataJson)
+let dataHash = keccak256HashRaw(dataJson)
 
 # EIP-712メッセージハッシュの作成
 let eip712Hash = createEIP712MessageHash(domainHash, dataHash)
@@ -719,15 +850,26 @@ import unittest
 
 suite "EVM Hash Creation Tests":
   
-  test "Personal message hash creation":
+  test "EIP-191 message hash creation":
     let message = "Hello, World!"
-    let hash = createPersonalMessageHash(message)
+    let hash = keccak256Hash(message)
     
     check hash.len == 32
     check toHexString(hash).startsWith("0x")
     
     # Verify hash is deterministic
-    let hash2 = createPersonalMessageHash(message)
+    let hash2 = keccak256Hash(message)
+    check hash == hash2
+  
+  test "Raw message hash creation":
+    let message = "Hello, World!"
+    let hash = keccak256HashRaw(message)
+    
+    check hash.len == 32
+    check toHexString(hash).startsWith("0x")
+    
+    # Verify hash is deterministic
+    let hash2 = keccak256HashRaw(message)
     check hash == hash2
   
   test "EIP-712 domain hash creation":
@@ -750,7 +892,7 @@ suite "EVM Hash Creation Tests":
   
   test "Hash verification":
     let message = "Test message"
-    let hash = createPersonalMessageHash(message)
+    let hash = keccak256Hash(message)
     
     let isValid = verifyMessageHash(message, hash, "personal")
     check isValid == true
@@ -777,7 +919,7 @@ proc verifyEthereumSignature*(
     let (r, s, v) = parseSignature(signatureHex)
     
     # Try recovery with different recovery IDs
-    for recoveryId in [27'u8, 28]:
+    for recoveryId in [0'u8, 1]:
       try:
         let recoveredPubKey = recoverPublicKeyFromSignature(messageHash, signatureHex, recoveryId)
         let recoveredAddress = publicKeyToEthereumAddress(recoveredPubKey)
@@ -862,7 +1004,6 @@ requires "nimcrypto >= 0.5.0"
 
 ```nim
 type
-  EthereumConversionError* = object of CatchableError
   EcdsaVerificationError* = object of CatchableError
   SignatureFormatError* = object of CatchableError
 
@@ -1016,3 +1157,52 @@ suite "Integration Tests":
 - **ICP**: ECDSA secp256k1公開鍵（33バイト圧縮形式）
 - **Ethereum**: 標準Ethereumアドレス形式
 - **署名**: 標準ECDSA署名形式（r, s, v）
+
+## 9. モジュール間の連携
+
+### 9.1 データフロー
+
+```
+ICP System → ecdsa.nim → ethereum.nim → Ethereum Network
+     ↓           ↓           ↓
+  Raw bytes → Raw bytes → 0x-prefixed hex
+```
+
+### 9.2 使用例
+
+```nim
+import src/nicp_cdk/algorithm/ecdsa
+import src/nicp_cdk/algorithm/ethereum
+
+# 1. ICPから生の公開鍵を取得
+let icpPublicKey = getIcpPublicKey()  # 33バイト圧縮形式
+
+# 2. ecdsa.nimで非圧縮形式に変換
+let uncompressedKey = decompressPublicKey(icpPublicKey)  # 65バイト
+
+# 3. ethereum.nimでEthereumアドレスに変換
+let ethAddress = publicKeyToEthereumAddress(uncompressedKey)
+
+# 4. 署名検証（Ethereum形式）
+let message = "Hello, World!"
+let signature = "0x1234567890abcdef..."
+let isValid = verifyEthereumSignatureWithAddress(ethAddress, message, signature)
+```
+
+### 9.3 エラーハンドリング
+
+各モジュールは独自のエラー型を定義し、適切なエラーハンドリングを提供します：
+
+```nim
+# ecdsa.nim
+type
+  EcdsaVerificationError* = object of CatchableError
+  SignatureFormatError* = object of CatchableError
+
+# ethereum.nim
+type
+  EcdsaVerificationError* = object of CatchableError
+  SignatureFormatError* = object of CatchableError
+```
+
+この設計により、低レベルな暗号学処理と高レベルなEthereum標準処理を明確に分離し、それぞれの用途に最適化されたAPIを提供しています。

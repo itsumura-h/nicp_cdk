@@ -1,7 +1,8 @@
 ## ECDSA Signature Verification Module
 ## 
-## This module provides functionality to verify ECDSA signatures using secp256k1.
-## It handles Ethereum address verification with message hashing.
+## This module provides pure ECDSA cryptographic operations using secp256k1.
+## It handles raw byte operations without 0x prefixes for low-level cryptographic processing.
+## For Ethereum-specific operations with 0x prefixes, use the ethereum.nim module.
 
 import std/strutils
 import std/sequtils
@@ -15,13 +16,13 @@ type
 
 
 proc toHexString*(data: seq[uint8]): string =
-  ## Convert byte sequence to hex string
+  ## Convert byte sequence to hex string (without 0x prefix)
   let hexStr = data.mapIt(it.toHex(2)).join("")
   return hexStr.toLowerAscii()
 
 
 proc hexToBytes*(hexStr: string): seq[uint8] =
-  ## Convert hex string to byte sequence
+  ## Convert hex string to byte sequence (handles 0x prefix if present)
   let cleanHex = if hexStr.startsWith("0x"): hexStr[2..^1] else: hexStr
   if cleanHex.len mod 2 != 0:
     raise newException(SignatureFormatError, "Invalid hex string length")
@@ -33,7 +34,7 @@ proc hexToBytes*(hexStr: string): seq[uint8] =
 
 
 proc keccak256Hash*(message: string): seq[uint8] =
-  ## Hash message using Keccak-256 (Ethereum standard)
+  ## Hash message using Keccak-256
   var keccakCtx: keccak256
   keccakCtx.init()
   keccakCtx.update(message)
@@ -69,7 +70,7 @@ proc verifyEcdsaSignature*(
   signature: seq[uint8],
   publicKey: seq[uint8]
 ): bool =
-  ## Verify ECDSA signature using secp256k1
+  ## Verify ECDSA signature using secp256k1 (pure cryptographic operation)
   
   try:
     # Parse signature
@@ -111,35 +112,12 @@ proc verifyEcdsaSignature*(
     return false
 
 
-proc verifyEthereumSignature*(
-  ethereumAddress: string,
-  message: string,
-  signatureHex: string,
-  publicKey: seq[uint8]
-): bool =
-  ## Verify Ethereum signature with message and public key
-  
-  try:
-    # Hash the message using Keccak-256 (Ethereum standard)
-    let messageHash = keccak256Hash(message)
-    
-    # Convert hex signature to bytes
-    let signatureBytes = hexToBytes(signatureHex)
-    
-    # Verify the signature
-    return verifyEcdsaSignature(publicKey, messageHash, signatureBytes)
-    
-  except Exception as e:
-    echo "Ethereum signature verification error: ", e.msg
-    return false
-
-
 proc verifyWithPublicKey*(
   publicKeyHex: string,
   message: string,
   signatureHex: string
 ): bool =
-  ## Verify signature using public key in hex format
+  ## Verify signature using public key in hex format (0x prefix optional)
   
   try:
     # Convert hex public key to bytes
@@ -152,7 +130,7 @@ proc verifyWithPublicKey*(
     let signatureBytes = hexToBytes(signatureHex)
     
     # Verify signature
-    return verifyEcdsaSignature(publicKey, messageHash, signatureBytes)
+    return verifyEcdsaSignature(messageHash, signatureBytes, publicKey)
     
   except Exception as e:
     echo "Public key verification error: ", e.msg
@@ -164,7 +142,7 @@ proc verifyWithHash*(
   messageHashHex: string,
   signatureHex: string
 ): bool =
-  ## Verify signature using pre-hashed message
+  ## Verify signature using pre-hashed message (0x prefix optional)
   
   try:
     # Convert hex public key to bytes
@@ -177,38 +155,15 @@ proc verifyWithHash*(
     let signatureBytes = hexToBytes(signatureHex)
     
     # Verify signature
-    return verifyEcdsaSignature(publicKey, messageHash, signatureBytes)
+    return verifyEcdsaSignature(messageHash, signatureBytes, publicKey)
     
   except Exception as e:
     echo "Hash verification error: ", e.msg
     return false
 
 
-# Convenience functions for different input formats
-proc verifyEthereumMessage*(
-  ethereumAddress: string,
-  message: string,
-  signatureHex: string,
-  publicKeyHex: string
-): bool =
-  ## Verify Ethereum message signature with address and public key
-  
-  try:
-    let publicKey = hexToBytes(publicKeyHex)
-    return verifyEthereumSignature(ethereumAddress, message, signatureHex, publicKey)
-  except Exception as e:
-    echo "Ethereum message verification error: ", e.msg
-    return false
-
-
-proc validateEthereumAddress*(address: string): bool =
-  ## Validate Ethereum address format
-  let cleanAddress = if address.startsWith("0x"): address[2..^1] else: address
-  return cleanAddress.len == 40 and cleanAddress.allIt(it in "0123456789abcdefABCDEF")
-
-
 proc validateSignatureFormat*(signatureHex: string): bool =
-  ## Validate signature hex format
+  ## Validate signature hex format (0x prefix optional)
   try:
     let cleanSig = if signatureHex.startsWith("0x"): signatureHex[2..^1] else: signatureHex
     return cleanSig.len == 128 or cleanSig.len == 130
@@ -219,4 +174,4 @@ proc validateSignatureFormat*(signatureHex: string): bool =
 proc createTestSignature*(): string =
   ## Create a test signature for demonstration purposes
   ## This is not a real signature - just for testing the parsing logic
-  return "0x" & "1".repeat(128)  # 64 bytes of 0x01
+  return "1".repeat(128)  # 64 bytes of 0x01 (no 0x prefix)
