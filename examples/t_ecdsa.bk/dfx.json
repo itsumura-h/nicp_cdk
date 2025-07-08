@@ -23,16 +23,6 @@
           "name": "candid:service"
         }
       ]
-    },
-    "t_ecdsa_frontend": {
-      "dependencies": [
-        "t_ecdsa_backend"
-      ],
-      "source": [
-        "src/t_ecdsa_frontend/dist"
-      ],
-      "type": "assets",
-      "workspace": "t_ecdsa_frontend"
     }
   },
   "defaults": {
