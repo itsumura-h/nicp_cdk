@@ -112,6 +112,8 @@ RUN tar -xvf node-v${NODE_VERSION}-linux-x64.tar.xz
 RUN rm node-v${NODE_VERSION}-linux-x64.tar.xz
 RUN mv node-v${NODE_VERSION}-linux-x64 .node
 ENV PATH $PATH:/root/.node/bin
+# pnpm
+RUN curl -fsSL https://get.pnpm.io/install.sh | bash -s -- -y
 
 RUN git config --global --add safe.directory /application
 WORKDIR /application
