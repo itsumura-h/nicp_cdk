@@ -11,7 +11,8 @@
 		"@dfinity/auth-client": "^2.4.1",
 		"preact": "^10.25.3",
 		"preact-iso": "^2.9.2",
-		"preact-render-to-string": "^6.5.13"
+		"preact-render-to-string": "^6.5.13",
+		"viem": "^2.31.7"
 	},
 	"devDependencies": {
 		"@biomejs/biome": "^2.1.1",
