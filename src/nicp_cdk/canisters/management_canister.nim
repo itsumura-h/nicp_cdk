@@ -73,39 +73,71 @@ proc candidValueToSignWithEcdsaResult*(candidValue: CandidValue): SignWithEcdsaR
 # ================================================================================
 proc onCallPublicKeyCanister(env: uint32) {.exportc.} =
   ## Success callback: Restore Future from env and complete it
+  echo "=== onCallPublicKeyCanister called"
   let fut = cast[Future[EcdsaPublicKeyResult]](env)
   if fut == nil or fut.finished:
+    echo "Future is nil or already finished"
     return
-  let size = ic0_msg_arg_data_size()
-  var buf = newSeq[uint8](size)
-  ic0_msg_arg_data_copy(ptrToInt(addr buf[0]), 0, size)
-  let decoded = decodeCandidMessage(buf)
-  let publicKeyResult = candidValueToEcdsaPublicKeyResult(decoded.values[0])
-  complete(fut, publicKeyResult)
+  
+  try:
+    let size = ic0_msg_arg_data_size()
+    echo "Response size: ", size
+    var buf = newSeq[uint8](size)
+    ic0_msg_arg_data_copy(ptrToInt(addr buf[0]), 0, size)
+    let decoded = decodeCandidMessage(buf)
+    let publicKeyResult = candidValueToEcdsaPublicKeyResult(decoded.values[0])
+    echo "Public key result obtained successfully"
+    complete(fut, publicKeyResult)
+  except Exception as e:
+    echo "Error in onCallPublicKeyCanister: ", e.msg
+    fail(fut, e)
 
 
 proc onCallSignCanister(env: uint32) {.exportc.} =
   ## Success callback: Restore Future from env and complete it
+  echo "=== onCallSignCanister called"
   let fut = cast[Future[SignWithEcdsaResult]](env)
   if fut == nil or fut.finished:
+    echo "Future is nil or already finished"
     return
-  let size = ic0_msg_arg_data_size()
-  var buf = newSeq[uint8](size)
-  ic0_msg_arg_data_copy(ptrToInt(addr buf[0]), 0, size)
-  let decoded = decodeCandidMessage(buf)
-  let signResult = candidValueToSignWithEcdsaResult(decoded.values[0])
-  complete(fut, signResult)
+  
+  try:
+    let size = ic0_msg_arg_data_size()
+    echo "Response size: ", size
+    var buf = newSeq[uint8](size)
+    ic0_msg_arg_data_copy(ptrToInt(addr buf[0]), 0, size)
+    let decoded = decodeCandidMessage(buf)
+    let signResult = candidValueToSignWithEcdsaResult(decoded.values[0])
+    echo "Sign result obtained successfully"
+    complete(fut, signResult)
+  except Exception as e:
+    echo "Error in onCallSignCanister: ", e.msg
+    fail(fut, e)
 
 
-proc onCallOuterCanisterReject(env: uint32) {.exportc.} =
-  ## Failure callback: Restore Future from env and fail it
+proc onCallPublicKeyReject(env: uint32) {.exportc.} =
+  ## Failure callback for public key: Restore Future from env and fail it
+  echo "=== onCallPublicKeyReject called"
   let fut = cast[Future[EcdsaPublicKeyResult]](env)
   if fut == nil or fut.finished:
+    echo "Future is nil or already finished"
     return
-  let err_size = ic0_msg_arg_data_size()
-  var err_buf = newSeq[uint8](err_size)
-  ic0_msg_arg_data_copy(ptrToInt(addr err_buf[0]), 0, err_size)
-  let msg = "ECDSA call rejected: " & $err_buf
+  # reject コールバック内では ic0_msg_arg_data_size は使用できない
+  let msg = "ECDSA public key call was rejected by the management canister"
+  echo "Error message: ", msg
+  fail(fut, newException(ValueError, msg))
+
+
+proc onCallSignReject(env: uint32) {.exportc.} =
+  ## Failure callback for sign: Restore Future from env and fail it
+  echo "=== onCallSignReject called"
+  let fut = cast[Future[SignWithEcdsaResult]](env)
+  if fut == nil or fut.finished:
+    echo "Future is nil or already finished"
+    return
+  # reject コールバック内では ic0_msg_arg_data_size は使用できない
+  let msg = "ECDSA sign call was rejected by the management canister"
+  echo "Error message: ", msg
   fail(fut, newException(ValueError, msg))
 
 
@@ -113,6 +145,8 @@ type ManagementCanister* = object
 
 proc publicKey*(_:type ManagementCanister, arg: EcdsaPublicKeyArgs): Future[EcdsaPublicKeyResult] =
   ## Calls `ecdsa_public_key` of the Management Canister (ic0) and returns the result as a Future.
+  echo "=== ManagementCanister.publicKey called"
+  echo "arg: ", arg
 
   result = newFuture[EcdsaPublicKeyResult]("publicKey")
 
@@ -121,6 +155,7 @@ proc publicKey*(_:type ManagementCanister, arg: EcdsaPublicKeyArgs): Future[Ecds
   let destLen   = mgmtPrincipalBytes.len
 
   let methodName = "ecdsa_public_key".cstring
+  echo "Calling ic0_call_new with method: ", methodName
   ic0_call_new(
     callee_src = cast[int](destPtr),
     callee_size = destLen,
@@ -128,23 +163,35 @@ proc publicKey*(_:type ManagementCanister, arg: EcdsaPublicKeyArgs): Future[Ecds
     name_size = methodName.len,
     reply_fun = cast[int](onCallPublicKeyCanister),
     reply_env = cast[int](result),
-    reject_fun = cast[int](onCallOuterCanisterReject),
+    reject_fun = cast[int](onCallPublicKeyReject),
     reject_env = cast[int](result)
   )
 
   ## 3. Attach argument data and execute
-  let candidValue = newCandidRecord(arg)
-  let encoded = encodeCandidMessage(@[candidValue])
-  ic0_call_data_append(ptrToInt(addr encoded[0]), encoded.len)
-  let err = ic0_call_perform()
-  if err != 0:
-    let msg = "call_perform failed"
-    fail(result, newException(ValueError, msg))
+  try:
+    let candidValue = newCandidRecord(arg)
+    echo "candidValue: ", candidValue
+    let encoded = encodeCandidMessage(@[candidValue])
+    echo "encoded length: ", encoded.len
+    echo "encoded data: ", encoded
+    ic0_call_data_append(ptrToInt(addr encoded[0]), encoded.len)
+    let err = ic0_call_perform()
+    echo "ic0_call_perform result: ", err
+    if err != 0:
+      let msg = "call_perform failed with error: " & $err
+      echo msg
+      fail(result, newException(ValueError, msg))
+      return
+  except Exception as e:
+    echo "Exception in publicKey: ", e.msg
+    fail(result, e)
     return
 
 
 proc sign*(_:type ManagementCanister, arg: EcdsaSignArgs): Future[SignWithEcdsaResult] =
   ## Calls `sign_with_ecdsa` of the Management Canister (ic0) and returns the result as a Future.
+  echo "=== ManagementCanister.sign called"
+  echo "arg: ", arg
 
   result = newFuture[SignWithEcdsaResult]("sign")
 
@@ -153,6 +200,7 @@ proc sign*(_:type ManagementCanister, arg: EcdsaSignArgs): Future[SignWithEcdsaR
   let destLen   = mgmtPrincipalBytes.len
 
   let methodName = "sign_with_ecdsa".cstring
+  echo "Calling ic0_call_new with method: ", methodName
   ic0_call_new(
     callee_src = cast[int](destPtr),
     callee_size = destLen,
@@ -160,16 +208,26 @@ proc sign*(_:type ManagementCanister, arg: EcdsaSignArgs): Future[SignWithEcdsaR
     name_size = methodName.len,
     reply_fun = cast[int](onCallSignCanister),
     reply_env = cast[int](result),
-    reject_fun = cast[int](onCallOuterCanisterReject),
+    reject_fun = cast[int](onCallSignReject),
     reject_env = cast[int](result)
   )
 
   ## 3. Attach argument data and execute
-  let candidValue = newCandidRecord(arg)
-  let encoded = encodeCandidMessage(@[candidValue])
-  ic0_call_data_append(ptrToInt(addr encoded[0]), encoded.len)
-  let err = ic0_call_perform()
-  if err != 0:
-    let msg = "call_perform failed"
-    fail(result, newException(ValueError, msg))
+  try:
+    let candidValue = newCandidRecord(arg)
+    echo "candidValue: ", candidValue
+    let encoded = encodeCandidMessage(@[candidValue])
+    echo "encoded length: ", encoded.len
+    echo "encoded data: ", encoded
+    ic0_call_data_append(ptrToInt(addr encoded[0]), encoded.len)
+    let err = ic0_call_perform()
+    echo "ic0_call_perform result: ", err
+    if err != 0:
+      let msg = "call_perform failed with error: " & $err
+      echo msg
+      fail(result, newException(ValueError, msg))
+      return
+  except Exception as e:
+    echo "Exception in sign: ", e.msg
+    fail(result, e)
     return

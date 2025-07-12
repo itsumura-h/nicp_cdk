@@ -18,4 +18,5 @@ service : {
       address:text;
     }
   ) -> (bool);
+  "testSecp256k1": () -> (bool);
 };

@@ -56,11 +56,6 @@ export const getAccountAddress = async (): Promise<Address> => {
 
 
 export const signMessage = async ({ message }: { message: string }): Promise<string> => {
-  const authClient = await AuthClient.create();
-  console.log("=== icpWalletClient signMessage")
-  if (!await authClient.isAuthenticated()) {
-    return;
-  }
   const signatureReply = await tEcdsaBackendActor.signWithEvm(message);
   return signatureReply;
 };

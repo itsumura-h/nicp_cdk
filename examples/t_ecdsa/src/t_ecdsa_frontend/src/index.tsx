@@ -5,7 +5,7 @@ import { getAccountAddress, signMessage } from './hooks/icp';
 
 export function App() {
 	const [accountAddress, setAccountAddress] = useState<Address | null>(null);
-	const [message, setMessage] = useState<string | null>(null);
+	const [message, setMessage] = useState<string | null>("hello world");
 	const [signature, setSignature] = useState<string | null>(null);
 
 	useEffect(() => {
@@ -14,6 +14,11 @@ export function App() {
 			setAccountAddress(address);
 		})()
 	}, []);
+
+	const handleSign = async () => {
+		const signature = await signMessage({ message });
+		setSignature(signature);
+	}
 
 	return (
 		<main>
@@ -27,7 +32,8 @@ export function App() {
 						onInput={(e) => setMessage((e.target as HTMLInputElement).value)}
 						value={message}
 					/>
-					<button onClick={() => signMessage({ message })}>Sign</button>
+					<button onClick={handleSign}>Sign</button>
+					<p>Signature: {signature}</p>
 		</article>
 		</main>
 	);
