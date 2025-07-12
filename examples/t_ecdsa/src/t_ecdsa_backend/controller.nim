@@ -1,17 +1,12 @@
 import std/asyncdispatch
-import std/options
-import std/sequtils
 import std/strutils
-import std/tables
 import ../../../../src/nicp_cdk
-import ../../../../src/nicp_cdk/canisters/management_canister
 import ../../../../src/nicp_cdk/ic_types/candid_types
 import ../../../../src/nicp_cdk/ic_types/ic_record
 import ../../../../src/nicp_cdk/algorithm/ethereum
 import ../../../../src/nicp_cdk/algorithm/ecdsa
 import ./usecase
 
-# var keys = initTable[Principal, seq[uint8]]()
 
 proc getNewPublicKey*() {.async.} =
   let caller = Msg.caller()
