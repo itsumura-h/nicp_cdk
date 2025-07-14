@@ -7,7 +7,6 @@
 import nimcrypto/keccak
 import secp256k1
 import std/strutils
-import std/sequtils
 
 type
   EcdsaError* = object of ValueError
@@ -18,77 +17,17 @@ proc toHexString*(bytes: seq[uint8]): string =
   for b in bytes:
     result.add(b.toHex(2))
 
-# 署名形式を分析する関数
-proc analyzeSignatureFormat*(signature: seq[uint8]):string =
-  echo "=== Signature Format Analysis ==="
-  echo "Length: ", signature.len
-  if signature.len > 0:
-    echo "First byte: 0x", signature[0].toHex(2)
-    
-    if signature[0] == 0x30:
-      result = "DER (ASN.1 SEQUENCE)"
-      if signature.len >= 2:
-        echo "Length field: ", signature[1]
-        if signature.len >= 4:
-          echo "First INTEGER tag: 0x", signature[2].toHex(2)
-          echo "First INTEGER length: ", signature[3]
-    elif signature.len == 64:
-      result = "Raw (r||s, 32+32 bytes)"
-    elif signature.len == 65:
-      result = "Ethereum (r||s||v, 32+32+1 bytes)"
-    else:
-      result = "Unknown"
-  
-  # 16進数表示（最初の16バイト）
-  if signature.len > 0:
-    let displayLen = min(signature.len, 16)
-    echo "First ", displayLen, " bytes: ", signature[0..<displayLen].toHexString()
-  
-  # DER形式の詳細解析
-  if signature.len > 0 and signature[0] == 0x30:
-    echo "=== DER Structure Analysis ==="
-    if signature.len >= 2:
-      let totalLen = signature[1].int
-      echo "Total length: ", totalLen
-      
-      if signature.len >= 4:
-        let rTag = signature[2]
-        let rLen = signature[3].int
-        echo "R component - Tag: 0x", rTag.toHex(2), ", Length: ", rLen
-        
-        if signature.len >= 6 + rLen:
-          let sTag = signature[4 + rLen]
-          let sLen = signature[5 + rLen].int
-          echo "S component - Tag: 0x", sTag.toHex(2), ", Length: ", sLen
-          
-          # R値の表示
-          if rLen > 0 and signature.len >= 4 + rLen:
-            let rStart = 4
-            let rEnd = rStart + rLen
-            echo "R value: ", signature[rStart..<rEnd].toHexString()
-          
-          # S値の表示
-          if sLen > 0 and signature.len >= 6 + rLen + sLen:
-            let sStart = 6 + rLen
-            let sEnd = sStart + sLen
-            echo "S value: ", signature[sStart..<sEnd].toHexString()
 
 type
   EcdsaVerificationError* = object of CatchableError
   SignatureFormatError* = object of CatchableError
 
+
 proc hexToBytes*(hexStr: string): seq[uint8] =
   ## Convert hex string to byte sequence
-  echo "=== hexToBytes Debug ==="
-  echo "Input hex string: ", hexStr
-  echo "Input length: ", hexStr.len
-  
   var cleanHex = hexStr
   if cleanHex.startsWith("0x"):
     cleanHex = cleanHex[2..^1]
-  
-  echo "Clean hex string: ", cleanHex
-  echo "Clean hex length: ", cleanHex.len
   
   if cleanHex.len mod 2 != 0:
     echo "Error: Hex string length must be even"
@@ -102,17 +41,10 @@ proc hexToBytes*(hexStr: string): seq[uint8] =
     except ValueError:
       echo "Error: Invalid hex character at position ", i*2, ": ", hexByte
       raise newException(ValueError, "Invalid hex character: " & hexByte)
-  
-  echo "Output bytes length: ", result.len
-  echo "Output bytes: ", result.toHexString()
-  echo "=== End hexToBytes Debug ==="
+
 
 proc keccak256Hash*(message: string): seq[uint8] =
   ## Calculate Keccak-256 hash of message
-  echo "=== keccak256Hash Debug ==="
-  echo "Input message: ", message
-  echo "Input message length: ", message.len
-  
   var keccakCtx: keccak256
   keccakCtx.init()
   keccakCtx.update(message)
@@ -122,28 +54,13 @@ proc keccak256Hash*(message: string): seq[uint8] =
   result = newSeq[uint8](32)
   for i in 0..<32:
     result[i] = hash.data[i]
-  
-  echo "Hash result length: ", result.len
-  echo "Hash result: ", result.toHexString()
-  echo "=== End keccak256Hash Debug ==="
+
 
 proc verifyEcdsaSignature*(
   messageHash: seq[uint8],
   signature: seq[uint8],
   publicKey: seq[uint8]
 ): bool =
-  echo "=== verifyEcdsaSignature Debug ==="
-  echo "Message hash length: ", messageHash.len
-  echo "Message hash: ", messageHash.toHexString()
-  echo "Signature length: ", signature.len
-  echo "Signature: ", signature.toHexString()
-  echo "Public key length: ", publicKey.len
-  echo "Public key: ", publicKey.toHexString()
-  
-  # 署名形式の詳細分析
-  let signatureFormat = analyzeSignatureFormat(signature)
-  echo "Signature format: ", signatureFormat
-  
   try:
     # メッセージハッシュの検証
     if messageHash.len != 32:
@@ -162,9 +79,6 @@ proc verifyEcdsaSignature*(
       # Raw署名からr値とs値を抽出
       let rBytes = signature[0..<32]
       let sBytes = signature[32..<64]
-      
-      echo "R bytes: ", rBytes.toHexString()
-      echo "S bytes: ", sBytes.toHexString()
       
       # s値の正規化（Low-S enforcement）
       # secp256k1の群の位数（order）
@@ -194,8 +108,6 @@ proc verifyEcdsaSignature*(
           else:
             normalizedSBytes[i] = result.uint8
             carry = 0
-        
-        echo "Normalized S bytes: ", normalizedSBytes.toHexString()
       else:
         echo "S value is already normalized (low-S)"
       
@@ -222,7 +134,6 @@ proc verifyEcdsaSignature*(
           return false
         
         let pubkey = pubkeyResult.get()
-        echo "Public key parsed successfully"
         
         # メッセージハッシュを32バイト配列に変換
         var messageArray: array[32, byte]
@@ -390,16 +301,13 @@ proc verifyWithHash*(
     return false
 
 
-
-
-
 proc validateSignatureFormat*(signatureHex: string): bool =
   ## Validate signature hex format (0x prefix optional)
   try:
     let cleanSig = if signatureHex.startsWith("0x"): signatureHex[2..^1] else: signatureHex
     return cleanSig.len == 128 or cleanSig.len == 130
   except:
-          return false
+    return false
 
 
 proc verifyEcdsaSignatureWithHex*(
@@ -419,80 +327,3 @@ proc verifyEcdsaSignatureWithHexKey*(
   ## Verify ECDSA signature with hex string public key
   let publicKey = hexToBytes(publicKeyHex)
   return verifyEcdsaSignature(messageHash, signatureBytes, publicKey)
-
-proc testSecp256k1Operation*(): bool =
-  ## Test secp256k1 library operation with known test vectors
-  echo "=== Testing secp256k1 library ==="
-  
-  try:
-    # Test vector from secp256k1 library
-    let testMessage = "hello world"
-    let testHash = keccak256Hash(testMessage)
-    
-    # Create a test secret key
-    let secretKeyBytes = hexToBytes("0000000000000000000000000000000000000000000000000000000000000001")
-    let secretKeyResult = SkSecretKey.fromRaw(secretKeyBytes)
-    if secretKeyResult.isErr:
-      echo "Failed to create secret key: ", secretKeyResult.error
-      return false
-    
-    let secretKey = secretKeyResult.get()
-    
-    # Get public key
-    let publicKey = secretKey.toPublicKey()
-    
-    # Create message
-    var messageArray: array[32, byte]
-    for i in 0..<32:
-      messageArray[i] = testHash[i].byte
-    let message = SkMessage(messageArray)
-    
-    # Sign message
-    let signature = secretKey.sign(message)
-    
-    # Verify signature
-    let isValid = signature.verify(message, publicKey)
-    
-    echo "Test signature verification result: ", isValid
-    return isValid
-    
-  except Exception as e:
-    echo "Test failed with exception: ", e.msg
-    return false
-
-
-proc createTestSignature*(): string =
-  ## Create a test signature for demonstration purposes
-  ## This is not a real signature - just for testing the parsing logic
-  return "1".repeat(128)  # 64 bytes of 0x01 (no 0x prefix)
-
-
-proc tryDerDecoding*(signature: seq[uint8]): bool =
-  ## Try to decode signature as DER format and check if it's valid DER
-  try:
-    echo "=== Trying DER decoding ==="
-    echo "Signature: ", signature.toHexString()
-    
-    # Check if it starts with 0x30 (SEQUENCE tag)
-    if signature.len < 6:
-      echo "Signature too short for DER"
-      return false
-    
-    if signature[0] != 0x30:
-      echo "Not DER format (doesn't start with 0x30)"
-      return false
-    
-    echo "Starts with 0x30 - could be DER"
-    
-    # Try to parse with secp256k1 library
-    let derResult = SkSignature.fromDer(signature)
-    if derResult.isOk:
-      echo "Successfully parsed as DER signature"
-      return true
-    else:
-      echo "Failed to parse as DER: ", derResult.error
-      return false
-      
-  except Exception as e:
-    echo "Exception in DER decoding: ", e.msg
-    return false

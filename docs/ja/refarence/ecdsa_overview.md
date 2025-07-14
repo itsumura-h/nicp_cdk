@@ -652,7 +652,6 @@ dfx canister call t_ecdsa_backend verifyWithEcdsa '(record {
 ### 9.1 追加予定機能
 - **signWithEvm()**: Ethereum形式署名の生成
 - **verifyEvm()**: Ethereum形式署名の検証
-- **testSecp256k1()**: secp256k1ライブラリのテスト機能
 
 ### 9.2 最適化項目
 - 署名形式の自動判別機能
