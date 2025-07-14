@@ -1,15 +1,12 @@
 import std/asyncdispatch
 import std/tables
 import std/options
-import std/sequtils
 import std/strutils
-import std/strformat
 import ../../../../src/nicp_cdk/canisters/management_canister
 import ../../../../src/nicp_cdk/ic_types/candid_types
-import ../../../../src/nicp_cdk/ic_types/ic_record
+import ../../../../src/nicp_cdk/ic_types/ic_principal
 import ../../../../src/nicp_cdk/algorithm/ethereum
 import ../../../../src/nicp_cdk/algorithm/ecdsa
-import ../../../../src/nicp_cdk/ic_types/ic_principal
 import ./database
 
 
@@ -83,17 +80,21 @@ proc signWithEcdsa*(caller: Principal, message: string): Future[string] {.async.
   let signResult = await ManagementCanister.sign(arg)
   
   # Validate the signature using functions from ecdsa.nim
-  let publicKeyBytes = ecdsa.hexToBytes(getPublicKey(caller))
-  let isValid = ecdsa.validateSignatureWithSecp256k1(
-    messageHash,
-    signResult.signature,
-    publicKeyBytes
-  )
+  try:
+    let publicKeyBytes = ecdsa.hexToBytes(getPublicKey(caller))
+    let isValid = ecdsa.validateSignatureWithSecp256k1(
+      messageHash,
+      signResult.signature,
+      publicKeyBytes
+    )
 
-  if isValid:
+    if isValid:
+      return ecdsa.toHexString(signResult.signature)
+    else:
+      return ""
+  except Exception:
+    # If public key retrieval fails, still return the signature without validation
     return ecdsa.toHexString(signResult.signature)
-  else:
-    return ""
 
 
 proc verifyWithEcdsa*(message: string, signature: string, publicKey: string): bool =
@@ -111,11 +112,15 @@ proc verifyWithEcdsa*(message: string, signature: string, publicKey: string): bo
 
 
 proc getEvmAddress*(caller: Principal): string =
-  let publicKeyBytes = getPublicKey(caller)
-  if publicKeyBytes.len > 0:
-    let evmAddress = icpPublicKeyToEvmAddress(hexToBytes(publicKeyBytes))
-    return evmAddress
-  else:
+  try:
+    let publicKeyBytes = getPublicKey(caller)
+    if publicKeyBytes.len > 0:
+      let evmAddress = icpPublicKeyToEvmAddress(ecdsa.hexToBytes(publicKeyBytes))
+      return evmAddress
+    else:
+      return ""
+  except Exception:
+    # No public key has been generated for the caller yet
     return ""
 
 

@@ -67,19 +67,6 @@ proc keccak256Hash*(data: string): seq[uint8] =
     result[i] = hash.data[i]
 
 
-proc keccak256HashRaw*(data: string): seq[uint8] =
-  ## Hash string data using Keccak-256 without EIP-191 format (raw hashing)
-  
-  var keccakCtx: keccak256
-  keccakCtx.init()
-  keccakCtx.update(data)
-  let hash = keccakCtx.finish()
-  
-  result = newSeq[uint8](32)
-  for i in 0..<32:
-    result[i] = hash.data[i]
-
-
 proc parseSignature*(signatureHex: string): tuple[r: seq[uint8], s: seq[uint8], v: uint8] =
   ## Parse signature hex string into r, s, v components
   let cleanSig = if signatureHex.startsWith("0x"): signatureHex[2..^1] else: signatureHex
@@ -225,87 +212,6 @@ proc verifyEthereumSignatureWithAddress*(
     
   except Exception as e:
     echo "Verification error: ", e.msg
-    return false
-
-
-proc verifyPersonalMessageWithAddress*(
-  ethereumAddress: string,
-  message: string,
-  signatureHex: string
-): bool =
-  ## Verify Ethereum personal_sign message using address
-  ## This function is now equivalent to verifyEthereumSignatureWithAddress
-  
-  # Use the standard EIP-191 format hashing
-  let messageHash = keccak256Hash(message)
-  
-  # Try recovery with different recovery IDs
-  for recoveryId in [0'u8, 1]:
-    try:
-      let recoveredPubKey = recoverPublicKeyFromSignature(messageHash, signatureHex, recoveryId)
-      let recoveredAddress = publicKeyToEthereumAddress(recoveredPubKey)
-      
-      if recoveredAddress.toLowerAscii() == ethereumAddress.toLowerAscii():
-        return true
-    except:
-      continue
-  
-  return false
-
-
-proc verifyStructuredMessageWithAddress*(
-  ethereumAddress: string,
-  domain: string,
-  message: string,
-  signatureHex: string
-): bool =
-  ## Verify structured message (EIP-712 style) using address
-  
-  # Create structured message hash using raw hashing
-  let structuredMessage = domain & message
-  let messageHash = keccak256HashRaw(structuredMessage)
-  
-  # Try recovery with different recovery IDs
-  for recoveryId in [0'u8, 1]:
-    try:
-      let recoveredPubKey = recoverPublicKeyFromSignature(messageHash, signatureHex, recoveryId)
-      let recoveredAddress = publicKeyToEthereumAddress(recoveredPubKey)
-      
-      if recoveredAddress.toLowerAscii() == ethereumAddress.toLowerAscii():
-        return true
-    except:
-      continue
-  
-  return false
-
-
-proc verifyMultipleSignatures*(
-  verifications: seq[tuple[address: string, message: string, signature: string]]
-): seq[bool] =
-  ## Verify multiple signatures efficiently
-  
-  result = newSeq[bool](verifications.len)
-  
-  for i, verification in verifications:
-    result[i] = verifyEthereumSignatureWithAddress(
-      verification.address, 
-      verification.message, 
-      verification.signature
-    )
-
-
-proc validateEthereumAddress*(address: string): bool =
-  ## Validate Ethereum address format
-  let cleanAddress = if address.startsWith("0x"): address[2..^1] else: address
-  return cleanAddress.len == 40 and cleanAddress.allIt(it in "0123456789abcdefABCDEF")
-
-
-proc validateSignatureFormat*(signatureHex: string): bool =
-  ## Validate signature hex format
-  try:
-    let cleanSig = if signatureHex.startsWith("0x"): signatureHex[2..^1] else: signatureHex
-    return cleanSig.len == 128 or cleanSig.len == 130
-  except:
     return false
 
 
