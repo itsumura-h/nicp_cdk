@@ -54,11 +54,8 @@ RUN apt autoremove -y
 # icp
 # https://github.com/dfinity/sdk/releases/latest
 WORKDIR /root
-# ARG DFX_VERSION="0.28.0"
 RUN curl -OL https://internetcomputer.org/install.sh
 RUN chmod +x install.sh
-# ARG DFXVM_INIT_YES="yes"
-# RUN DFXVM_INIT_YES=$DFXVM_INIT_YES DFX_VERSION=$DFX_VERSION ./install.sh
 RUN DFXVM_INIT_YES=yes ./install.sh
 RUN rm -f install.sh
 
@@ -103,7 +100,6 @@ ENV IC_WASI_POLYFILL_PATH "/root/.ic-wasi-polyfill"
 COPY --from=wasi-tools /root/.cargo/bin/* /root/.cargo/bin/
 ENV PATH $PATH:/root/.cargo/bin
 
-# Claude code / Gemini CLI
 # node
 # https://nodejs.org/en/download/prebuilt-binaries
 WORKDIR /root
