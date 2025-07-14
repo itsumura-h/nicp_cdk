@@ -135,10 +135,10 @@ dfx deploy
 ## Roadmap
 
 - [ ] No need to manually build ic-wasi-polyfill.  
-- [ ] Support all IC types.  
-- [ ] Access and call the management canister.  
+- [X] Support all IC types.  
+- [X] Access and call the management canister.  
 - [ ] HTTP outcall example.  
-- [ ] t-ECDSA example.  
+- [X] t-ECDSA example.  
 - [ ] t-RSA example.  
 - [ ] Bitcoin example.  
 - [ ] Ethersum example.  
