@@ -54,11 +54,9 @@ RUN apt autoremove -y
 # icp
 # https://github.com/dfinity/sdk/releases/latest
 WORKDIR /root
-ARG DFX_VERSION="0.25.1"
 RUN curl -OL https://internetcomputer.org/install.sh
 RUN chmod +x install.sh
-ARG DFXVM_INIT_YES="yes"
-RUN DFXVM_INIT_YES=$DFXVM_INIT_YES DFX_VERSION=$DFX_VERSION ./install.sh
+RUN DFXVM_INIT_YES=yes ./install.sh
 RUN rm -f install.sh
 
 # wasi
@@ -96,16 +94,15 @@ RUN rm -f nimlangserver.tar.gz
 RUN mv nimlangserver /root/.nimble/bin/
 
 # copy from wasi-tools
+WORKDIR /root
 COPY --from=wasi-tools /root/ic-wasi-polyfill/target/wasm32-wasip1/release/* /root/.ic-wasi-polyfill/
 ENV IC_WASI_POLYFILL_PATH "/root/.ic-wasi-polyfill"
 COPY --from=wasi-tools /root/.cargo/bin/* /root/.cargo/bin/
-
 ENV PATH $PATH:/root/.cargo/bin
 
-# gemini
-WORKDIR /root
 # node
 # https://nodejs.org/en/download/prebuilt-binaries
+WORKDIR /root
 ARG NODE_VERSION=22.17.0
 RUN curl -OL https://nodejs.org/dist/v${NODE_VERSION}/node-v${NODE_VERSION}-linux-x64.tar.xz
 RUN tar -xvf node-v${NODE_VERSION}-linux-x64.tar.xz

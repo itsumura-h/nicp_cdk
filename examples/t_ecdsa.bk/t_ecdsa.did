@@ -10,13 +10,12 @@ service : {
     }
   ) -> (bool);
   "getEvmAddress": () -> (text) query;
-  "signWithEthereum": (text) -> (text);
-  "verifyWithEthereum": (
+  "signWithEvm": (text) -> (text);
+  "verifyEvm": (
     record{
       message:text;
       signature:text;
-      ethereumAddress:text;
+      address:text;
     }
   ) -> (bool);
-  "testSecp256k1": () -> (bool);
 };

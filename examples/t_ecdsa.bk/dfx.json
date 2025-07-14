@@ -23,31 +23,12 @@
           "name": "candid:service"
         }
       ]
-    },
-    "t_ecdsa_frontend": {
-      "dependencies": [
-        "t_ecdsa_backend"
-      ],
-      "source": [
-        "src/t_ecdsa_frontend/dist"
-      ],
-      "type": "assets",
-      "workspace": "t_ecdsa_frontend"
     }
   },
   "defaults": {
     "build": {
       "args": "",
       "packtool": ""
-    }
-  },
-  "networks": {
-    "local": {
-      "bind": "0.0.0.0:4943",
-      "type": "ephemeral",
-      "replica": {
-        "subnet_type": "system"
-      }
     }
   },
   "output_env_file": ".env",
