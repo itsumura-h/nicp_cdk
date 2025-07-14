@@ -664,8 +664,6 @@ dfx canister call t_ecdsa_backend verifyWithEcdsa '(record {
 ```
 cd /application/examples/t_ecdsa
 dfx deploy -y
-dfx canister call t_ecdsa_backend getNewPublicKey
-dfx canister call t_ecdsa_backend getPublicKey
 dfx canister call t_ecdsa_backend signWithEcdsa "hello world"
 dfx canister call t_ecdsa_backend verifyWithEcdsa '(record {
   message = "hello world";

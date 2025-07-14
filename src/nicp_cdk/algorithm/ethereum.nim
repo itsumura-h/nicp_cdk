@@ -307,3 +307,61 @@ proc validateSignatureFormat*(signatureHex: string): bool =
     return cleanSig.len == 128 or cleanSig.len == 130
   except:
     return false
+
+
+proc convertIcpSignatureToEthereum*(
+  icpSignature: seq[uint8],
+  messageHash: seq[uint8],
+  publicKey: seq[uint8]
+): string =
+  ## Convert ICP Management Canister signature (64 bytes, r+s) to Ethereum format (65 bytes, r+s+v)
+  ## This function determines the correct recovery ID (v) and returns the full Ethereum signature
+  
+  if icpSignature.len != 64:
+    raise newException(SignatureFormatError, "ICP signature must be 64 bytes")
+  
+  # Parse r and s from ICP signature
+  let r = icpSignature[0..<32]
+  let s = icpSignature[32..<64]
+  
+  # Try recovery IDs 0 and 1 to find the correct v
+  for recoveryId in [0'u8, 1]:
+    try:
+      # Create Ethereum format signature for testing (r + s + v)
+      var testSignature = newSeq[uint8](65)
+      for i in 0..<32:
+        testSignature[i] = r[i]
+      for i in 0..<32:
+        testSignature[i+32] = s[i]
+      testSignature[64] = recoveryId
+      
+      # Try to recover public key using this recovery ID
+      let recoveredPubKey = recoverPublicKeyFromSignature(
+        messageHash, 
+        toEvmHexString(testSignature[0..<64], false), # Only r+s for recovery
+        recoveryId
+      )
+      
+      # Check if recovered public key matches the expected one
+      if recoveredPubKey.len == 65 and publicKey.len == 33:
+        # Decompress the ICP public key for comparison
+        let decompressedIcpKey = decompressPublicKey(publicKey)
+        if recoveredPubKey == decompressedIcpKey:
+          # Found correct recovery ID, return Ethereum format signature
+          return toEvmHexString(testSignature, true)
+      elif recoveredPubKey.len == 65 and publicKey.len == 65:
+        # Both are uncompressed, compare directly
+        if recoveredPubKey == publicKey:
+          return toEvmHexString(testSignature, true)
+    except:
+      continue
+  
+  # If no valid recovery ID found, return with default v=27 (recoveryId=0)
+  var fallbackSignature = newSeq[uint8](65)
+  for i in 0..<32:
+    fallbackSignature[i] = r[i]
+  for i in 0..<32:
+    fallbackSignature[i+32] = s[i]
+  fallbackSignature[64] = 27  # Default Ethereum v value for recoveryId=0
+  
+  return toEvmHexString(fallbackSignature, true)
