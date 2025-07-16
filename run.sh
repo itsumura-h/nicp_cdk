@@ -13,4 +13,4 @@ done
 sleep 2
 # Clean all .dfx directories
 find /application/examples -name ".dfx" -type d -exec rm -rf {} + 2>/dev/null || true
-dfx start --clean --background --host 0.0.0.0:4943
+dfx start --clean --background --host 0.0.0.0:4943 --domain localhost --domain 0.0.0.0
