@@ -19,6 +19,10 @@
       "args": "",
       "packtool": ""
     },
+    "canister_http": {
+      "enabled": true,
+      "log_level": "debug"
+    },
     "replica": {
       "subnet_type": "system"
     }
@@ -28,7 +32,10 @@
   "networks": {
     "local": {
       "bind": "127.0.0.1:4943",
-      "type": "ephemeral"
+      "type": "ephemeral",
+      "canister_http": {
+        "enabled": true
+      }
     }
   }
 }
