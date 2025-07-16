@@ -16,6 +16,9 @@ importers:
       '@dfinity/auth-client':
         specifier: ^2.4.1
         version: 2.4.1(@dfinity/agent@2.4.1(@dfinity/candid@2.4.1(@dfinity/principal@2.4.1))(@dfinity/principal@2.4.1))(@dfinity/identity@2.4.1(@dfinity/agent@2.4.1(@dfinity/candid@2.4.1(@dfinity/principal@2.4.1))(@dfinity/principal@2.4.1))(@dfinity/principal@2.4.1))(@dfinity/principal@2.4.1)
+      dotenv:
+        specifier: ^17.2.0
+        version: 17.2.0
       preact:
         specifier: ^10.25.3
         version: 10.26.9
@@ -28,19 +31,25 @@ importers:
       viem:
         specifier: ^2.31.7
         version: 2.31.7(typescript@5.8.3)
+      vite-plugin-environment:
+        specifier: ^1.1.3
+        version: 1.1.3(vite@6.3.5(@types/node@24.0.14))
     devDependencies:
       '@biomejs/biome':
         specifier: ^2.1.1
         version: 2.1.1
       '@preact/preset-vite':
         specifier: ^2.9.3
-        version: 2.10.2(@babel/core@7.28.0)(preact@10.26.9)(vite@6.3.5)
+        version: 2.10.2(@babel/core@7.28.0)(preact@10.26.9)(vite@6.3.5(@types/node@24.0.14))
+      '@types/node':
+        specifier: ^24.0.14
+        version: 24.0.14
       typescript:
         specifier: ^5.8.3
         version: 5.8.3
       vite:
         specifier: ^6.0.4
-        version: 6.3.5
+        version: 6.3.5(@types/node@24.0.14)
 
 packages:
 
@@ -544,6 +553,9 @@ packages:
   '@types/estree@1.0.8':
     resolution: {integrity: sha512-dWHzHa2WqEXI/O1E9OjrocMTKJl2mSrEolh1Iomrv6U+JuNwaHXsXx9bLu5gG7BUWFIN0skIQJQ/L1rIex4X6w==}
 
+  '@types/node@24.0.14':
+    resolution: {integrity: sha512-4zXMWD91vBLGRtHK3YbIoFMia+1nqEz72coM42C5ETjnNCa/heoj7NT1G67iAfOqMmcfhuCZ4uNpyz8EjlAejw==}
+
   abitype@1.0.8:
     resolution: {integrity: sha512-ZeiI6h3GnW06uYDLx0etQtX/p8E24UaHHBj57RSjK7YBFe7iuVn07EDpOeP451D06sF27VOz9JJPlIKJmXgkEg==}
     peerDependencies:
@@ -628,6 +640,10 @@ packages:
 
   domutils@3.2.2:
     resolution: {integrity: sha512-6kZKyUajlDuqlHKVX1w7gyslj9MPIXzIFiz/rGu35uC1wMi+kMhQwGhl4lt9unC9Vb9INnY9Z3/ZA3+FhASLaw==}
+
+  dotenv@17.2.0:
+    resolution: {integrity: sha512-Q4sgBT60gzd0BB0lSyYD3xM4YxrXA9y4uBDof1JNYGzOXrQdQ6yX+7XIAqoFOGQFOTK1D3Hts5OllpxMDZFONQ==}
+    engines: {node: '>=12'}
 
   electron-to-chromium@1.5.180:
     resolution: {integrity: sha512-ED+GEyEh3kYMwt2faNmgMB0b8O5qtATGgR4RmRsIp4T6p7B8vdMbIedYndnvZfsaXvSzegtpfqRMDNCjjiSduA==}
@@ -815,6 +831,9 @@ packages:
     engines: {node: '>=14.17'}
     hasBin: true
 
+  undici-types@7.8.0:
+    resolution: {integrity: sha512-9UJ2xGDvQ43tYyVMpuHlsgApydB8ZKfVYTsLDhXkFL/6gfkp+U8xTGdh8pMJv1SpZna0zxG1DwsKZsreLbXBxw==}
+
   update-browserslist-db@1.1.3:
     resolution: {integrity: sha512-UxhIZQ+QInVdunkDAaiazvvT/+fXL5Osr0JZlJulepYu6Jd7qJtDZjlur0emRlT71EN3ScPoE7gvsuIKKNavKw==}
     hasBin: true
@@ -831,6 +850,11 @@ packages:
     peerDependenciesMeta:
       typescript:
         optional: true
+
+  vite-plugin-environment@1.1.3:
+    resolution: {integrity: sha512-9LBhB0lx+2lXVBEWxFZC+WO7PKEyE/ykJ7EPWCq95NEcCpblxamTbs5Dm3DLBGzwODpJMEnzQywJU8fw6XGGGA==}
+    peerDependencies:
+      vite: '>= 2.7'
 
   vite-prerender-plugin@0.5.11:
     resolution: {integrity: sha512-xWOhb8Ef2zoJIiinYVunIf3omRfUbEXcPEvrkQcrDpJ2yjDokxhvQ26eSJbkthRhymntWx6816jpATrJphh+ug==}
@@ -1199,18 +1223,18 @@ snapshots:
 
   '@noble/hashes@1.8.0': {}
 
-  '@preact/preset-vite@2.10.2(@babel/core@7.28.0)(preact@10.26.9)(vite@6.3.5)':
+  '@preact/preset-vite@2.10.2(@babel/core@7.28.0)(preact@10.26.9)(vite@6.3.5(@types/node@24.0.14))':
     dependencies:
       '@babel/core': 7.28.0
       '@babel/plugin-transform-react-jsx': 7.27.1(@babel/core@7.28.0)
       '@babel/plugin-transform-react-jsx-development': 7.27.1(@babel/core@7.28.0)
-      '@prefresh/vite': 2.4.8(preact@10.26.9)(vite@6.3.5)
+      '@prefresh/vite': 2.4.8(preact@10.26.9)(vite@6.3.5(@types/node@24.0.14))
       '@rollup/pluginutils': 4.2.1
       babel-plugin-transform-hook-names: 1.0.2(@babel/core@7.28.0)
       debug: 4.4.1
       picocolors: 1.1.1
-      vite: 6.3.5
-      vite-prerender-plugin: 0.5.11(vite@6.3.5)
+      vite: 6.3.5(@types/node@24.0.14)
+      vite-prerender-plugin: 0.5.11(vite@6.3.5(@types/node@24.0.14))
     transitivePeerDependencies:
       - preact
       - supports-color
@@ -1223,7 +1247,7 @@ snapshots:
 
   '@prefresh/utils@1.2.1': {}
 
-  '@prefresh/vite@2.4.8(preact@10.26.9)(vite@6.3.5)':
+  '@prefresh/vite@2.4.8(preact@10.26.9)(vite@6.3.5(@types/node@24.0.14))':
     dependencies:
       '@babel/core': 7.28.0
       '@prefresh/babel-plugin': 0.5.2
@@ -1231,7 +1255,7 @@ snapshots:
       '@prefresh/utils': 1.2.1
       '@rollup/pluginutils': 4.2.1
       preact: 10.26.9
-      vite: 6.3.5
+      vite: 6.3.5(@types/node@24.0.14)
     transitivePeerDependencies:
       - supports-color
 
@@ -1315,6 +1339,10 @@ snapshots:
 
   '@types/estree@1.0.8': {}
 
+  '@types/node@24.0.14':
+    dependencies:
+      undici-types: 7.8.0
+
   abitype@1.0.8(typescript@5.8.3):
     optionalDependencies:
       typescript: 5.8.3
@@ -1397,6 +1425,8 @@ snapshots:
       dom-serializer: 2.0.0
       domelementtype: 2.3.0
       domhandler: 5.0.3
+
+  dotenv@17.2.0: {}
 
   electron-to-chromium@1.5.180: {}
 
@@ -1592,6 +1622,8 @@ snapshots:
 
   typescript@5.8.3: {}
 
+  undici-types@7.8.0: {}
+
   update-browserslist-db@1.1.3(browserslist@4.25.1):
     dependencies:
       browserslist: 4.25.1
@@ -1617,7 +1649,11 @@ snapshots:
       - utf-8-validate
       - zod
 
-  vite-prerender-plugin@0.5.11(vite@6.3.5):
+  vite-plugin-environment@1.1.3(vite@6.3.5(@types/node@24.0.14)):
+    dependencies:
+      vite: 6.3.5(@types/node@24.0.14)
+
+  vite-prerender-plugin@0.5.11(vite@6.3.5(@types/node@24.0.14)):
     dependencies:
       kolorist: 1.8.0
       magic-string: 0.30.17
@@ -1625,9 +1661,9 @@ snapshots:
       simple-code-frame: 1.3.0
       source-map: 0.7.4
       stack-trace: 1.0.0-pre2
-      vite: 6.3.5
+      vite: 6.3.5(@types/node@24.0.14)
 
-  vite@6.3.5:
+  vite@6.3.5(@types/node@24.0.14):
     dependencies:
       esbuild: 0.25.6
       fdir: 6.4.6(picomatch@4.0.2)
@@ -1636,6 +1672,7 @@ snapshots:
       rollup: 4.44.2
       tinyglobby: 0.2.14
     optionalDependencies:
+      '@types/node': 24.0.14
       fsevents: 2.3.3
 
   ws@8.18.2: {}

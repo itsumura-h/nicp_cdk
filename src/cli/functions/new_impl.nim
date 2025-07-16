@@ -234,4 +234,13 @@ proc new*(args: seq[string]):int =
       }
     ]
   }
+  dfxJson["defaults"]["replica"] = %*{
+    "subnet_type": "system"
+  }
+  dfxJson["networks"] = %*{
+    "local": {
+      "bind": "127.0.0.1:4943",
+      "type": "ephemeral"
+    }
+  }
   writeFile(projectPath / "dfx.json", dfxJson.pretty())
