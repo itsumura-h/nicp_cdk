@@ -39,15 +39,15 @@
     "build": {
       "args": "",
       "packtool": ""
+    },
+    "replica":{
+      "subnet_type": "system"
     }
   },
   "networks": {
     "local": {
-      "bind": "0.0.0.0:4943",
-      "type": "ephemeral",
-      "replica": {
-        "subnet_type": "system"
-      }
+      "bind": "127.0.0.1:4943",
+      "type": "ephemeral"
     }
   },
   "output_env_file": ".env",
