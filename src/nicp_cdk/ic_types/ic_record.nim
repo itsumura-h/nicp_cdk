@@ -888,6 +888,10 @@ proc `%`*[I, T](arr: array[I, T]): CandidRecord =
     candidArray.elems.add(%item)
   candidArray
 
+proc `%`*(tup: (string, string)): CandidRecord =
+  ## (string, string)タプルをCandidRecordに変換
+  CandidRecord(kind: ckArray, elems: @[%tup[0], %tup[1]])
+
 proc `%`*(table: openArray[(string, CandidRecord)]): CandidRecord =
   ## テーブル（レコード）をCandidRecordに変換
   var record = CandidRecord(kind: ckRecord, fields: initOrderedTable[string, CandidValue]())
