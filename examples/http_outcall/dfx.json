@@ -1,0 +1,25 @@
+{
+  "canisters": {
+    "http_outcall_backend": {
+      "candid": "http_outcall.did",
+      "package": "http_outcall_backend",
+      "build": "build.sh",
+      "main": "src/http_outcall_backend/main.nim",
+      "wasm": "main.wasm",
+      "type": "custom",
+      "metadata": [
+        {
+          "name": "candid:service"
+        }
+      ]
+    }
+  },
+  "defaults": {
+    "build": {
+      "args": "",
+      "packtool": ""
+    }
+  },
+  "output_env_file": ".env",
+  "version": 1
+}
