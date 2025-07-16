@@ -1,0 +1,142 @@
+import Blob "mo:base/Blob";
+import Nat64 "mo:base/Nat64";
+import Text "mo:base/Text";
+
+//Actor
+actor {
+  // 型定義をactor内で定義
+  type HttpHeader = {
+    name : Text;
+    value : Text;
+  };
+
+  type HttpMethod = {
+    #get; #post; #put; #delete; #head; #patch; #options;
+  };
+
+  type HttpResponsePayload = {
+    status : Nat;
+    headers : [HttpHeader];
+    body : Blob;
+  };
+
+  type TransformArgs = {
+    context : Blob;
+    response : HttpResponsePayload;
+  };
+
+  type HttpRequestArgs = {
+    url : Text;
+    max_response_bytes : ?Nat;
+    headers : [HttpHeader];
+    body : ?Blob;
+    method : HttpMethod;
+    transform : ?{
+      function : shared query (TransformArgs) -> async HttpResponsePayload;
+      context : Blob;
+    };
+    is_replicated : ?Bool;
+  };
+
+  type IC = actor {
+    http_request : HttpRequestArgs -> async HttpResponsePayload;
+  };
+
+  let ic : IC = actor("aaaaa-aa");
+
+  //This method sends a GET request to a URL with a free API we can test.
+  //This method returns Coinbase data on the exchange rate between USD and ICP
+  //for a certain day.
+  //The API response looks like this:
+  //  [
+  //     [
+  //         1682978460, <-- start timestamp
+  //         5.714, <-- lowest price during time range
+  //         5.718, <-- highest price during range
+  //         5.714, <-- price at open
+  //         5.714, <-- price at close
+  //         243.5678 <-- volume of ICP traded
+  //     ],
+  // ]
+
+  //function to transform the response
+  public query func transform(args : TransformArgs) : async HttpResponsePayload {
+    {
+      status = args.response.status;
+      headers = []; // not interested in the headers
+      body = args.response.body;
+    };
+  };
+
+  public func get_icp_usd_exchange() : async Text {
+
+    //1. SETUP ARGUMENTS FOR HTTP GET request
+    let ONE_MINUTE : Nat64 = 60;
+    let start_timestamp : Nat64 = 1682978460; //May 1, 2023 22:01:00 GMT
+    let host : Text = "api.exchange.coinbase.com";
+    let url = "https://" # host # "/products/ICP-USD/candles?start=" # Nat64.toText(start_timestamp) # "&end=" # Nat64.toText(start_timestamp) # "&granularity=" # Nat64.toText(ONE_MINUTE);
+
+    // 1.2 prepare headers for the system http_request call
+    let request_headers = [
+      { name = "User-Agent"; value = "price-feed" },
+    ];
+
+    // 1.3 The HTTP request
+    let http_request : HttpRequestArgs = {
+      url = url;
+      max_response_bytes = null; //optional for request
+      headers = request_headers;
+      body = null; //optional for request
+      method = #get;
+      transform = ?{
+        function = transform;
+        context = Blob.fromArray([]);
+      };
+      // Toggle this flag to switch between replicated and non-replicated http outcalls.
+      is_replicated = ?false;
+    };
+
+    //2. MAKE HTTPS REQUEST AND WAIT FOR RESPONSE, BUT MAKE SURE TO ADD CYCLES.
+    // let http_response : HttpResponsePayload = await (with cycles = 230_949_972_000) ic.http_request(http_request);
+    let http_response : HttpResponsePayload = await ic.http_request(http_request);
+
+    //3. DECODE THE RESPONSE
+
+    //As per the type declarations, the BODY in the HTTP response
+    //comes back as Blob. Type signature:
+
+    //public type HttpResponsePayload = {
+    //     status : Nat;
+    //     headers : [HttpHeader];
+    //     body : Blob;
+    // };
+
+    //We need to decode that Blob that is the body into readable text.
+    //To do this, we:
+    //  1. Use Text.decodeUtf8() method to convert the Blob to a ?Text optional
+    //  2. We use a switch to explicitly call out both cases of decoding the Blob into ?Text
+    let decoded_text : Text = switch (Text.decodeUtf8(http_response.body)) {
+      case (null) { "No value returned" };
+      case (?y) { y };
+    };
+
+    //4. RETURN RESPONSE OF THE BODY
+    //The API response will looks like this:
+    //
+    // ("[[1682978460,5.714,5.718,5.714,5.714,243.5678]]")
+    //
+    //The API response looks like this:
+    //  [
+    //     [
+    //         1682978460, <-- start timestamp
+    //         5.714, <-- lowest price during time range
+    //         5.718, <-- highest price during range
+    //         5.714, <-- price at open
+    //         5.714, <-- price at close
+    //         243.5678 <-- volume of ICP traded
+    //     ],
+    // ]
+    decoded_text;
+  };
+
+};

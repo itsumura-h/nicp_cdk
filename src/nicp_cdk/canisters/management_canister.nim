@@ -1,6 +1,8 @@
 import std/options
 import std/asyncfutures
 import std/tables
+import std/strutils
+import std/sequtils
 import ../ic0/ic0
 import ../ic_types/candid_types
 import ../ic_types/ic_principal
@@ -235,8 +237,117 @@ type
 
 
 # ================================================================================
+# Transform Functions
+# ================================================================================
+
+proc createDefaultTransform*(): HttpTransform =
+  ## デフォルトのTransform関数: ヘッダーからタイムスタンプを除去
+  proc defaultTransform(response: HttpResponse): HttpResponse =
+    var filteredHeaders: seq[(string, string)] = @[]
+    for header in response.headers:
+      # 一般的な可変ヘッダーを除去
+      let headerNameLower = header[0].toLowerAscii()
+      if headerNameLower notin [
+        "date", "server", "x-request-id", "x-timestamp", 
+        "set-cookie", "expires", "last-modified", "etag",
+        "cache-control", "pragma", "vary", "age",
+        "x-frame-options", "x-content-type-options",
+        "strict-transport-security", "x-xss-protection"
+      ]:
+        filteredHeaders.add(header)
+    
+    HttpResponse(
+      status: response.status,
+      headers: filteredHeaders,
+      body: response.body
+    )
+  
+  HttpTransform(
+    function: defaultTransform,
+    context: @[]
+  )
+
+proc createJsonTransform*(): HttpTransform =
+  ## JSON専用Transform関数: JSONフィールドから可変部分を除去
+  proc jsonTransform(response: HttpResponse): HttpResponse =
+    # まずデフォルトTransformを適用
+    let defaultResult = createDefaultTransform().function(response)
+    
+    if defaultResult.status != 200:
+      return defaultResult
+    
+    try:
+      # レスポンスボディを文字列に変換
+      var jsonStr = ""
+      for b in defaultResult.body:
+        jsonStr.add(char(b))
+      
+      # 簡易的なJSON正規化
+      # 一般的な可変JSONフィールドを固定値に置換
+      # 注意: 完全なJSON解析ではなく基本的な文字列置換
+      
+      # タイムスタンプフィールドを正規化
+      jsonStr = jsonStr.replace("\"timestamp\":", "\"timestamp\":0,").replace(",0,", ":0,")
+      
+      # 日時フィールドを正規化
+      if "\"time\":" in jsonStr:
+        # 簡易的な日時フィールド置換
+        var lines = jsonStr.split("\"time\":")
+        if lines.len > 1:
+          jsonStr = lines[0] & "\"time\":\"normalized\""
+          if lines.len > 2:
+            for i in 2..<lines.len:
+              jsonStr.add("\"time\":\"normalized\"" & lines[i])
+      
+      # IDフィールドを正規化
+      if "\"id\":" in jsonStr:
+        # 簡易的なIDフィールド置換
+        var lines = jsonStr.split("\"id\":")
+        if lines.len > 1:
+          jsonStr = lines[0] & "\"id\":\"normalized\""
+          if lines.len > 2:
+            for i in 2..<lines.len:
+              jsonStr.add("\"id\":\"normalized\"" & lines[i])
+      
+      # 正規化された文字列をバイトに変換
+      var normalizedBytes: seq[uint8] = @[]
+      for c in jsonStr:
+        normalizedBytes.add(uint8(ord(c)))
+      
+      HttpResponse(
+        status: defaultResult.status,
+        headers: defaultResult.headers,
+        body: normalizedBytes
+      )
+    except Exception:
+      # JSON処理でエラーが発生した場合はデフォルトTransformの結果を返す
+      defaultResult
+  
+  HttpTransform(
+    function: jsonTransform,
+    context: @[]
+  )
+
+
+# ================================================================================
 # Conversion functions from CandidValue to HTTP Outcall types
 # ================================================================================
+
+proc `%`*(request: HttpRequest): CandidRecord =
+  ## HttpRequestをCandidRecordに変換
+  result = %* {
+    "url": request.url,
+    "max_response_bytes": (
+      if request.max_response_bytes.isSome: 
+        some(request.max_response_bytes.get.int) 
+      else: 
+        none(int)
+    ),
+    "headers": request.headers.mapIt([it[0], it[1]]),
+    "body": request.body,
+    "method": $request.httpMethod,
+    "transform": none(CandidRecord)
+  }
 
 proc candidValueToHttpResponse(candidValue: CandidValue): HttpResponse =
   ## Converts a CandidValue to HttpResponse
@@ -312,7 +423,7 @@ proc onCallHttpRequestReject(env: uint32) {.exportc.} =
   fail(fut, newException(ValueError, msg))
 
 
-proc httpRequest*(request: HttpRequest): Future[HttpResponse] =
+proc httpRequest*(_:type ManagementCanister, request: HttpRequest): Future[HttpResponse] =
   ## HTTP Outcallをマネジメントキャニスター経由で実行
   result = newFuture[HttpResponse]("httpRequest")
 
@@ -333,7 +444,8 @@ proc httpRequest*(request: HttpRequest): Future[HttpResponse] =
   )
 
   try:
-    let candidValue = newCandidRecord(request)
+    let candidRecord = %request
+    let candidValue = recordToCandidValue(candidRecord)
     let encoded = encodeCandidMessage(@[candidValue])
     ic0_call_data_append(ptrToInt(addr encoded[0]), encoded.len)
     let err = ic0_call_perform()
@@ -347,67 +459,289 @@ proc httpRequest*(request: HttpRequest): Future[HttpResponse] =
 
 
 # ================================================================================
+# HTTP Outcall Transform Callbacks
+# ================================================================================
+
+# グローバル変数でTransform関数を保持
+var registeredTransforms {.threadvar.}: Table[string, HttpTransformFunction]
+
+proc toBytes(s: string): seq[uint8] =
+  ## 文字列をバイト配列に変換するヘルパー関数
+  result = newSeq[uint8](s.len)
+  for i, c in s:
+    result[i] = uint8(ord(c))
+
+proc registerTransform*(name: string, transform: HttpTransformFunction) =
+  ## Transform関数を登録
+  if not registeredTransforms.hasKey("_initialized"):
+    registeredTransforms = initTable[string, HttpTransformFunction]()
+    registeredTransforms["_initialized"] = nil
+  registeredTransforms[name] = transform
+
+proc onTransformCallback(env: uint32) {.exportc.} =
+  ## IC System APIから呼び出されるTransform関数コールバック
+  try:
+    let size = ic0_msg_arg_data_size()
+    var buf = newSeq[uint8](size)
+    ic0_msg_arg_data_copy(ptrToInt(addr buf[0]), 0, size)
+    
+    let decoded = decodeCandidMessage(buf)
+    if decoded.values.len < 2:
+      # エラー: 引数不足
+      let errorResponse = %* {
+        "status": 500.uint64,
+        "headers": newSeq[(string, string)](),
+        "body": toBytes("Transform function error: insufficient arguments")
+      }
+      let encoded = encodeCandidMessage(@[recordToCandidValue(errorResponse)])
+      ic0_msg_reply_data_append(ptrToInt(addr encoded[0]), encoded.len)
+      ic0_msg_reply()
+      return
+    
+    # 第一引数: HttpResponse
+    let responseValue = decoded.values[0]
+    let httpResponse = candidValueToHttpResponse(responseValue)
+    
+    # 第二引数: Transform context
+    let contextValue = decoded.values[1]
+    let contextRecord = candidValueToCandidRecord(contextValue)
+    let transformName = contextRecord["function"].getStr()
+    
+    # 登録されたTransform関数を実行
+    var transformedResponse = httpResponse
+    
+    if registeredTransforms.hasKey(transformName):
+      transformedResponse = registeredTransforms[transformName](httpResponse)
+    elif transformName == "default_transform":
+      transformedResponse = createDefaultTransform().function(httpResponse)
+    elif transformName == "json_transform":
+      transformedResponse = createJsonTransform().function(httpResponse)
+    else:
+      # 未知のTransform関数の場合は元のレスポンスをそのまま返す
+      transformedResponse = httpResponse
+    
+    # 変換されたレスポンスをCandidValueに変換して返す
+    var headersArray: seq[CandidRecord] = @[]
+    for header in transformedResponse.headers:
+      headersArray.add(%(@[%header[0], %header[1]]))
+    
+    let resultResponse = %* {
+      "status": transformedResponse.status,
+      "headers": headersArray,
+      "body": transformedResponse.body
+    }
+    
+    let encoded = encodeCandidMessage(@[recordToCandidValue(resultResponse)])
+    ic0_msg_reply_data_append(ptrToInt(addr encoded[0]), encoded.len)
+    ic0_msg_reply()
+    
+  except Exception as e:
+    # Transform処理でエラーが発生した場合
+    let errorResponse = %* {
+      "status": 500.uint64,
+      "headers": newSeq[(string, string)](),
+      "body": toBytes("Transform function error: " & e.msg)
+    }
+    let encoded = encodeCandidMessage(@[recordToCandidValue(errorResponse)])
+    ic0_msg_reply_data_append(ptrToInt(addr encoded[0]), encoded.len)
+    ic0_msg_reply()
+
+# 初期化時にデフォルトTransform関数を登録
+proc initHttpTransforms*() =
+  ## HTTP Transform機能の初期化
+  registerTransform("default_transform", createDefaultTransform().function)
+  registerTransform("json_transform", createJsonTransform().function)
+
+
+# ================================================================================
+# Response Processing Utility Functions
+# ================================================================================
+
+proc getTextBody*(response: HttpResponse): string =
+  ## レスポンスボディをテキストとして取得
+  result = ""
+  for b in response.body:
+    result.add(char(b))
+
+proc isSuccess*(response: HttpResponse): bool =
+  ## HTTPステータスが成功範囲(200-299)かチェック
+  response.status >= 200 and response.status < 300
+
+proc getHeader*(response: HttpResponse, name: string): Option[string] =
+  ## 指定されたヘッダー値を取得
+  let nameLower = name.toLowerAscii()
+  for header in response.headers:
+    if header[0].toLowerAscii() == nameLower:
+      return some(header[1])
+  return none(string)
+
+proc expectJsonResponse*(response: HttpResponse): string =
+  ## JSONレスポンスの期待値検証
+  if not response.isSuccess():
+    raise newException(ValueError, 
+      "HTTP request failed with status: " & $response.status)
+  
+  let contentType = response.getHeader("content-type")
+  if contentType.isNone or not contentType.get.contains("application/json"):
+    raise newException(ValueError, 
+      "Expected JSON response but got: " & contentType.get("unknown"))
+  
+  return response.getTextBody()
+
+proc getStatusCode*(response: HttpResponse): int =
+  ## HTTPステータスコードをint型で取得
+  response.status.int
+
+proc hasHeader*(response: HttpResponse, name: string): bool =
+  ## 指定されたヘッダーが存在するかチェック
+  response.getHeader(name).isSome
+
+proc getContentLength*(response: HttpResponse): Option[int] =
+  ## Content-Lengthヘッダーの値を取得
+  let contentLength = response.getHeader("content-length")
+  if contentLength.isSome:
+    try:
+      return some(parseInt(contentLength.get))
+    except ValueError:
+      return none(int)
+  return none(int)
+
+proc isJsonResponse*(response: HttpResponse): bool =
+  ## レスポンスがJSON形式かチェック
+  let contentType = response.getHeader("content-type")
+  if contentType.isSome:
+    let ct = contentType.get.toLowerAscii()
+    return ct.contains("application/json") or ct.contains("text/json")
+  return false
+
+proc getBodySize*(response: HttpResponse): int =
+  ## レスポンスボディのサイズを取得
+  response.body.len
+
+# ================================================================================
 # Convenience HTTP methods
 # ================================================================================
 
-proc httpGet*(url: string, headers: seq[(string, string)] = @[], 
-              maxResponseBytes: Option[uint64] = none(uint64)): Future[HttpResponse] =
+proc httpGet*(
+  _: type ManagementCanister,
+  url: string,
+  headers: seq[(string, string)] = @[],
+  maxResponseBytes: Option[uint64] = none(uint64),
+  transform: Option[HttpTransform] = none(HttpTransform)
+): Future[HttpResponse] =
   ## Convenient GET request
+  let finalTransform = if transform.isSome: transform else: some(createDefaultTransform())
   let request = HttpRequest(
     url: url,
     httpMethod: HttpMethod.GET,
     headers: headers,
     body: none(seq[uint8]),
     max_response_bytes: maxResponseBytes,
-    transform: none(HttpTransform)
+    transform: finalTransform
   )
-  return httpRequest(request)
+  return ManagementCanister.httpRequest(request)
 
-proc httpPost*(url: string, body: seq[uint8], headers: seq[(string, string)] = @[],
-               maxResponseBytes: Option[uint64] = none(uint64)): Future[HttpResponse] =
+
+proc httpPost*(
+  _: type ManagementCanister,
+  url: string,
+  body: seq[uint8],
+  headers: seq[(string, string)] = @[],
+  maxResponseBytes: Option[uint64] = none(uint64),
+  transform: Option[HttpTransform] = none(HttpTransform)
+): Future[HttpResponse] =
   ## Convenient POST request
+  let finalTransform = if transform.isSome: transform else: some(createDefaultTransform())
   let request = HttpRequest(
     url: url,
     httpMethod: HttpMethod.POST,
     headers: headers,
     body: some(body),
     max_response_bytes: maxResponseBytes,
-    transform: none(HttpTransform)
+    transform: finalTransform
   )
-  return httpRequest(request)
+  return ManagementCanister.httpRequest(request)
 
-proc httpPost*(url: string, jsonBody: string, headers: seq[(string, string)] = @[],
-               maxResponseBytes: Option[uint64] = none(uint64)): Future[HttpResponse] =
+
+proc httpPost*(
+  _: type ManagementCanister,
+  url: string,
+  jsonBody: string,
+  headers: seq[(string, string)] = @[],
+  maxResponseBytes: Option[uint64] = none(uint64),
+  transform: Option[HttpTransform] = none(HttpTransform)
+): Future[HttpResponse] =
   ## Convenient POST request with JSON body
   var requestHeaders = headers
   requestHeaders.add(("Content-Type", "application/json"))
   var bodyBytes: seq[uint8] = @[]
   for c in jsonBody:
     bodyBytes.add(uint8(ord(c)))
-  return httpPost(url, bodyBytes, requestHeaders, maxResponseBytes)
+  
+  let finalTransform = if transform.isSome: transform else: some(createJsonTransform())
+  return ManagementCanister.httpPost(url, bodyBytes, requestHeaders, maxResponseBytes, finalTransform)
 
-proc httpPut*(url: string, body: seq[uint8], headers: seq[(string, string)] = @[],
-              maxResponseBytes: Option[uint64] = none(uint64)): Future[HttpResponse] =
+
+proc httpPostJson*(
+  _: type ManagementCanister,
+  url: string,
+  jsonBody: string,
+  headers: seq[(string, string)] = @[],
+  maxResponseBytes: Option[uint64] = none(uint64),
+  idempotencyKey: Option[string] = none(string)
+): Future[HttpResponse] =
+  ## JSON POST request with Idempotency Key support
+  var requestHeaders = headers
+  requestHeaders.add(("Content-Type", "application/json"))
+  
+  # Idempotency Key の設定
+  if idempotencyKey.isSome:
+    requestHeaders.add(("Idempotency-Key", idempotencyKey.get))
+  # TODO: UUIDライブラリが利用可能になったら自動生成を実装
+  
+  var bodyBytes: seq[uint8] = @[]
+  for c in jsonBody:
+    bodyBytes.add(uint8(ord(c)))
+  
+  return ManagementCanister.httpPost(url, bodyBytes, requestHeaders, maxResponseBytes, some(createJsonTransform()))
+
+
+proc httpPut*(
+  _: type ManagementCanister,
+  url: string,
+  body: seq[uint8],
+  headers: seq[(string, string)] = @[],
+  maxResponseBytes: Option[uint64] = none(uint64),
+  transform: Option[HttpTransform] = none(HttpTransform)
+): Future[HttpResponse] =
   ## Convenient PUT request
+  let finalTransform = if transform.isSome: transform else: some(createDefaultTransform())
   let request = HttpRequest(
     url: url,
     httpMethod: HttpMethod.PUT,
     headers: headers,
     body: some(body),
     max_response_bytes: maxResponseBytes,
-    transform: none(HttpTransform)
+    transform: finalTransform
   )
-  return httpRequest(request)
+  return ManagementCanister.httpRequest(request)
 
-proc httpDelete*(url: string, headers: seq[(string, string)] = @[],
-                 maxResponseBytes: Option[uint64] = none(uint64)): Future[HttpResponse] =
+
+proc httpDelete*(
+  _: type ManagementCanister,
+  url: string,
+  headers: seq[(string, string)] = @[],
+  maxResponseBytes: Option[uint64] = none(uint64),
+  transform: Option[HttpTransform] = none(HttpTransform)
+): Future[HttpResponse] =
   ## Convenient DELETE request
+  let finalTransform = if transform.isSome: transform else: some(createDefaultTransform())
   let request = HttpRequest(
     url: url,
     httpMethod: HttpMethod.DELETE,
     headers: headers,
     body: none(seq[uint8]),
     max_response_bytes: maxResponseBytes,
-    transform: none(HttpTransform)
+    transform: finalTransform
   )
-  return httpRequest(request)
+  return ManagementCanister.httpRequest(request)
