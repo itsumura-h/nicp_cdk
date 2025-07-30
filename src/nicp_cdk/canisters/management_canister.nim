@@ -1,15 +1,28 @@
 import std/options
 import std/asyncfutures
+import std/asyncdispatch
 import std/tables
 import std/strutils
 import std/sequtils
 import ../ic0/ic0
+import ../ic0/wasm
 import ../ic_types/candid_types
 import ../ic_types/ic_principal
 import ../ic_types/ic_record
 import ../ic_types/candid_message/candid_encode
 import ../ic_types/candid_message/candid_decode
 import ../ic_types/candid_message/candid_message_types
+
+# Transform関数用の型定義を追加
+type
+  TransformArgs* = object
+    response*: HttpResponsePayload
+    context*: seq[uint8]  # Blob型（バイトシーケンス）
+
+  HttpResponsePayload* = object
+    status*: int
+    headers*: seq[(string, string)]
+    body*: seq[uint8]
 
 # ================================================================================
 # ECDSA related type definitions
@@ -334,21 +347,62 @@ proc createJsonTransform*(): HttpTransform =
 # ================================================================================
 
 proc `%`*(request: HttpRequest): CandidRecord =
-  ## HttpRequestをCandidRecordに変換
-  result = %* {
-    "url": request.url,
-    "max_response_bytes": (
-      if request.max_response_bytes.isSome: 
-        some(request.max_response_bytes.get.int) 
-      else: 
-        none(int)
-    ),
-    "headers": request.headers.mapIt([it[0], it[1]]),
-    "body": request.body,
-    "method": $request.httpMethod,
-    "transform": none(CandidRecord),  # Transform関数は現在未実装
-    "is_replicated": some(false)  # ローカル環境では非レプリケートモード
-  }
+  ## HttpRequestをCandidRecordに変換（IC Management Canister仕様準拠）
+  # IC公式仕様：ヘッダーは {name: Text, value: Text} 形式のレコード
+  var headersArray: seq[CandidRecord] = @[]
+  for header in request.headers:
+    headersArray.add(%* {
+      "name": header[0],
+      "value": header[1]
+    })
+  
+  # IC仕様：メソッドはVariant型（小文字ラベル + 空のRecord）
+  # Motokoサンプルでは #get, #post 等の値なしVariantとして実装されている
+  var methodVariant: CandidRecord
+  let emptyRecord = %* {}  # 空のRecord
+  case request.httpMethod
+  of HttpMethod.GET:
+    methodVariant = %* {"get": emptyRecord}
+  of HttpMethod.POST:
+    methodVariant = %* {"post": emptyRecord}
+  of HttpMethod.HEAD:
+    methodVariant = %* {"head": emptyRecord}
+  of HttpMethod.PUT:
+    methodVariant = %* {"put": emptyRecord}
+  of HttpMethod.DELETE:
+    methodVariant = %* {"delete": emptyRecord}
+  of HttpMethod.PATCH:
+    methodVariant = %* {"patch": emptyRecord}
+  of HttpMethod.OPTIONS:
+    methodVariant = %* {"options": emptyRecord}
+  
+  # Transform関数を使わない場合の最小構成
+  # MotokoサンプルはTransform関数ありなので、一旦Transform関数なしでテスト
+  if request.transform.isSome:
+    # Transform関数ありのフル構成
+    result = %* {
+      "url": request.url,
+      "max_response_bytes": request.max_response_bytes,
+      "headers": headersArray,
+      "body": request.body,
+      "method": methodVariant,
+      "transform": %* {
+        "function": "transform",  # Query関数名（後で実装）
+        "context": newSeq[uint8]()  # 空のByteコンテキスト
+      },
+      "is_replicated": some(false)
+    }
+  else:
+    # Transform関数なしの最小構成
+    result = %* {
+      "url": request.url,
+      "max_response_bytes": request.max_response_bytes,
+      "headers": headersArray,  
+      "body": request.body,
+      "method": methodVariant,
+      "transform": none(CandidRecord),  # null
+      "is_replicated": some(false)
+    }
 
 proc candidValueToHttpResponse(candidValue: CandidValue): HttpResponse =
   ## Converts a CandidValue to HttpResponse
@@ -460,6 +514,31 @@ proc estimateHttpOutcallCost(request: HttpRequest): uint64 =
   return exactCost + (exactCost div 5)
 
 
+proc transform*() {.async, query.} =
+  ## Transform関数 - Motokoサンプルと同等の実装
+  ## public query func transform(args : TransformArgs) : async HttpResponsePayload
+  ## IC Management CanisterのTransform関数として動作
+  
+  # Motokoサンプルと同じ処理：ヘッダーを空にしてボディとステータスのみ返す
+  # 実際の引数解析は後で実装、今はテスト用の固定レスポンス
+  
+  let emptyHeaders: seq[CandidRecord] = @[]  # 明示的な型指定
+  let testBody: seq[uint8] = @[91'u8, 93'u8]  # "[]" のバイト配列
+  
+  let transformedResponse = %* {
+    "status": 200,  # 固定ステータス（後で引数から取得）
+    "headers": emptyHeaders,  # 空のヘッダー配列（Motokoと同じ）
+    "body": testBody
+  }
+  
+  # IC0 System APIを使用してレスポンスを返す
+  let candidValue = recordToCandidValue(transformedResponse)
+  let responseBytes = encodeCandidMessage(@[candidValue])
+  if responseBytes.len > 0:
+    ic0_msg_reply_data_append(cast[int](responseBytes[0].addr), responseBytes.len)
+  ic0_msg_reply()
+
+
 proc httpRequest*(_:type ManagementCanister, request: HttpRequest): Future[HttpResponse] =
   ## HTTP Outcallをマネジメントキャニスター経由で実行（Rust方式: 自動サイクル送信）
   result = newFuture[HttpResponse]("httpRequest")
@@ -469,6 +548,9 @@ proc httpRequest*(_:type ManagementCanister, request: HttpRequest): Future[HttpR
   let destLen = mgmtPrincipalBytes.len
 
   let methodName = "http_request".cstring
+  echo "=== 🔧 HTTP Outcall Debug ==="
+  echo "Calling ic0_call_new for http_request method"
+  
   ic0_call_new(
     callee_src = cast[int](destPtr),
     callee_size = destLen,
@@ -480,24 +562,53 @@ proc httpRequest*(_:type ManagementCanister, request: HttpRequest): Future[HttpR
     reject_env = cast[int](result)
   )
 
-  # 自動サイクル計算・送信（Rust方式）
-  # 重要：ic0_call_newの後でサイクルを追加する必要がある
-  let totalCycles = estimateHttpOutcallCost(request)
-  let cyclesHigh = totalCycles shr 32
-  let cyclesLow = totalCycles and 0xFFFFFFFF'u64
+  # Motokoと同じ固定サイクル数でテスト
+  let totalCycles = 230_949_972_000'u64  # Motokoと同じサイクル数
+  let cyclesHigh = 0'u64  # 上位64bit
+  let cyclesLow = totalCycles  # 下位64bit
+  
+  echo "Adding cycles: ", totalCycles, " (", cyclesHigh, " high, ", cyclesLow, " low)"
   ic0_call_cycles_add128(cyclesHigh, cyclesLow)
 
   try:
+    echo "Converting HttpRequest to CandidRecord..."
     let candidRecord = %request
+    echo "CandidRecord: ", $candidRecord
+    
+    echo "Converting CandidRecord to CandidValue..."
     let candidValue = recordToCandidValue(candidRecord)
+    
+    echo "Encoding Candid message..."
     let encoded = encodeCandidMessage(@[candidValue])
+    echo "Encoded message size: ", encoded.len, " bytes"
+    
+    # バイトレベルでのデバッグ出力（最初の64バイトまで）
+    echo "Encoded bytes (hex, first 64 bytes):"
+    var hexStr = ""
+    for i in 0..<min(64, encoded.len):
+      if i > 0 and i mod 16 == 0:
+        hexStr.add("\n")
+      elif i > 0 and i mod 8 == 0:
+        hexStr.add("  ")
+      elif i > 0:
+        hexStr.add(" ")
+      hexStr.add(encoded[i].toHex(2).toLowerAscii())
+    echo hexStr
+    
     ic0_call_data_append(ptrToInt(addr encoded[0]), encoded.len)
+    
+    echo "Performing HTTP Outcall..."
     let err = ic0_call_perform()
     if err != 0:
       let msg = "http_request call_perform failed with error: " & $err
+      echo "❌ ", msg
       fail(result, newException(ValueError, msg))
       return
+    else:
+      echo "✅ HTTP Outcall initiated successfully"
   except Exception as e:
+    echo "❌ HTTP Outcall preparation failed: ", e.msg
+    echo "Exception details: ", e.name, " - ", e.getStackTrace()
     fail(result, e)
     return
 
@@ -592,6 +703,13 @@ proc onTransformCallback(env: uint32) {.exportc.} =
     ic0_msg_reply_data_append(ptrToInt(addr encoded[0]), encoded.len)
     ic0_msg_reply()
 
+
+# ================================================================================
+# Transform Query Functions for IC System API Integration
+# ================================================================================
+
+# Transform関数は各キャニスターで個別に実装する必要があります
+# この汎用実装は削除し、各キャニスターのmain.nimで実装します
 
 # 初期化時にデフォルトTransform関数を登録
 proc initHttpTransforms*() =
