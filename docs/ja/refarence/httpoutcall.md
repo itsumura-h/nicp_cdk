@@ -607,20 +607,18 @@ import std/asyncfutures
 
 proc fetchWeatherData*(): Future[string] {.async.} =
   try:
-    # IPv6対応APIへのリクエスト
-    let response = await httpGet(
+    # IPv6対応APIへのリクエスト（サイクルは自動計算・送信）
+    let response = await ManagementCanister.httpGet(
       url = "https://api.weather.com/v1/current?city=Tokyo",
-      maxResponseBytes = some(1024_u64)  # 1KB制限
+      maxResponseBytes = some(1024'u64)  # 1KB制限
     )
     
     if response.isSuccess():
       result = response.getTextBody()
     else:
       result = "Error: " & $response.status
-  except HttpOutcallError as e:
-    result = "HTTP Outcall Error: " & e.msg
   except Exception as e:
-    result = "Unexpected Error: " & e.msg
+    result = "HTTP Outcall Error: " & e.msg
 ```
 
 ### 7.2 JSONを使ったPOSTリクエスト
@@ -634,11 +632,11 @@ proc submitUserData*(name: string, age: int): Future[bool] {.async.} =
       "timestamp": epochTime()  # Transform関数で除去される
     }
     
-    let response = await httpPostJson(
+    # サイクルは自動計算・送信されるため明示的な指定不要
+    let response = await ManagementCanister.httpPostJson(
       url = "https://api.example.com/users",
       jsonBody = $jsonData,
-      maxResponseBytes = some(512_u64),
-      idempotencyKey = some("user-create-" & name & "-" & $age)
+      maxResponseBytes = some(512'u64)
     )
     
     result = response.isSuccess()
@@ -663,9 +661,10 @@ proc fetchCryptoPrices*(): Future[seq[float]] {.async.} =
     context: @[]
   )
   
-  let response = await httpGet(
+  # サイクルは自動計算・送信
+  let response = await ManagementCanister.httpGet(
     url = "https://api.coinbase.com/v2/exchange-rates?currency=ICP",
-    maxResponseBytes = some(2048_u64),
+    maxResponseBytes = some(2048'u64),
     transform = some(transform)
   )
   
@@ -750,46 +749,117 @@ proc httpRequestWithRetry*(request: HttpRequest,
 
 ## 9. パフォーマンス・課金考慮事項
 
-### 9.1 サイクル計算
+### 9.1 サイクル送信方法の言語別比較
+
+HTTP Outcallにサイクルを送信する方法は言語によって異なります：
+
+#### 9.1.1 Motoko
+Motokoでは**明示的にサイクルを追加**する必要があります：
+
+```motoko
+// 明示的なサイクル追加が必要
+Cycles.add<s>(230_949_972_000);
+let http_response : IC.http_request_result = await IC.http_request(http_request);
+```
+
+または `with cycles` 構文を使用：
+
+```motoko
+// with cycles構文でサイクル送信
+let http_response : HttpResponsePayload = await (with cycles = 230_949_972_000) ic.http_request(http_request);
+```
+
+#### 9.1.2 Rust
+Rustの`ic_cdk`では**自動的にサイクルが送信**されます：
+
+```rust
+// Rustでは自動的に必要なサイクルが送信される
+match http_request(request).await {
+    Ok((response,)) => {
+        // レスポンス処理
+    }
+    Err((r, m)) => {
+        // エラーハンドリング
+    }
+}
+```
+
+公式ドキュメントの注記：
+> **Note: in Rust, `http_request()` already sends the cycles needed so no need for explicit Cycles.add() as in Motoko**
+
+#### 9.1.3 Nimでの実装方針
+
+Nimでは**Rust方式の自動サイクル送信**を採用します：
 
 ```nim
-proc estimateHttpOutcallCost*(request: HttpRequest): uint64 =
-  ## HTTP Outcallのおおよそのサイクル使用量を推定
-  let basePrice = 400_000_000_u64  # 400M cycles
+proc httpRequest*(_:type ManagementCanister, request: HttpRequest): Future[HttpResponse] =
+  # 自動的にサイクルを計算・送信（Rust方式）
+  let totalCycles = estimateHttpOutcallCost(request)
+  let cyclesHigh = totalCycles shr 32
+  let cyclesLow = totalCycles and 0xFFFFFFFF'u64
+  ic0_call_cycles_add128(cyclesHigh, cyclesLow)
   
+  # HTTP request実行
+  # ...
+```
+
+**メリット**:
+- 開発者がサイクル計算を意識する必要がない
+- Rustとの一貫性のあるAPI設計
+- ヒューマンエラーの削減
+
+### 9.2 自動サイクル計算の実装
+
+NimのHTTP Outcall実装では、**IC System API**を使用して正確なサイクル計算を行います：
+
+```nim
+proc estimateHttpOutcallCost(request: HttpRequest): uint64 =
+  ## HTTP Outcallのサイクル使用量を正確に計算（IC System API使用）
+  
+  # リクエストサイズを計算
   var requestSize = request.url.len.uint64
   
   # ヘッダーサイズ
   for header in request.headers:
-    requestSize += header.name.len.uint64 + header.value.len.uint64
+    requestSize += header[0].len.uint64 + header[1].len.uint64
   
   # ボディサイズ
   if request.body.isSome:
     requestSize += request.body.get.len.uint64
   
-  # Transform関数名サイズ（仮）
+  # HTTPメソッド名のサイズ
+  requestSize += ($request.httpMethod).len.uint64
+  
+  # Transform関数サイズ（概算）
   if request.transform.isSome:
-    requestSize += 20  # 関数名の推定サイズ
-    requestSize += request.transform.get.context.len.uint64
+    requestSize += 100
   
-  let maxResponseSize = request.max_response_bytes.get(2_000_000_u64)
-  let variablePrice = 100_000_u64 * (requestSize + maxResponseSize)
+  let maxResponseSize = request.max_response_bytes.get(2000000'u64)
   
-  # サブネットサイズ補正（通常13ノード）
-  let scalingFactor = 13_u64
+  # IC System APIを使用して正確なコスト計算
+  var costBuffer: array[16, uint8]  # 128bit cycles用バッファ
+  ic0_cost_http_request(requestSize, maxResponseSize, addr costBuffer[0])
   
-  return basePrice + (variablePrice * scalingFactor / 13)
-
-proc addCyclesForHttpRequest*(request: HttpRequest) =
-  ## 適切なサイクルを自動設定
-  let estimatedCycles = estimateHttpOutcallCost(request)
-  let safetyMargin = estimatedCycles * 2 / 10  # 20%の安全マージン
-  let totalCycles = estimatedCycles + safetyMargin
+  # 128bitコスト値をuint64に変換
+  var exactCost: uint64 = 0
+  for i in 0..<8:
+    exactCost = exactCost or (uint64(costBuffer[i]) shl (i * 8))
   
-  # Cycles.add(totalCycles) # 実装時にCyclesライブラリとの統合が必要
+  # 20%の安全マージンを追加
+  return exactCost + (exactCost div 5)
 ```
 
-### 9.2 最適化推奨事項
+#### 9.2.1 IC System APIの利点
+
+- **正確な計算**: ICプロトコルの公式コスト計算式を使用
+- **自動更新**: ICの料金体系変更に自動対応
+- **最適化**: 不要な概算計算を排除
+- **信頼性**: プロトコルレベルでの保証
+
+この計算は`httpRequest`関数内で自動的に実行され、開発者は意識する必要がありません。
+```
+
+### 9.3 最適化推奨事項
 
 ```nim
 const 
@@ -932,6 +1002,8 @@ proc testHttpPostIntegration*() {.async.} =
 - [HTTPS Outcalls仕様](https://internetcomputer.org/docs/references/https-outcalls-how-it-works)
 - [Management Canister Interface](https://internetcomputer.org/docs/current/references/ic-interface-spec/#ic-management-canister)
 - [HTTP Outcalls料金体系](https://internetcomputer.org/docs/current/developer-docs/gas-cost)
+- [IC System API仕様（サイクル関連）](https://internetcomputer.org/docs/current/references/ic-interface-spec/#system-api-cycles)
+- [IC HTTP Outcall コスト計算API](https://internetcomputer.org/docs/current/references/ic-interface-spec/#system-api-costs)
 
 ### 12.2 実装例
 

@@ -423,8 +423,44 @@ proc onCallHttpRequestReject(env: uint32) {.exportc.} =
   fail(fut, newException(ValueError, msg))
 
 
+proc estimateHttpOutcallCost(request: HttpRequest): uint64 =
+  ## HTTP Outcallのサイクル使用量を正確に計算（IC System API使用）
+  
+  # リクエストサイズを計算
+  var requestSize = request.url.len.uint64
+  
+  # ヘッダーサイズ
+  for header in request.headers:
+    requestSize += header[0].len.uint64 + header[1].len.uint64
+  
+  # ボディサイズ
+  if request.body.isSome:
+    requestSize += request.body.get.len.uint64
+  
+  # HTTPメソッド名のサイズ
+  requestSize += ($request.httpMethod).len.uint64
+  
+  # Transform関数サイズ（概算）
+  if request.transform.isSome:
+    requestSize += 100  # Transform関数の概算サイズ
+  
+  let maxResponseSize = request.max_response_bytes.get(2000000'u64)
+  
+  # IC System APIを使用して正確なコスト計算
+  var costBuffer: array[16, uint8]  # 128bit for cycles
+  ic0_cost_http_request(requestSize, maxResponseSize, ptrToInt(addr costBuffer[0]))
+  
+  # 128bitのコスト値をuint64に変換（下位64bitを使用）
+  var exactCost: uint64 = 0
+  for i in 0..<8:
+    exactCost = exactCost or (uint64(costBuffer[i]) shl (i * 8))
+  
+  # 20%の安全マージンを追加
+  return exactCost + (exactCost div 5)
+
+
 proc httpRequest*(_:type ManagementCanister, request: HttpRequest): Future[HttpResponse] =
-  ## HTTP Outcallをマネジメントキャニスター経由で実行
+  ## HTTP Outcallをマネジメントキャニスター経由で実行（Rust方式: 自動サイクル送信）
   result = newFuture[HttpResponse]("httpRequest")
 
   let mgmtPrincipalBytes: seq[uint8] = @[]
@@ -444,6 +480,12 @@ proc httpRequest*(_:type ManagementCanister, request: HttpRequest): Future[HttpR
   )
 
   try:
+    # 自動サイクル計算・送信（Rust方式）
+    let totalCycles = estimateHttpOutcallCost(request)
+    let cyclesHigh = totalCycles shr 32
+    let cyclesLow = totalCycles and 0xFFFFFFFF'u64
+    ic0_call_cycles_add128(cyclesHigh, cyclesLow)
+    
     let candidRecord = %request
     let candidValue = recordToCandidValue(candidRecord)
     let encoded = encodeCandidMessage(@[candidValue])
@@ -471,12 +513,14 @@ proc toBytes(s: string): seq[uint8] =
   for i, c in s:
     result[i] = uint8(ord(c))
 
+
 proc registerTransform*(name: string, transform: HttpTransformFunction) =
   ## Transform関数を登録
   if not registeredTransforms.hasKey("_initialized"):
     registeredTransforms = initTable[string, HttpTransformFunction]()
     registeredTransforms["_initialized"] = nil
   registeredTransforms[name] = transform
+
 
 proc onTransformCallback(env: uint32) {.exportc.} =
   ## IC System APIから呼び出されるTransform関数コールバック
@@ -546,6 +590,7 @@ proc onTransformCallback(env: uint32) {.exportc.} =
     ic0_msg_reply_data_append(ptrToInt(addr encoded[0]), encoded.len)
     ic0_msg_reply()
 
+
 # 初期化時にデフォルトTransform関数を登録
 proc initHttpTransforms*() =
   ## HTTP Transform機能の初期化
@@ -563,9 +608,11 @@ proc getTextBody*(response: HttpResponse): string =
   for b in response.body:
     result.add(char(b))
 
+
 proc isSuccess*(response: HttpResponse): bool =
   ## HTTPステータスが成功範囲(200-299)かチェック
   response.status >= 200 and response.status < 300
+
 
 proc getHeader*(response: HttpResponse, name: string): Option[string] =
   ## 指定されたヘッダー値を取得
@@ -574,6 +621,7 @@ proc getHeader*(response: HttpResponse, name: string): Option[string] =
     if header[0].toLowerAscii() == nameLower:
       return some(header[1])
   return none(string)
+
 
 proc expectJsonResponse*(response: HttpResponse): string =
   ## JSONレスポンスの期待値検証
@@ -588,13 +636,16 @@ proc expectJsonResponse*(response: HttpResponse): string =
   
   return response.getTextBody()
 
+
 proc getStatusCode*(response: HttpResponse): int =
   ## HTTPステータスコードをint型で取得
   response.status.int
 
+
 proc hasHeader*(response: HttpResponse, name: string): bool =
   ## 指定されたヘッダーが存在するかチェック
   response.getHeader(name).isSome
+
 
 proc getContentLength*(response: HttpResponse): Option[int] =
   ## Content-Lengthヘッダーの値を取得
@@ -606,6 +657,7 @@ proc getContentLength*(response: HttpResponse): Option[int] =
       return none(int)
   return none(int)
 
+
 proc isJsonResponse*(response: HttpResponse): bool =
   ## レスポンスがJSON形式かチェック
   let contentType = response.getHeader("content-type")
@@ -613,6 +665,7 @@ proc isJsonResponse*(response: HttpResponse): bool =
     let ct = contentType.get.toLowerAscii()
     return ct.contains("application/json") or ct.contains("text/json")
   return false
+
 
 proc getBodySize*(response: HttpResponse): int =
   ## レスポンスボディのサイズを取得

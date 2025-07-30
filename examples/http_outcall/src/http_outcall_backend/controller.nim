@@ -7,15 +7,16 @@ import ../../../../src/nicp_cdk/canisters/management_canister
 
 proc getRequest*() {.async.} =
   try:
+    const URL = "https://api.exchange.coinbase.com/products/ICP-USD/candles"
     # 実際のHTTP Outcall実装でテスト（詳細ログ追加）
     echo "=== Starting HTTP Outcall Debug ==="
-    echo "Target URL: http://localhost:8000"  
+    echo "Target URL: ", URL
     echo "Headers: Content-Type: application/json"
     
     # リクエスト作成をデバッグ
     echo "Creating HTTP request object..."
     let request = HttpRequest(
-      url: "http://localhost:8000",
+      url: URL,
       httpMethod: HttpMethod.GET,
       headers: @[("Content-Type", "application/json")],
       body: none(seq[uint8]),
