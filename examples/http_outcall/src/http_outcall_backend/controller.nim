@@ -20,8 +20,8 @@ proc getRequest*() {.async.} =
       httpMethod: HttpMethod.GET,
       headers: @[("Content-Type", "application/json")],
       body: none(seq[uint8]),
-      max_response_bytes: none(uint64),
-      transform: none(HttpTransform)
+      max_response_bytes: none(uint64),  # デフォルト値を使用（Motokoと同様）
+      transform: none(HttpTransform)  # Transform関数は一時的に無効化
     )
     echo "HTTP request object created successfully"
     

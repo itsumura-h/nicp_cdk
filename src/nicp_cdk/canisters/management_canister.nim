@@ -346,7 +346,8 @@ proc `%`*(request: HttpRequest): CandidRecord =
     "headers": request.headers.mapIt([it[0], it[1]]),
     "body": request.body,
     "method": $request.httpMethod,
-    "transform": none(CandidRecord)
+    "transform": none(CandidRecord),  # Transform関数は現在未実装
+    "is_replicated": some(false)  # ローカル環境では非レプリケートモード
   }
 
 proc candidValueToHttpResponse(candidValue: CandidValue): HttpResponse =
@@ -479,13 +480,14 @@ proc httpRequest*(_:type ManagementCanister, request: HttpRequest): Future[HttpR
     reject_env = cast[int](result)
   )
 
+  # 自動サイクル計算・送信（Rust方式）
+  # 重要：ic0_call_newの後でサイクルを追加する必要がある
+  let totalCycles = estimateHttpOutcallCost(request)
+  let cyclesHigh = totalCycles shr 32
+  let cyclesLow = totalCycles and 0xFFFFFFFF'u64
+  ic0_call_cycles_add128(cyclesHigh, cyclesLow)
+
   try:
-    # 自動サイクル計算・送信（Rust方式）
-    let totalCycles = estimateHttpOutcallCost(request)
-    let cyclesHigh = totalCycles shr 32
-    let cyclesLow = totalCycles and 0xFFFFFFFF'u64
-    ic0_call_cycles_add128(cyclesHigh, cyclesLow)
-    
     let candidRecord = %request
     let candidValue = recordToCandidValue(candidRecord)
     let encoded = encodeCandidMessage(@[candidValue])

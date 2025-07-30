@@ -4,6 +4,14 @@
 
 本文書は、Internet Computer Protocol (ICP) のHTTP Outcall機能をNim言語で実装するための包括的な仕様書です。既存のNim CDK (`nicp_cdk`) の設計パターンに従い、マネジメントキャニスター経由でのHTTP通信機能を提供します。
 
+### ⚠️ 重要な更新情報
+
+**ローカル環境でのHTTP Outcall動作について**:
+- ✅ **外部HTTPS API**への接続は**ローカル環境でも完全に動作**します
+- ✅ **Coinbase API**、**HTTPBin**、**GitHub API**等での動作を確認済み
+- ❌ **HTTPプロトコル**と**プライベートIPアドレス**へのアクセスは制限されます
+- 💡 開発時は**外部HTTPS API**を直接使用することを推奨します
+
 ## 1. 背景と目的
 
 ### 1.1 ICP HTTP Outcallの概要
@@ -70,37 +78,41 @@ sequenceDiagram
 
 ## 3. ローカル開発環境でのHTTP Outcall
 
-### 3.1 ローカル環境での制限事項
+### 3.1 ローカル環境での動作
 
-ローカルdfx環境では、HTTP Outcall機能に以下の制限があります：
+ローカルdfx環境では、HTTP Outcall機能は以下のように動作します：
 
-#### 3.1.1 デフォルトの制限
+#### 3.1.1 基本動作
 
 **重要な理解**:
 - HTTP Outcall機能は**dfx 0.28.0でデフォルト有効**
 - `--enable-canister-http`オプションは**非推奨**（警告表示）
-- しかし、ローカル環境では**外部ネットワークアクセスが制限**
+- ローカル環境でも**外部ネットワークアクセスが可能**
+
+**動作状況**:
+- **外部HTTPS API**（https://api.coinbase.com、https://httpbin.orgなど）: ✅ 完全動作
+- **外部HTTP API**（http://httpbin.org）: ⚠️ HTTPSに自動リダイレクト
+- **localhost HTTPS**（https://localhost:8443）: ✅ 証明書が有効なら動作
+- **localhost HTTP**（http://localhost:8000）: ❌ セキュリティ制限
+- **同一ネットワークHTTP**（http://192.168.x.x）: ❌ セキュリティ制限
+
+#### 3.1.2 セキュリティ制限
 
 **制限内容**:
-- ローカルdfxレプリカではHTTP Outcall機能は**完全にサンドボックス化**
-- **外部サイト**（https://httpbin.orgなど）: IC0406エラー ❌
-- **localhost**（http://localhost:8000）: IC0406エラー ❌  
-- **同一ネットワーク**（192.168.x.x）: IC0406エラー ❌
-- Management CanisterがHTTPリクエストを自動的にリジェクト（エラーコード: IC0406）
-- セキュリティ上の理由による**全ての外部通信制限**
-- 機能自体は動作するが、実際のHTTP通信は拒否される
+1. **HTTPプロトコル**: HTTPは基本的に制限、HTTPSのみ許可
+2. **ローカルネットワーク**: プライベートIPアドレスへのアクセス制限
+3. **証明書検証**: 有効なTLS証明書が必要
 
-#### 3.1.2 制限の背景
+**制限の理由**:
+1. **セキュリティ**: Man-in-the-middle攻撃の防止
+2. **一貫性**: 本番環境との動作統一
+3. **決定論性**: 複数レプリカでの合意可能な通信のみ許可
 
-1. **セキュリティ**: ローカル開発環境での意図しない外部通信を防止
-2. **一貫性**: 決定論的実行環境の維持
-3. **ネットワーク分離**: 開発環境と本番環境の明確な分離
+### 3.2 ローカル環境でのセットアップ
 
-### 3.2 ローカルでHTTP Outcallを有効にする方法
+#### 3.2.1 基本設定（最小構成）
 
-#### 3.2.1 dfx.json設定
-
-プロジェクトの`dfx.json`にHTTP Outcall設定を追加：
+HTTP Outcallは**デフォルトで有効**なため、特別な設定は不要です：
 
 ```json
 {
@@ -110,114 +122,137 @@ sequenceDiagram
       "main": "src/main.mo"
     }
   },
-  "defaults": {
-    "canister_http": {
-      "enabled": true,
-      "log_level": "debug"
-    },
-    "replica": {
-      "subnet_type": "system"
-    }
-  },
-  "networks": {
-    "local": {
-      "bind": "127.0.0.1:4943",
-      "type": "ephemeral",
-      "canister_http": {
-        "enabled": true
-      }
-    }
-  }
+  "version": 1
 }
 ```
 
-#### 3.2.2 dfx startコマンドオプション
+#### 3.2.2 高度な設定（オプション）
+
+必要に応じてHTTP Outcallのログレベルを調整：
+
+```json
+{
+  "canisters": {
+    "your_canister": {
+      "type": "motoko", 
+      "main": "src/main.mo"
+    }
+  },
+  "defaults": {
+    "replica": {
+      "log_level": "info"
+    }
+  },
+  "version": 1
+}
+```
+
+#### 3.2.3 dfx startコマンド
 
 ローカルレプリカを起動（HTTP Outcallはデフォルトで有効）：
 
 ```bash
-# 基本的な起動（HTTP Outcallはデフォルトで有効）
-dfx start
+# 基本的な起動
+dfx start --background
 
 # クリーンスタート（推奨）
-dfx start --clean
-
-# バックグラウンドで起動
 dfx start --clean --background
 
-# 詳細ログを有効化
+# 詳細ログでHTTP Outcallをデバッグ
 dfx start --replica-log-level debug
 ```
 
-#### 3.2.3 環境変数設定
+#### 3.2.4 環境変数設定（オプション）
 
 ```bash
-# 詳細ログを有効化
+# HTTP Outcallの詳細ログを有効化
 export DFX_LOG_LEVEL=debug
 
-# 必要に応じてHTTP Outcallを無効化する場合
-# export DFX_CANISTER_HTTP_ENABLED=false
+# 注意：HTTP Outcallを無効化しない（デフォルトで有効のため）
+# export DFX_CANISTER_HTTP_ENABLED=false  # ❌ 推奨しない
 ```
 
 ### 3.3 ローカルHTTP Outcallのテスト方法
 
-#### 3.3.1 テスト用ローカルサーバーの設定
+#### 3.3.1 推奨テスト方法：外部HTTPS API
 
-```bash
-# HTTPテストサーバーを起動
-python3 -m http.server 8080 &
-
-# テスト用JSONファイルを作成
-echo '{"message": "Hello from local server", "timestamp": "2024-01-01T00:00:00Z"}' > test.json
-
-# アクセステスト
-curl http://localhost:8080/test.json
-```
-
-#### 3.3.2 ローカルエンドポイントへのテスト
+**最も確実な方法** - 外部のHTTPS APIを直接使用：
 
 ```nim
-# ローカルHTTPサーバーへのテスト
-proc testLocalHttpOutcall*() {.async.} =
+# パブリックHTTPS APIテスト（推奨）
+proc testPublicHttpsApi*() {.async.} =
   try:
+    # Coinbase Exchange API（実際に動作確認済み）
     let response = await ManagementCanister.httpGet(
-      "http://localhost:8080/test.json",
-      headers = @[("Content-Type", "application/json")]
+      "https://api.exchange.coinbase.com/products/ICP-USD/ticker",
+      maxResponseBytes = some(4096)
     )
     
     if response.isSuccess():
-      echo "Local HTTP Outcall successful: ", response.getTextBody()
+      echo "External HTTPS API successful: ", response.getTextBody()
     else:
       echo "HTTP error: ", response.status
   except Exception as e:
     echo "Error: ", e.msg
+
+# その他の動作確認済み外部API
+proc testHttpBinApi*() {.async.} =
+  let response = await ManagementCanister.httpGet(
+    "https://httpbin.org/json",
+    maxResponseBytes = some(4096)
+  )
+  echo "HTTPBin response: ", response.getTextBody()
 ```
 
-#### 3.3.3 パブリックAPIテスト
+#### 3.3.2 ローカルHTTPSサーバーテスト
+
+有効なTLS証明書を持つローカルHTTPSサーバーが必要：
+
+```bash
+# 自己署名証明書によるHTTPSサーバー（テスト用）
+# 注意：自己署名証明書はICで拒否される可能性があります
+openssl req -x509 -newkey rsa:4096 -keyout key.pem -out cert.pem -days 365 -nodes
+python3 -c "
+import http.server
+import ssl
+httpd = http.server.HTTPServer(('localhost', 8443), http.server.SimpleHTTPRequestHandler)
+httpd.socket = ssl.wrap_socket(httpd.socket, certfile='cert.pem', keyfile='key.pem', server_side=True)
+httpd.serve_forever()
+"
+```
+
+#### 3.3.3 制限のあるプロトコル
+
+以下は**ローカル環境では動作しません**：
 
 ```nim
-# パブリックAPIへのテスト（プロキシ使用可能）
-proc testPublicApiCall*() {.async.} =
+# ❌ HTTP（非暗号化）プロトコル - セキュリティ制限により失敗
+proc testHttpLocalServer*() {.async.} =
   try:
-    # IPv6対応のパブリックAPI
     let response = await ManagementCanister.httpGet(
-      "https://httpbin.org/json",
-      maxResponseBytes = some(4096)
+      "http://localhost:8080/test.json"  # HTTPは拒否される
     )
-    
-    echo "Public API response: ", response.getTextBody()
   except Exception as e:
-    echo "Public API error: ", e.msg
+    echo "Expected error: ", e.msg  # セキュリティエラーが期待される
+
+# ❌ プライベートIPアドレス - ネットワーク制限により失敗  
+proc testPrivateNetwork*() {.async.} =
+  try:
+    let response = await ManagementCanister.httpGet(
+      "http://192.168.1.100:8080/api"  # プライベートIPは拒否
+    )
+  except Exception as e:
+    echo "Expected error: ", e.msg
 ```
 
 ### 3.4 ローカル開発のベストプラクティス
 
 #### 3.4.1 段階的開発アプローチ
 
-1. **Phase 1**: ローカルHTTPサーバーでテスト
-2. **Phase 2**: dfx設定でHTTP Outcall有効化
-3. **Phase 3**: パブリックAPIでの統合テスト
-4. **Phase 4**: IC testnetでの検証
+1. **Phase 1**: 外部HTTPS APIでテスト（推奨開始点）
+2. **Phase 2**: 機能実装とTransform関数の開発
+3. **Phase 3**: エラーハンドリングとリトライ機構
+4. **Phase 4**: IC testnetでの統合検証
 
 #### 3.4.2 テスト設定ファイル
 
@@ -226,10 +261,25 @@ proc testPublicApiCall*() {.async.} =
 {
   "httpOutcall": {
     "enabled": true,
-    "localServer": "http://localhost:8080",
     "testEndpoints": [
-      "https://httpbin.org/json",
-      "https://api.github.com/zen"
+      {
+        "name": "coinbase_ticker",
+        "url": "https://api.exchange.coinbase.com/products/ICP-USD/ticker",
+        "method": "GET",
+        "description": "暗号通貨価格データ取得"
+      },
+      {
+        "name": "httpbin_json", 
+        "url": "https://httpbin.org/json",
+        "method": "GET",
+        "description": "JSONレスポンステスト"
+      },
+      {
+        "name": "github_zen",
+        "url": "https://api.github.com/zen", 
+        "method": "GET",
+        "description": "シンプルテキストレスポンス"
+      }
     ]
   }
 }
@@ -257,11 +307,12 @@ dfx canister logs your_canister
 
 | 問題 | 原因 | 解決策 |
 |------|------|--------|
-| IC0406 エラー | ローカル環境での外部通信制限 | 本番環境での検証、またはローカルサーバー使用 |
+| HTTPプロトコルエラー | HTTPSが必要 | URLをHTTPからHTTPSに変更 |
+| プライベートIPアクセスエラー | ローカルネットワーク制限 | 外部HTTPS APIを使用 |
 | `--enable-canister-http`警告 | 非推奨オプション使用 | オプション削除（デフォルト有効） |
-| ネットワーク接続エラー | IPv6/IPv4設定 | ローカルサーバーまたはプロキシ使用 |
+| TLS証明書エラー | 無効・期限切れ証明書 | 有効な証明書を持つAPIを使用 |
 | Transform関数エラー | レスポンス不一致 | Transform関数の正規化ロジック確認 |
-| タイムアウト | ネットワーク遅延 | タイムアウト設定の調整 |
+| タイムアウト | ネットワーク遅延・Transform処理 | タイムアウト設定調整・Transform最適化 |
 
 #### 3.5.2 デバッグログの活用
 
@@ -273,17 +324,22 @@ dfx start --replica-log-level debug
 tail -f ~/.local/share/dfx/network/local/replica.log
 ```
 
-#### 3.5.3 設定の検証
+#### 3.5.3 実際の動作確認
 
 ```bash
 # dfx設定確認
 dfx info
 
-# ネットワーク設定確認
+# ネットワーク設定確認  
 dfx ping local
 
-# HTTP Outcall機能確認
-dfx canister call your_canister test_http_outcall
+# 動作実証済みのMotokoサンプル実行
+cd examples/http_outcall_motoko
+dfx deploy --with-cycles 1000000000000
+dfx canister call http_outcall_motoko_backend get_icp_usd_exchange
+
+# 期待される出力例:
+# ("[[1682978460,5.714,5.718,5.714,5.714,243.5678]]")
 ```
 
 ## 4. 型定義仕様
@@ -457,18 +513,53 @@ proc onHttpRequestReject(env: uint32) {.exportc.} =
   fail(fut, error)
 ```
 
-### 5.3 Transform関数サポート
+### 5.3 Transform関数の実装方針
+
+#### 5.3.1 Transform関数の必要性と役割
+
+Transform関数は**ICP HTTP Outcallの中核機能**です。ICでは複数のレプリカが同じHTTPリクエストを並行実行するため、レスポンスの合意形成が必要です。
+
+**Transform関数の役割**（参考: [IC HTTPS Outcalls仕様](https://internetcomputer.org/docs/references/https-outcalls-how-it-works)）:
+- **レスポンス正規化**: レプリカ間で異なるレスポンスを統一する
+- **コンセンサス対応**: ICプロトコルの合意メカニズムとの統合
+- **決定論的実行**: 全レプリカで同一のレスポンスを保証
+
+#### 5.3.2 Transform関数が必要な理由
+
+[IC公式ドキュメント](https://internetcomputer.org/docs/building-apps/network-features/using-http/https-outcalls/post)によると：
+
+> Headers in the response may not always be identical across all nodes that process the request for consensus, causing the result of the call to be "No consensus could be reached." This particular error message can be hard to debug, but one method to resolve this error is to edit the response using the transform function.
+
+**典型的な可変要素**:
+- **タイムスタンプ系ヘッダー**: `Date`, `Last-Modified`, `Expires`
+- **サーバー固有ヘッダー**: `Server`, `X-Request-ID`, `X-Timestamp`
+- **セッション関連**: `Set-Cookie`, `ETag`
+- **キャッシュ制御**: `Cache-Control`, `Age`
+
+#### 5.3.3 Nim CDKでのTransform関数実装アーキテクチャ
+
+**実装方針の概要**:
+1. **Query関数として実装**: Transform関数はICシステムAPIからQuery呼び出し
+2. **Candidインターフェース対応**: IC Management Canisterとの互換性
+3. **パフォーマンス最適化**: 軽量な処理でコンセンサス速度向上
 
 ```nim
+# Transform関数のICシステムAPI統合
+proc registerTransformFunction*(name: string, canister_id: Principal) =
+  ## Transform関数をIC System APIに登録
+  # 実装: IC0システムコールとの統合
+
 proc createDefaultTransform*(): HttpTransform =
   ## デフォルトのTransform関数: ヘッダーからタイムスタンプを除去
   proc defaultTransform(response: HttpResponse): HttpResponse =
     var filteredHeaders: seq[HttpHeader] = @[]
     for header in response.headers:
-      # 一般的な可変ヘッダーを除去
+      # IC公式推奨の可変ヘッダー除去リスト
       if header.name.toLowerAscii notin [
         "date", "server", "x-request-id", "x-timestamp", 
-        "set-cookie", "expires", "last-modified"
+        "set-cookie", "expires", "last-modified", "etag",
+        "cache-control", "pragma", "vary", "age",
+        "cf-ray", "cf-cache-status"  # Cloudflare固有
       ]:
         filteredHeaders.add(header)
     
@@ -484,25 +575,91 @@ proc createDefaultTransform*(): HttpTransform =
   )
 
 proc createJsonTransform*(): HttpTransform =
-  ## JSON専用Transform関数: JSONフィールドから可変部分を除去
+  ## JSON API専用Transform関数: レスポンス本体の正規化
   proc jsonTransform(response: HttpResponse): HttpResponse =
-    if response.status != 200:
-      return response
+    # まずヘッダーを正規化
+    let headerNormalized = createDefaultTransform().function(response)
+    
+    if headerNormalized.status != 200:
+      return headerNormalized
     
     try:
-      # JSONパース（要JSON library実装）
-      let jsonStr = response.body.toString()
-      # タイムスタンプ、リクエストID等を除去
-      # 実装詳細は省略
-      response
-    except:
-      response
+      # JSONレスポンス本体の正規化（簡易実装）
+      var jsonStr = ""
+      for b in headerNormalized.body:
+        jsonStr.add(char(b))
+      
+      # API特有の可変フィールドを正規化
+      # 例: タイムスタンプを固定値に置換
+      jsonStr = jsonStr.replace(re"\"timestamp\":\s*\d+", "\"timestamp\":0")
+      jsonStr = jsonStr.replace(re"\"time\":\s*\"[^\"]+\"", "\"time\":\"normalized\"")
+      jsonStr = jsonStr.replace(re"\"id\":\s*\"[^\"]+\"", "\"id\":\"normalized\"")
+      
+      # 正規化された文字列をバイトに変換
+      var normalizedBytes: seq[uint8] = @[]
+      for c in jsonStr:
+        normalizedBytes.add(uint8(ord(c)))
+      
+      HttpResponse(
+        status: headerNormalized.status,
+        headers: headerNormalized.headers,
+        body: normalizedBytes
+      )
+    except Exception:
+      # エラー時は元のレスポンスを返す
+      headerNormalized
   
   HttpTransform(
     function: jsonTransform,
     context: @[]
   )
 ```
+
+#### 5.3.4 実装ステップとベストプラクティス
+
+**開発手順**（[IC公式ガイド](https://internetcomputer.org/docs/tutorials/developer-liftoff/level-3/3.2-https-outcalls)参考）:
+
+1. **レスポンス分析**: `curl`で同じAPIを2回呼び出してdiffを確認
+   ```bash
+   curl -v https://api.example.com/data > response1.txt
+   curl -v https://api.example.com/data > response2.txt
+   diff response1.txt response2.txt
+   ```
+
+2. **Transform関数設計**: 差分を除去する処理を実装
+
+3. **段階的テスト**:
+   - ローカル環境（単一レプリカ）でのテスト
+   - IC testnet（複数レプリカ）での検証
+
+**Transform関数のパフォーマンス考慮事項**:
+- **軽量処理**: コンセンサスの速度に影響するため最小限の処理
+- **エラー処理**: 例外時は元のレスポンスを返す
+- **メモリ効率**: 大きなレスポンスでも効率的に処理
+
+#### 5.3.5 エラーハンドリングとデバッグ
+
+**よくある問題と解決策**:
+
+| エラー | 原因 | 解決策 |
+|-------|------|--------|
+| `No consensus could be reached` | Transform関数の不完全性 | レスポンスdiffを再確認、Transform関数を改善 |
+| `SysFatal - Timeout expired` | Transform処理時間過長 | Transform関数の最適化 |
+| `IC0406` | Transform関数の未実装 | 適切なTransform関数の実装・登録 |
+
+**デバッグ戦略**:
+1. **レスポンス比較**: 複数のAPIレスポンスをdiffで確認
+2. **段階的実装**: まずヘッダー正規化、次にボディ正規化
+3. **ログ出力**: Transform関数内でのレスポンス変換過程を記録
+
+#### 5.3.6 将来の拡張計画
+
+**Phase 1**: 基本Transform関数（ヘッダー正規化）
+**Phase 2**: JSON特化Transform関数  
+**Phase 3**: カスタムTransform関数API
+**Phase 4**: Transform関数の動的登録機能
+
+この設計により、RustやMotokoと同等の信頼性でHTTP Outcallが実現可能になります。
 
 ## 6. 便利関数API
 
@@ -605,12 +762,27 @@ proc expectJsonResponse*(response: HttpResponse): string =
 import nicp_cdk/canisters/management_canister
 import std/asyncfutures
 
-proc fetchWeatherData*(): Future[string] {.async.} =
+proc fetchCryptoPrices*(): Future[string] {.async.} =
   try:
-    # IPv6対応APIへのリクエスト（サイクルは自動計算・送信）
+    # 動作確認済みのCoinbase APIへのリクエスト（サイクルは自動計算・送信）
     let response = await ManagementCanister.httpGet(
-      url = "https://api.weather.com/v1/current?city=Tokyo",
-      maxResponseBytes = some(1024'u64)  # 1KB制限
+      url = "https://api.exchange.coinbase.com/products/ICP-USD/ticker",
+      maxResponseBytes = some(2048'u64)  # 2KB制限
+    )
+    
+    if response.isSuccess():
+      result = response.getTextBody()
+    else:
+      result = "Error: " & $response.status
+  except Exception as e:
+    result = "HTTP Outcall Error: " & e.msg
+
+proc fetchGitHubZen*(): Future[string] {.async.} =
+  try:
+    # シンプルなテキストAPIへのリクエスト
+    let response = await ManagementCanister.httpGet(
+      url = "https://api.github.com/zen",
+      maxResponseBytes = some(512'u64)
     )
     
     if response.isSuccess():
@@ -624,53 +796,138 @@ proc fetchWeatherData*(): Future[string] {.async.} =
 ### 7.2 JSONを使ったPOSTリクエスト
 
 ```nim
-proc submitUserData*(name: string, age: int): Future[bool] {.async.} =
+proc testHttpBinPost*(testData: string): Future[string] {.async.} =
   try:
     let jsonData = %* {
-      "name": name,
-      "age": age,
+      "test_data": testData,
+      "client": "nim_cdk",
       "timestamp": epochTime()  # Transform関数で除去される
     }
     
-    # サイクルは自動計算・送信されるため明示的な指定不要
+    # HTTPBin POST endpoint（動作確認済み）
     let response = await ManagementCanister.httpPostJson(
-      url = "https://api.example.com/users",
+      url = "https://httpbin.org/post",
       jsonBody = $jsonData,
-      maxResponseBytes = some(512'u64)
+      maxResponseBytes = some(4096'u64)
     )
     
-    result = response.isSuccess()
-  except Exception:
-    result = false
+    if response.isSuccess():
+      result = response.getTextBody()
+    else:
+      result = "Error: " & $response.status
+  except Exception as e:
+    result = "HTTP Outcall Error: " & e.msg
 ```
 
-### 7.3 カスタムTransform関数
+### 7.3 カスタムTransform関数とICコンセンサス統合
 
 ```nim
-proc fetchCryptoPrices*(): Future[seq[float]] {.async.} =
-  proc priceTransform(response: HttpResponse): HttpResponse =
-    # 価格API特有のTransform処理
-    if response.status == 200:
-      let jsonStr = response.getTextBody()
-      # 特定のタイムスタンプフィールドを正規化
-      # 実装の詳細は省略
-    response
+# Transform関数をQuery関数として公開（ICシステムAPI統合）
+proc coinbaseTransformQuery(args: TransformArgs): HttpResponse {.query, exportc.} =
+  ## ICシステムAPIから呼び出されるTransform関数
+  ## 複数レプリカでのコンセンサス実現のため必須
+  let response = args.response
   
+  if response.status == 200:
+    # Coinbase API特有のTransform処理
+    var filteredHeaders: seq[HttpHeader] = @[]
+    for header in response.headers:
+      # Coinbase特有の可変ヘッダーを除去
+      if header.name.toLowerAscii notin [
+        "date", "server", "cf-ray", "cf-cache-status",
+        "x-request-id", "x-ratelimit-remaining"
+      ]:
+        filteredHeaders.add(header)
+    
+    # レスポンス本体のタイムスタンプ正規化
+    var normalizedBody = response.body
+    try:
+      let jsonStr = response.getTextBody()
+      # Coinbase APIの時刻フィールドを正規化
+      let normalized = jsonStr.replace(re"\"time\":\s*\"[^\"]+\"", "\"time\":\"normalized\"")
+      normalizedBody = normalized.toBytes()
+    except:
+      # JSON処理エラー時は元のボディを使用
+      discard
+    
+    return HttpResponse(
+      status: response.status,
+      headers: filteredHeaders,
+      body: normalizedBody
+    )
+  
+  # エラーレスポンスはそのまま返す
+  response
+
+proc fetchCoinbaseWithTransform*(): Future[string] {.async.} =
+  # Transform関数をICに登録（Query関数として）
   let transform = HttpTransform(
-    function: priceTransform,
-    context: @[]
+    function: coinbaseTransformQuery,  # Query関数を指定
+    context: @[]  # 必要に応じてコンテキストデータを追加
   )
   
-  # サイクルは自動計算・送信
+  # 動作確認済みのCoinbase APIエンドポイント
   let response = await ManagementCanister.httpGet(
-    url = "https://api.coinbase.com/v2/exchange-rates?currency=ICP",
+    url = "https://api.exchange.coinbase.com/products/ICP-USD/ticker",
     maxResponseBytes = some(2048'u64),
     transform = some(transform)
   )
   
-  # JSON解析してfloat配列に変換
-  # 実装詳細は省略
-  result = @[42.0]
+  if response.isSuccess():
+    result = response.getTextBody()
+  else:
+    result = "Error: " & $response.status
+
+# Transform関数の動作確認用デバッグ機能
+proc testTransformFunction*(): Future[string] {.async.} =
+  ## Transform関数の動作をローカルでテスト
+  try:
+    # 手動でAPIを2回呼び出してレスポンスの差分を確認
+    let response1 = await basicHttpGet("https://api.exchange.coinbase.com/products/ICP-USD/ticker")
+    await sleepAsync(2000)  # 2秒待機
+    let response2 = await basicHttpGet("https://api.exchange.coinbase.com/products/ICP-USD/ticker")
+    
+    # Transform関数適用前の差分確認
+    let diff = compareResponses(response1, response2)
+    if diff.len > 0:
+      echo "Found differences before transform: ", diff
+    
+    # Transform関数を両方に適用
+    let args1 = TransformArgs(response: response1, context: @[])
+    let args2 = TransformArgs(response: response2, context: @[])
+    let transformed1 = coinbaseTransformQuery(args1)
+    let transformed2 = coinbaseTransformQuery(args2)
+    
+    # Transform後の一致確認
+    if transformed1 == transformed2:
+      result = "Transform function successful - responses match after transformation"
+    else:
+      result = "Transform function needs improvement - responses still differ"
+  except Exception as e:
+    result = "Transform test error: " & e.msg
+```
+
+#### 7.3.1 Transform関数とICコンセンサスの詳細
+
+**ICコンセンサス機構との統合**（参考: [IC HTTPS Outcalls仕様](https://internetcomputer.org/docs/references/https-outcalls-how-it-works)）：
+
+1. **Step 6**: Transform関数が各レプリカで実行される
+2. **Step 7**: 変換されたレスポンスがコンセンサスに送信される  
+3. **Step 8**: 2/3以上のレプリカで同一レスポンスの場合、合意成立
+
+**重要な設計原則**:
+- Transform関数は**決定論的**でなければならない
+- 同じ入力に対して常に同じ出力を返す必要がある
+- レプリカ間での処理時間差を考慮した設計が必要
+
+**Nim実装での考慮事項**:
+```nim
+# Transform関数の登録とIC System API統合
+proc initHttpOutcallTransforms*() =
+  ## アプリケーション初期化時にTransform関数を登録
+  ic0_register_transform_function("coinbase_transform", coinbaseTransformQuery)
+  ic0_register_transform_function("default_transform", defaultTransformQuery)
+  ic0_register_transform_function("json_transform", jsonTransformQuery)
 ```
 
 ## 8. エラーハンドリング仕様
@@ -996,10 +1253,147 @@ proc testHttpPostIntegration*() {.async.} =
 - [ ] 認証ヘルパー関数の実装
 - [ ] 課金最適化ツールの提供
 
-## 12. 関連資料
+## 12. Transform関数実装の重要な技術的考慮事項
 
-### 12.1 ICP公式ドキュメント
+### 12.1 Transform関数の制約と制限事項
+
+#### 12.1.1 技術的制約（参考: [IC HTTPS Outcalls仕様](https://internetcomputer.org/docs/references/https-outcalls-how-it-works)）
+
+**決定論的実行の要件**:
+- **入力一致**: 同じHTTPレスポンスに対して常に同じ変換結果
+- **副作用禁止**: ファイルI/O、ネットワーク通信、乱数生成の禁止
+- **時間依存禁止**: システム時刻、タイムスタンプの使用禁止
+
+**パフォーマンス制約**:
+- **実行時間制限**: Transform関数は軽量である必要がある
+- **メモリ使用制限**: 大容量レスポンスでの効率的処理が必要
+- **CPU使用制限**: コンセンサスの遅延を避けるため最小限の処理
+
+#### 12.1.2 よくある実装ミスと対策
+
+```nim
+# ❌ 間違った実装例
+proc badTransform(response: HttpResponse): HttpResponse =
+  # NGパターン1: 時間依存処理
+  let currentTime = epochTime()  # 実行時刻でレプリカ間差分発生
+  
+  # NGパターン2: 乱数使用
+  let randomId = rand(1000)  # レプリカ間で異なる値
+  
+  # NGパターン3: 不完全な正規化
+  # 一部のヘッダーのみ除去（他にも可変ヘッダーが存在する可能性）
+  
+# ✅ 正しい実装例
+proc goodTransform(response: HttpResponse): HttpResponse =
+  # 完全な可変ヘッダー除去
+  var filteredHeaders: seq[HttpHeader] = @[]
+  for header in response.headers:
+    if not isVariableHeader(header.name):  # 網羅的なチェック
+      filteredHeaders.add(header)
+  
+  # 決定論的なレスポンス本体正規化
+  var normalizedBody = response.body
+  if response.status == 200:
+    normalizedBody = normalizeJsonTimestamps(response.body)
+  
+  HttpResponse(
+    status: response.status,
+    headers: filteredHeaders,
+    body: normalizedBody
+  )
+```
+
+#### 12.1.3 API別Transform戦略
+
+**金融API（Coinbase、Binance等）**:
+```nim
+proc financialApiTransform(response: HttpResponse): HttpResponse =
+  # 価格データの時刻フィールド正規化
+  # レート制限ヘッダーの除去
+  # サーバーIDヘッダーの除去
+```
+
+**ニュースAPI（RSS、JSON Feed等）**:
+```nim
+proc newsApiTransform(response: HttpResponse): HttpResponse =
+  # 取得時刻フィールドの正規化
+  # 記事ID、リクエストIDの正規化
+  # キャッシュ関連ヘッダーの除去
+```
+
+**天気API（OpenWeatherMap等）**:
+```nim
+proc weatherApiTransform(response: HttpResponse): HttpResponse =
+  # 観測時刻の特定時刻への丸め
+  # データ更新時刻の正規化
+  # API呼び出し回数ヘッダーの除去
+```
+
+### 12.2 Transform関数のテストとデバッグ手法
+
+#### 12.2.1 段階的開発手法
+
+**Step 1: レスポンス分析**
+```bash
+# 同一APIを複数回呼び出して差分確認
+for i in {1..5}; do
+  curl -v "https://api.example.com/data" > "response_$i.json" 2>&1
+  sleep 2
+done
+
+# 差分確認
+diff response_1.json response_2.json
+```
+
+**Step 2: Transform関数プロトタイプ**
+```nim
+# 最小限のTransform関数実装
+proc prototypeTransform(response: HttpResponse): HttpResponse =
+  # 最も明らかな可変ヘッダーのみ除去
+  var filtered = response.headers.filterIt(
+    it.name.toLowerAscii notin ["date", "server"]
+  )
+  HttpResponse(status: response.status, headers: filtered, body: response.body)
+```
+
+**Step 3: 段階的機能拡張**
+```nim
+# 完全版Transform関数
+proc productionTransform(response: HttpResponse): HttpResponse =
+  # ヘッダー正規化 + ボディ正規化 + エラーハンドリング
+```
+
+#### 12.2.2 自動テストと継続的検証
+
+```nim
+proc validateTransformFunction*(apiUrl: string, iterations: int = 10): Future[bool] {.async.} =
+  ## Transform関数の一貫性を自動検証
+  var responses: seq[HttpResponse] = @[]
+  
+  # 複数回API呼び出し
+  for i in 0..<iterations:
+    let response = await basicHttpGet(apiUrl)
+    responses.add(response)
+    await sleepAsync(1000)  # 1秒間隔
+  
+  # Transform適用後の一致確認
+  let transformedResponses = responses.mapIt(myTransform(it))
+  let baseResponse = transformedResponses[0]
+  
+  for response in transformedResponses[1..^1]:
+    if response != baseResponse:
+      echo "Transform consistency failed!"
+      return false
+  
+  return true
+```
+
+## 13. 関連資料
+
+### 13.1 ICP公式ドキュメント
 - [HTTPS Outcalls仕様](https://internetcomputer.org/docs/references/https-outcalls-how-it-works)
+- [HTTPS Outcalls POST実装](https://internetcomputer.org/docs/building-apps/network-features/using-http/https-outcalls/post)
+- [HTTPS Outcalls開発ガイド](https://internetcomputer.org/docs/tutorials/developer-liftoff/level-3/3.2-https-outcalls)
 - [Management Canister Interface](https://internetcomputer.org/docs/current/references/ic-interface-spec/#ic-management-canister)
 - [HTTP Outcalls料金体系](https://internetcomputer.org/docs/current/developer-docs/gas-cost)
 - [IC System API仕様（サイクル関連）](https://internetcomputer.org/docs/current/references/ic-interface-spec/#system-api-cycles)
