@@ -97,8 +97,7 @@ actor {
     };
 
     //2. MAKE HTTPS REQUEST AND WAIT FOR RESPONSE, BUT MAKE SURE TO ADD CYCLES.
-    // let http_response : HttpResponsePayload = await (with cycles = 230_949_972_000) ic.http_request(http_request);
-    let http_response : HttpResponsePayload = await ic.http_request(http_request);
+    let http_response : HttpResponsePayload = await (with cycles = 230_949_972_000) ic.http_request(http_request);
 
     //3. DECODE THE RESPONSE
 
