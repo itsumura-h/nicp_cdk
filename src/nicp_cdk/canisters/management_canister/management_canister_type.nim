@@ -1,0 +1,1 @@
+type ManagementCanister* = object
