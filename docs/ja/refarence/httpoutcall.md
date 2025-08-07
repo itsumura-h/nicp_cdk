@@ -1158,7 +1158,38 @@ ICシステムからの詳細エラー:
 3. **トラブルシューティングガイド**
 4. **言語間比較資料**
 
-#### 13.6.2 オープンソース化
+#### 13.6.2 実装例とCandid形式の検証
+
+**MotokoサンプルのCandid encode結果**:
+
+`examples/http_outcall_args_motoko`の`main.mo`で実装された`httpRequestArgs`関数のレスポンスをCandid encodeした結果：
+
+```
+4449444c0d6c07efd6e40271e1edeb4a07e8d6d8930106a2f5ed880401ecdaccac0408c6a4a198060390f8f6fc09056e026d7b6d046c02f1fee18d0371cbe4fdc704716e7e6e7d6b079681ba027fcfc5d5027fa0d2aca8047fe088f2d2047fab80e3d6067fc88ddcea0b7fdee6f8ff0d7f6e096c0298d6caa2010aefabdecb01026a010b010c01016c02efabdecb010281ddb2900a0c6c03b2ceef2f7da2f5ed880402c6a4a198060301006968747470733a2f2f6170692e65786368616e67652e636f696e626173652e636f6d2f70726f64756374732f4943502d5553442f63616e646c65733f73746172743d3136383239373834363026656e643d31363832393738343630266772616e756c61726974793d363000000000010a70726963652d666565640a557365722d4167656e740100
+```
+
+**デコードされた内容**:
+```motoko
+(
+  record {
+    url = "https://api.exchange.coinbase.com/products/ICP-USD/candles?start=1682978460&end=1682978460&granularity=60";
+    method = variant { get };
+    max_response_bytes = null;
+    body = null;
+    transform = null;
+    headers = vec { record { value = "price-feed"; name = "User-Agent" } };
+    is_replicated = opt false;
+  },
+)
+```
+
+**技術的意義**:
+- **Candid形式の検証**: IC Management Canisterが期待する正確なCandid形式の確認
+- **Nim実装の参考**: NimでのHttpRequest→CandidRecord変換時の目標形式
+- **型安全性の保証**: MotokoとNim間での型システムの一貫性確認
+- **デバッグ支援**: IC0406エラー解決時の比較対象として活用
+
+#### 13.6.3 オープンソース化
 
 **公開予定コンポーネント**:
 - HTTP Outcall基本実装
