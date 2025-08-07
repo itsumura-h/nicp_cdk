@@ -5,6 +5,7 @@ discard """
 
 import std/unittest
 import std/options
+import std/strutils
 import ../../src/nicp_cdk/reply
 import ../../src/nicp_cdk/request
 import ../../src/nicp_cdk/ic_types/candid_types
@@ -86,3 +87,62 @@ suite("ecdsa"):
     check request.getRecord(0)["derivation_path"][0].getBlob() == Principal.anonymousUser().bytes
     check request.getRecord(0)["key_id"]["curve"].getVariant(EcdsaCurve) == EcdsaCurve.secp256k1
     check request.getRecord(0)["key_id"]["name"].getStr() == "dfx_test_key"
+
+  test("http outcall request"):
+    type
+      HttpHeader = ref object
+        name: string
+        value: string
+
+      HttpMethod {.pure.} = enum
+        get = 0
+        post = 1
+        put = 2
+        delete = 3
+        head = 4
+        patch = 5
+        options = 6
+
+      HttpResponsePayload = ref object
+        status: uint
+        headers: seq[HttpHeader]
+        body: seq[byte]
+
+      TransformArgs = ref object
+        context: seq[byte]
+        response: HttpResponsePayload
+
+      HttpRequestArgs = ref object
+        url: string
+        max_response_bytes: Option[uint]
+        headers: seq[HttpHeader]
+        body: Option[seq[byte]]
+        transform: Option[TransformArgs]
+        `method`: HttpMethod
+        is_replicated: Option[bool]
+
+    let ONE_MINUTE: uint64 = 60
+    let start_timestamp: uint64 = 1682978460 # May 1, 2023 22:01:00 GMT
+    let host: string = "api.exchange.coinbase.com"
+    let url = "https://" & host & "/products/ICP-USD/candles?start=" & $start_timestamp & "&end=" & $start_timestamp & "&granularity=" & $ONE_MINUTE
+
+    let request_headers = @[
+      HttpHeader(name: "User-Agent", value: "price-feed")
+    ]
+
+    let httpRequest = HttpRequestArgs(
+      url: url,
+      max_response_bytes: none(uint), # optional for request
+      headers: request_headers,
+      body: none(seq[byte]), # optional for request
+      `method`: HttpMethod.get,
+      transform: none(TransformArgs),
+      # Toggle this flag to switch between replicated and non-replicated http outcalls.
+      is_replicated: some(false)
+    )
+
+    let record = newCandidRecord(httpRequest)
+    let encoded = encodeCandidMessage(@[record])
+    echo encoded.toString()
+    let decoded = decodeCandidMessage(encoded)
+    let request = newMockRequest(decoded.values)

@@ -353,14 +353,20 @@ proc newCandidValue*[T](value: T): CandidValue =
     for b in value:
       vecElements.add(newCandidValue(b))
     CandidValue(kind: ctVec, vecVal: vecElements)
+  elif compiles(for item in value: discard item) and not (T is seq[uint8]) and not (T is seq[seq[uint8]]) and not (T is seq[byte]) and not (T is seq[CandidValue]) and not (T is string):
+    # 汎用seq型のサポート - コンパイル時型チェック（stringは除外）
+    var vecElements: seq[CandidValue] = @[]
+    for item in value:
+      vecElements.add(newCandidValue(item))
+    CandidValue(kind: ctVec, vecVal: vecElements)
   elif T is CandidRecord:
     CandidValue(kind: ctRecord, recordVal: value)
   elif T is CandidVariant:
     CandidValue(kind: ctVariant, variantVal: value)
   elif T is Option[CandidValue]:
     CandidValue(kind: ctOpt, optVal: value)
-  elif T is Option[Principal]:
-    # Option[Principal]型のサポート
+  elif compiles(value.isSome()):
+    # 汎用Option[T]型のサポート - コンパイル時型チェック
     if value.isSome():
       CandidValue(kind: ctOpt, optVal: some(newCandidValue(value.get())))
     else:
@@ -376,8 +382,11 @@ proc newCandidValue*[T](value: T): CandidValue =
   elif T is object:
     # Object型を再帰的にCandidRecordに変換
     newCandidRecord(value)
+  elif T is ref object:
+    # ref object型を再帰的にCandidRecordに変換
+    newCandidRecord(value)
   else:
-    raise newException(ValueError, "Unsupported type: " & $typeof(value))
+    raise newException(ValueError, "Unsupported type for CandidValue conversion: " & $T)
 
 
 # ================================================================================
@@ -450,6 +459,12 @@ proc newCandidRecord*(values: CandidRecord): CandidValue =
 proc newCandidRecord*(values: object): CandidValue =
   var record = CandidRecord(kind: ckRecord, fields: initOrderedTable[string, CandidValue]())
   for key, value in values.fieldPairs:
+    record.fields[key] = newCandidValue(value)
+  CandidValue(kind: ctRecord, recordVal: record)
+
+proc newCandidRecord*(values: ref object): CandidValue =
+  var record = CandidRecord(kind: ckRecord, fields: initOrderedTable[string, CandidValue]())
+  for key, value in fieldPairs(values[]):
     record.fields[key] = newCandidValue(value)
   CandidValue(kind: ctRecord, recordVal: record)
 

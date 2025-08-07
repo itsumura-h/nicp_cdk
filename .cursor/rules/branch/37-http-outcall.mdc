@@ -31,6 +31,9 @@ dfx canister call http_outcall_backend getRequest
 - [x] HTTPレスポンスの解析とエラーハンドリング
 - [ ] タイムアウト処理とリトライ機構の実装
 - [x] **ローカルdfx制限の特定と対応策文書化**
+- [x] **MotokoサンプルでのHTTP Outcall動作確認成功**
+- [x] **NimとMotokoの実装ロジック比較分析完了**
+- [x] **NimのCandidRecord形式をMotokoと同等に修正**
 - [x] 包括的な設計書の作成 (docs/ja/refarence/httpoutcall.md)
 
 ## 参考資料
@@ -64,13 +67,27 @@ dfx canister call http_outcall_backend getRequest
    - Management Canister呼び出し開始: ✅
    - 詳細デバッグログによる各段階の動作確認: ✅
 
-#### ⚠️ **制限事項**
+#### ✅ **ローカル環境での動作確認成功**
 
-**ローカルdfx環境でのHTTP Outcall制限**:
-- エラーコード: IC0406 (canister rejected the call)
-- Management Canisterがローカル環境でHTTPリクエストをリジェクト
-- セキュリティ上の理由による外部ネットワークアクセス制限
-- **IC mainnet/testnetでは動作する見込み**
+**Motokoサンプルでの動作検証**:
+- MotokoのHTTPアウトコールサンプル (`examples/http_outcall_motoko`) で正常動作確認
+- Coinbase API (`api.exchange.coinbase.com`) へのHTTPリクエスト成功
+- レスポンス: `("[[1682978460,5.714,5.718,5.714,5.714,243.5678]]")`
+- ICP-USD価格データの正常取得確認
+- **ローカルdfx環境でもHTTP Outcallは動作することが判明**
+
+**NimとMotokoの実装ロジック比較結果**:
+- アーキテクチャパターン: Nimの2層分離は適切
+- ビジネスロジック: HTTP リクエスト構築からレスポンス処理まで同等
+- **重要な差異発見**: CandidRecordでのOption型の表現方式
+  - Motoko: `null` → 直接null値
+  - Nim（修正前）: `none()` → `{"none": null}` 
+  - **Nim（修正後）**: 直接null値（Motokoと同等）
+
+**Candidエンコード形式の改善**:
+- 修正前: `{"max_response_bytes": {"none": null}}` (212 bytes)
+- 修正後: `{"max_response_bytes": null}` (204 bytes)
+- **MotokoサンプルとCandidレコード完全一致を実現**
 
 #### 📋 **技術的検証結果**
 
