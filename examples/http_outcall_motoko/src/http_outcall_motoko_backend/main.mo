@@ -42,7 +42,7 @@ actor {
     http_request : HttpRequestArgs -> async HttpResponsePayload;
   };
 
-  let ic : IC = actor("aaaaa-aa");
+  transient let ic : IC = actor("aaaaa-aa");
 
   //This method sends a GET request to a URL with a free API we can test.
   //This method returns Coinbase data on the exchange rate between USD and ICP
@@ -82,16 +82,27 @@ actor {
     ];
 
     // 1.3 The HTTP request
+    // let http_request : HttpRequestArgs = {
+    //   url = url;
+    //   max_response_bytes = null; //optional for request
+    //   headers = request_headers;
+    //   body = null; //optional for request
+    //   method = #get;
+    //   transform = ?{
+    //     function = transform;
+    //     context = Blob.fromArray([]);
+    //   };
+    //   // Toggle this flag to switch between replicated and non-replicated http outcalls.
+    //   is_replicated = ?false;
+    // };
+
     let http_request : HttpRequestArgs = {
       url = url;
       max_response_bytes = null; //optional for request
       headers = request_headers;
       body = null; //optional for request
       method = #get;
-      transform = ?{
-        function = transform;
-        context = Blob.fromArray([]);
-      };
+      transform = null;
       // Toggle this flag to switch between replicated and non-replicated http outcalls.
       is_replicated = ?false;
     };

@@ -1,0 +1,252 @@
+HTTPリクエスト引数エンコーディング実装
+===
+
+このブランチで実装することは以下の通りです。
+- HTTPリクエスト引数のCandid形式への正確なエンコーディング実装
+- MotokoのHTTPリクエスト引数と完全互換性のあるCandidメッセージ生成
+- HTTP outcall argの型定義とレコード変換の改善
+- テストケースの実装と検証
+
+## デバッグ用実行コマンド
+```
+# テストの実行
+nim c -r --skipUserCfg tests/types/test_object_to_record.nim
+
+# HTTP outcall args例の実行
+dfx canister call http_outcall_args_backend httpRequestArgs
+
+# エンコーディングのデバッグ
+cd examples/http_outcall_args && dfx start --background && dfx deploy && dfx canister call http_outcall_args_backend httpRequestArgs
+```
+
+## 進捗
+- [ ] HTTPリクエスト引数の型定義の確認と整理
+- [ ] Motokoとの互換性確認（nullフィールドの扱い等）
+- [ ] CandidRecordへの変換ロジックの実装
+- [ ] HTTPメソッドのVariant型エンコーディング実装
+- [ ] オプションフィールド（max_response_bytes, body等）の正確なエンコーディング
+- [ ] ヘッダー配列の正確なエンコーディング
+- [ ] テストケースの作成と実行
+- [ ] Motokoサンプルとの出力比較による検証
+- [ ] エラーハンドリングの実装
+
+## 参考資料
+- examples/http_outcall_args_motoko/src/http_outcall_args_motoko_backend/main.mo (Motokoリファレンス実装)
+- examples/http_outcall_args/src/http_outcall_args_backend/main.nim (Nim実装)
+- src/nicp_cdk/canisters/management_canister/http_outcall.nim (HTTP outcall実装)
+- tests/types/test_object_to_record.nim (テスト実装)
+- IC Management Canister HTTP Request仕様
+
+## 調査結果・設計まとめ
+- HTTPリクエスト引数は複雑なCandidレコード構造を持つ
+- メソッドはVariant型として実装（#get, #postなど値なしVariant）
+- オプションフィールドはMotokoのnull表現と互換性を保つ必要がある
+- ヘッダーは {name: Text, value: Text} 形式のレコード配列
+- transform関数は複雑な構造を持ち、慎重な実装が必要
+- Motokoサンプルとバイト単位で一致するCandidメッセージを生成する必要がある
+
+**MotokoサンプルのCandid encode結果**:
+
+`examples/http_outcall_args_motoko`の`main.mo`で実装された`httpRequestArgs`関数のレスポンス
+
+```sh
+dfx canister call http_outcall_args_motoko_backend httpRequestArgs
+```
+
+```ts
+(
+  record {
+    url = "https://api.exchange.coinbase.com/products/ICP-USD/candles?start=1682978460&end=1682978460&granularity=60";
+    method = variant { get };
+    max_response_bytes = null;
+    body = null;
+    transform = null;
+    headers = vec { record { value = "price-feed"; name = "User-Agent" } };
+    is_replicated = opt false;
+  },
+)
+```
+
+```sh
+dfx canister call http_outcall_args_motoko_backend httpRequestArgs --output raw
+```
+
+```
+4449444c0d6c07efd6e40271e1edeb4a07e8d6d8930106a2f5ed880401ecdaccac0408c6a4a198060390f8f6fc09056e026d7b6d046c02f1fee18d0371cbe4fdc704716e7e6e7d6b079681ba027fcfc5d5027fa0d2aca8047fe088f2d2047fab80e3d6067fc88ddcea0b7fdee6f8ff0d7f6e096c0298d6caa2010aefabdecb01026a010b010c01016c02efabdecb010281ddb2900a0c6c03b2ceef2f7da2f5ed880402c6a4a198060301006968747470733a2f2f6170692e65786368616e67652e636f696e626173652e636f6d2f70726f64756374732f4943502d5553442f63616e646c65733f73746172743d3136383239373834363026656e643d31363832393738343630266772616e756c61726974793d363000000000010a70726963652d666565640a557365722d4167656e740100
+```
+
+decoded:
+```44 49 44 4c: magic header
+0d: type table of size 13
+  6c 07: [type #0] record of size 7
+    ef d6 e4 02: field with hash 5843823
+      71: text
+    e1 ed eb 4a: field with hash 156956385
+      07: type #7
+    e8 d6 d8 93 01: field with hash 309734248
+      06: type #6
+    a2 f5 ed 88 04: field with hash 1092319906
+      01: type #1
+    ec da cc ac 04: field with hash 1167273324
+      08: type #8
+    c6 a4 a1 98 06: field with hash 1661489734
+      03: type #3
+    90 f8 f6 fc 09: field with hash 2677914640
+      05: type #5
+  6e: [type #1] opt
+    02: type #2
+  6d: [type #2] vec
+    7b: nat8
+  6d: [type #3] vec
+    04: type #4
+  6c 02: [type #4] record of size 2
+    f1 fe e1 8d 03: field with hash 834174833
+      71: text
+    cb e4 fd c7 04: field with hash 1224700491
+      71: text
+  6e: [type #5] opt
+    7e: bool
+  6e: [type #6] opt
+    7d: nat
+  6b 07: [type #7] variant of size 7
+    96 81 ba 02: field with hash 5144726
+      7f: null
+    cf c5 d5 02: field with hash 5595855
+      7f: null
+    a0 d2 ac a8 04: field with hash 1158359328
+      7f: null
+    e0 88 f2 d2 04: field with hash 1247577184
+      7f: null
+    ab 80 e3 d6 06: field with hash 1792589867
+      7f: null
+    c8 8d dc ea 0b: field with hash 3176597192
+      7f: null
+    de e6 f8 ff 0d: field with hash 3757978462
+      7f: null
+  6e: [type #8] opt
+    09: type #9
+  6c 02: [type #9] record of size 2
+    98 d6 ca a2 01: field with hash 340962072
+      0a: type #10
+    ef ab de cb 01: field with hash 427267567
+      02: type #2
+  6a: [type #10] function
+    01: 1 inputs
+    0b: type #11
+    01: 1 outputs
+    0c: type #12
+    01: 1 annotations: [1]
+  6c 02: [type #11] record of size 2
+    ef ab de cb 01: field with hash 427267567
+      02: type #2
+    81 dd b2 90 0a: field with hash 2718740097
+      0c: type #12
+  6c 03: [type #12] record of size 3
+    b2 ce ef 2f: field with hash 100394802
+      7d: nat
+    a2 f5 ed 88 04: field with hash 1092319906
+      02: type #2
+    c6 a4 a1 98 06: field with hash 1661489734
+      03: type #3
+01: arg count of 1
+  00: [arg #0] type #0
+arg #0:
+record:
+  69: utf8 text of length 105
+    68 74 74 70 73 3a 2f 2f 61 70 69 2e 65 78 63 68 61 6e 67 65 2e 63 6f 69 6e 62 61 73 65 2e 63 6f 6d 2f 70 72 6f 64 75 63 74 73 2f 49 43 50 2d 55 53 44 2f 63 61 6e 64 6c 65 73 3f 73 74 61 72 74 3d 31 36 38 32 39 37 38 34 36 30 26 65 6e 64 3d 31 36 38 32 39 37 38 34 36 30 26 67 72 61 6e 75 6c 61 72 69 74 79 3d 36 30: "https://api.exchange.coinbase.com/products/ICP-USD/candles?start=1682978460&end=1682978460&granularity=60"
+  00: variant field 0
+    (null)
+  00: Nothing
+  00: Nothing
+  00: Nothing
+  01: vec of length 1
+    record:
+      0a: utf8 text of length 10
+        70 72 69 63 65 2d 66 65 65 64: "price-feed"
+      0a: utf8 text of length 10
+        55 73 65 72 2d 41 67 65 6e 74: "User-Agent"
+  01: Just
+    00: bool
+```
+
+`examples/http_outcall_args`の`main.nim`で実装された`httpRequestArgs`関数のレスポンス
+
+```sh
+dfx canister call http_outcall_args_backend httpRequestArgs
+```
+
+```ts
+(
+  record {
+    url = "https://api.exchange.coinbase.com/products/ICP-USD/candles?start=1682978460&end=1682978460&granularity=60";
+    method = variant { get };
+    max_response_bytes = null;
+    body = null;
+    transform = null;
+    headers = vec { record { value = "price-feed"; name = "User-Agent" } };
+    is_replicated = opt false;
+  },
+)
+```
+
+```sh
+dfx canister call http_outcall_args_backend httpRequestArgs --output raw
+```
+
+```
+4449444c066c07efd6e40271e1edeb4a01e8d6d8930102a2f5ed880402ecdaccac0402c6a4a198060390f8f6fc09056b019681ba027f6e7f6d046c02f1fee18d0371cbe4fdc704716e7e01006968747470733a2f2f6170692e65786368616e67652e636f696e626173652e636f6d2f70726f64756374732f4943502d5553442f63616e646c65733f73746172743d3136383239373834363026656e643d31363832393738343630266772616e756c61726974793d363000000000010a70726963652d666565640a557365722d4167656e740100
+```
+
+decoded:
+```
+44 49 44 4c: magic header
+06: type table of size 6
+  6c 07: [type #0] record of size 7
+    ef d6 e4 02: field with hash 5843823
+      71: text
+    e1 ed eb 4a: field with hash 156956385
+      01: type #1
+    e8 d6 d8 93 01: field with hash 309734248
+      02: type #2
+    a2 f5 ed 88 04: field with hash 1092319906
+      02: type #2
+    ec da cc ac 04: field with hash 1167273324
+      02: type #2
+    c6 a4 a1 98 06: field with hash 1661489734
+      03: type #3
+    90 f8 f6 fc 09: field with hash 2677914640
+      05: type #5
+  6b 01: [type #1] variant of size 1
+    96 81 ba 02: field with hash 5144726
+      7f: null
+  6e: [type #2] opt
+    7f: null
+  6d: [type #3] vec
+    04: type #4
+  6c 02: [type #4] record of size 2
+    f1 fe e1 8d 03: field with hash 834174833
+      71: text
+    cb e4 fd c7 04: field with hash 1224700491
+      71: text
+  6e: [type #5] opt
+    7e: bool
+01: arg count of 1
+  00: [arg #0] type #0
+arg #0:
+record:
+  69: utf8 text of length 105
+    68 74 74 70 73 3a 2f 2f 61 70 69 2e 65 78 63 68 61 6e 67 65 2e 63 6f 69 6e 62 61 73 65 2e 63 6f 6d 2f 70 72 6f 64 75 63 74 73 2f 49 43 50 2d 55 53 44 2f 63 61 6e 64 6c 65 73 3f 73 74 61 72 74 3d 31 36 38 32 39 37 38 34 36 30 26 65 6e 64 3d 31 36 38 32 39 37 38 34 36 30 26 67 72 61 6e 75 6c 61 72 69 74 79 3d 36 30: "https://api.exchange.coinbase.com/products/ICP-USD/candles?start=1682978460&end=1682978460&granularity=60"
+  00: variant field 0
+    (null)
+  00: Nothing
+  00: Nothing
+  00: Nothing
+  01: vec of length 1
+    record:
+      0a: utf8 text of length 10
+        70 72 69 63 65 2d 66 65 65 64: "price-feed"
+      0a: utf8 text of length 10
+        55 73 65 72 2d 41 67 65 6e 74: "User-Agent"
+  01: Just
+    00: bool
+```

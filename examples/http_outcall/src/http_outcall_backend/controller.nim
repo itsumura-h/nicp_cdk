@@ -5,7 +5,7 @@ import ../../../../src/nicp_cdk
 import ../../../../src/nicp_cdk/canisters/management_canister
 
 
-proc getRequest*() {.async.} =
+proc get_icp_usd_exchange*() {.async.} =
   ## シンプルなHTTP Outcall実装 - Transform関数なしでデバッグ
   try:
     # Motokoと完全に同じ設定
@@ -21,13 +21,14 @@ proc getRequest*() {.async.} =
     echo "URL: ", url
     
     # Transform関数なしでテスト
-    let request = HttpRequest(
+    let request = HttpRequestArgs(
       url: url,
       httpMethod: HttpMethod.GET,
       headers: @[("User-Agent", "price-feed")],  # Motokoと同じヘッダー
       body: none(seq[uint8]),
-      max_response_bytes: none(uint64),  # Motokoと同じ（null指定）
-      transform: none(HttpTransform)  # Transform関数なし
+      max_response_bytes: none(uint),  # Motokoと同じ（null指定）
+      transform: none(HttpTransform),  # Transform関数なし
+      is_replicated: some(false)
     )
     
     echo "Calling HTTP Outcall without Transform function..."
@@ -38,6 +39,7 @@ proc getRequest*() {.async.} =
     echo "  Body: ", if request.body.isSome: "present" else: "none"
     echo "  Max response bytes: ", if request.max_response_bytes.isSome: $request.max_response_bytes.get else: "none"
     echo "  Transform: ", if request.transform.isSome: "present" else: "NONE"
+    echo "  Is replicated: ", if request.is_replicated.isSome: $request.is_replicated.get else: "none"
     
     let response = await ManagementCanister.httpRequest(request)
     
