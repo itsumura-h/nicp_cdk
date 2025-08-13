@@ -15,7 +15,7 @@
 ## 開発方針
 - `/application/examples/http_outcall_motoko` のMotokoのコードでは期待通りにCoinbaseのAPIにアクセスできているのでこれをNimで実装することを目的とする。
 - `/application/examples/http_outcall` で `dfx deploy -y --with-cycles 1000000000000` コマンドでビルドする
-- `dfx canister call http_outcall_backend getRequest` コマンドでキャニスターを実行する
+- `dfx canister call http_outcall_backend get_icp_usd_exchange` コマンドでキャニスターを実行する
 - まず最もシンプルな実装でhttpcoutcallが動くことを目的とする
 - 便利関数はの実装はその後で
 

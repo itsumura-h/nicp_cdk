@@ -6,36 +6,10 @@
 
 import nimcrypto/keccak
 import secp256k1
-import std/strutils
+import ./hex_bytes
 
 type
   EcdsaError* = object of ValueError
-
-# バイト列を16進数文字列に変換するヘルパー関数
-proc toHexString*(bytes: seq[uint8]): string =
-  result = ""
-  for b in bytes:
-    result.add(b.toHex(2))
-
-
-proc hexToBytes*(hexStr: string): seq[uint8] =
-  ## Convert hex string to byte sequence
-  var cleanHex = hexStr
-  if cleanHex.startsWith("0x"):
-    cleanHex = cleanHex[2..^1]
-  
-  if cleanHex.len mod 2 != 0:
-    echo "Error: Hex string length must be even"
-    raise newException(ValueError, "Hex string length must be even")
-  
-  result = newSeq[uint8](cleanHex.len div 2)
-  for i in 0..<result.len:
-    let hexByte = cleanHex[i*2..i*2+1]
-    try:
-      result[i] = parseHexInt(hexByte).uint8
-    except ValueError:
-      echo "Error: Invalid hex character at position ", i*2, ": ", hexByte
-      raise newException(ValueError, "Invalid hex character: " & hexByte)
 
 
 proc keccak256Hash*(message: string): seq[uint8] =

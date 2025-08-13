@@ -7,6 +7,7 @@ import ../../../../src/nicp_cdk/ic_types/candid_types
 import ../../../../src/nicp_cdk/ic_types/ic_principal
 import ../../../../src/nicp_cdk/algorithm/ethereum
 import ../../../../src/nicp_cdk/algorithm/ecdsa
+import ../../../../src/nicp_cdk/algorithm/hex_bytes
 import ./database
 
 
@@ -20,7 +21,7 @@ proc getNewPublicKey*(caller: Principal): Future[string] {.async.} =
   ## Returns:
   ## - The public key as a hexadecimal string.
   if database.hasKey(caller):
-    return ecdsa.toHexString(database.getPublicKey(caller))
+    return hex_bytes.toHexString(database.getPublicKey(caller))
 
   let arg = EcdsaPublicKeyArgs(
     canister_id: none(Principal),
@@ -34,7 +35,7 @@ proc getNewPublicKey*(caller: Principal): Future[string] {.async.} =
   let publicKeyResult = await ManagementCanister.publicKey(arg)
   let publicKeyBytes = publicKeyResult.public_key
   database.setPublicKey(caller, publicKeyBytes)
-  let publicKey = ecdsa.toHexString(publicKeyBytes)
+  let publicKey = hex_bytes.toHexString(publicKeyBytes)
   return publicKey
 
 
@@ -51,7 +52,7 @@ proc getPublicKey*(caller: Principal): string =
   ## - Exception: If no public key has been generated for the caller.
   if database.hasKey(caller):
     let publicKeyBytes = database.getPublicKey(caller)
-    return ecdsa.toHexString(publicKeyBytes)
+    return hex_bytes.toHexString(publicKeyBytes)
   else:
     raise newException(Exception, "No public key generated for caller")
 
@@ -81,7 +82,7 @@ proc signWithEcdsa*(caller: Principal, message: string): Future[string] {.async.
   
   # Validate the signature using functions from ecdsa.nim
   try:
-    let publicKeyBytes = ecdsa.hexToBytes(getPublicKey(caller))
+    let publicKeyBytes = hex_bytes.hexToBytes(getPublicKey(caller))
     let isValid = ecdsa.validateSignatureWithSecp256k1(
       messageHash,
       signResult.signature,
@@ -89,12 +90,12 @@ proc signWithEcdsa*(caller: Principal, message: string): Future[string] {.async.
     )
 
     if isValid:
-      return ecdsa.toHexString(signResult.signature)
+      return hex_bytes.toHexString(signResult.signature)
     else:
       return ""
   except Exception:
     # If public key retrieval fails, still return the signature without validation
-    return ecdsa.toHexString(signResult.signature)
+    return hex_bytes.toHexString(signResult.signature)
 
 
 proc verifyWithEcdsa*(message: string, signature: string, publicKey: string): bool =
@@ -115,7 +116,7 @@ proc getEvmAddress*(caller: Principal): string =
   try:
     let publicKeyBytes = getPublicKey(caller)
     if publicKeyBytes.len > 0:
-      let evmAddress = icpPublicKeyToEvmAddress(ecdsa.hexToBytes(publicKeyBytes))
+      let evmAddress = icpPublicKeyToEvmAddress(hex_bytes.hexToBytes(publicKeyBytes))
       return evmAddress
     else:
       return ""

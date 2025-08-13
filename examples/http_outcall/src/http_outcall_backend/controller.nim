@@ -1,6 +1,7 @@
 import std/asyncdispatch
 import std/options
 import std/sequtils
+import std/strutils
 import ../../../../src/nicp_cdk
 import ../../../../src/nicp_cdk/canisters/management_canister
 
@@ -23,8 +24,8 @@ proc get_icp_usd_exchange*() {.async.} =
     # Transform関数なしでテスト
     let request = HttpRequestArgs(
       url: url,
-      httpMethod: HttpMethod.GET,
-      headers: @[("User-Agent", "price-feed")],  # Motokoと同じヘッダー
+      `method`: HttpMethod.GET,
+      headers: @[HttpHeader(name: "User-Agent", value: "price-feed")],  # Motokoと同じヘッダー
       body: none(seq[uint8]),
       max_response_bytes: none(uint),  # Motokoと同じ（null指定）
       transform: none(HttpTransform),  # Transform関数なし
@@ -34,8 +35,8 @@ proc get_icp_usd_exchange*() {.async.} =
     echo "Calling HTTP Outcall without Transform function..."
     echo "Request structure:"
     echo "  URL: ", request.url
-    echo "  Method: ", request.httpMethod
-    echo "  Headers: ", request.headers
+    echo "  Method: ", request.`method`
+    echo "  Headers: ", request.headers.mapIt(it.name & "=" & it.value).join(", ")
     echo "  Body: ", if request.body.isSome: "present" else: "none"
     echo "  Max response bytes: ", if request.max_response_bytes.isSome: $request.max_response_bytes.get else: "none"
     echo "  Transform: ", if request.transform.isSome: "present" else: "NONE"
