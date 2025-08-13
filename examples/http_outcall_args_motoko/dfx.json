@@ -1,0 +1,16 @@
+{
+  "canisters": {
+    "http_outcall_args_motoko_backend": {
+      "main": "src/http_outcall_args_motoko_backend/main.mo",
+      "type": "motoko"
+    }
+  },
+  "defaults": {
+    "build": {
+      "args": "",
+      "packtool": ""
+    }
+  },
+  "output_env_file": ".env",
+  "version": 1
+}
