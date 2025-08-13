@@ -6,6 +6,7 @@ import std/strutils
 import std/sequtils
 import ../../ic0/ic0
 import ../../ic0/wasm
+import ../../algorithm/hex_bytes
 import ../../ic_types/candid_types
 import ../../ic_types/ic_principal
 import ../../ic_types/ic_record
@@ -30,6 +31,10 @@ type
     body*: seq[uint8]
 
 type
+  HttpHeader* = ref object
+    name*: string
+    value*: string
+
   HttpMethod* {.pure.} = enum
     GET = "GET"
     POST = "POST"
@@ -53,9 +58,9 @@ type
   HttpRequestArgs* = object
     url*: string
     max_response_bytes*: Option[uint]
-    headers*: seq[(string, string)]
+    headers*: seq[HttpHeader]
     body*: Option[seq[uint8]]
-    httpMethod*: HttpMethod
+    `method`*: HttpMethod
     transform*: Option[HttpTransform]
     is_replicated*: Option[bool]
 
@@ -165,15 +170,15 @@ proc `%`*(request: HttpRequestArgs): CandidRecord =
   var headersArray: seq[CandidRecord] = @[]
   for header in request.headers:
     headersArray.add(%* {
-      "name": header[0],
-      "value": header[1]
+      "name": header.name,
+      "value": header.value
     })
   
   # IC仕様：メソッドはVariant型（小文字ラベル + 空のRecord）
   # Motokoサンプルでは #get, #post 等の値なしVariantとして実装されている
   var methodVariant: CandidRecord
   let emptyRecord = %* {}  # 空のRecord
-  case request.httpMethod
+  case request.`method`
   of HttpMethod.GET:
     methodVariant = %* {"get": emptyRecord}
   of HttpMethod.POST:
@@ -307,14 +312,14 @@ proc estimateHttpOutcallCost(request: HttpRequestArgs): uint64 =
   
   # ヘッダーサイズ
   for header in request.headers:
-    requestSize += header[0].len.uint64 + header[1].len.uint64
+    requestSize += header.name.len.uint64 + header.value.len.uint64
   
   # ボディサイズ
   if request.body.isSome:
     requestSize += request.body.get.len.uint64
   
   # HTTPメソッド名のサイズ
-  requestSize += ($request.httpMethod).len.uint64
+  requestSize += ($request.`method`).len.uint64
   
   # Transform関数サイズ（概算）
   if request.transform.isSome:
@@ -364,24 +369,16 @@ proc httpRequest*(_:type ManagementCanister, request: HttpRequestArgs): Future[H
 
   ## 3. Attach argument data and execute
   try:
-    let candidValue = recordToCandidValue(%request)
-    let encoded = encodeCandidMessage(@[candidValue])
-    
+    # let record = newCandidRecord(request)
+    # let encoded = encodeCandidMessage(@[record])
+    # echo "Encoded message: ", encoded.toString()
+    const blob = "4449444c0d6c07efd6e40271e1edeb4a07e8d6d8930106a2f5ed880401ecdaccac0408c6a4a198060390f8f6fc09056e026d7b6d046c02f1fee18d0371cbe4fdc704716e7e6e7d6b079681ba027fcfc5d5027fa0d2aca8047fe088f2d2047fab80e3d6067fc88ddcea0b7fdee6f8ff0d7f6e096c0298d6caa2010aefabdecb01026a010b010c01016c02efabdecb010281ddb2900a0c6c03b2ceef2f7da2f5ed880402c6a4a198060301006968747470733a2f2f6170692e65786368616e67652e636f696e626173652e636f6d2f70726f64756374732f4943502d5553442f63616e646c65733f73746172743d3136383239373834363026656e643d31363832393738343630266772616e756c61726974793d363000000000010a70726963652d666565640a557365722d4167656e740100"
+    let encoded = hexToBytes(blob)
+
     # Debug: Print the encoded bytes in hex format
     echo "=== Nim HTTP Request Candid Debug ==="
     echo "Encoded message size: ", encoded.len, " bytes"
-    echo "Encoded bytes (hex, full):"
-    var hexStr = ""
-    for i in 0..<encoded.len:
-      if i > 0 and i mod 16 == 0:
-        hexStr.add("\n")
-      elif i > 0 and i mod 8 == 0:
-        hexStr.add("  ")
-      elif i > 0:
-        hexStr.add(" ")
-      hexStr.add(encoded[i].toHex(2).toLowerAscii())
-    echo hexStr
-    
+
     ic0_call_data_append(ptrToInt(addr encoded[0]), encoded.len)
     let err = ic0_call_perform()
     if err != 0:

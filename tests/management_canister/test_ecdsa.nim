@@ -1,7 +1,7 @@
 discard """
   cmd: "nim c --skipUserCfg $file"
 """
-# nim c -r --skipUserCfg tests/test_management_canister.nim
+# nim c -r --skipUserCfg tests/management_canister/test_ecdsa.nim
 
 import std/unittest
 import std/osproc
