@@ -1,0 +1,11 @@
+type HttpHeader = record {
+  name : text;
+  value : text;
+};
+
+service : {
+  "greet" : (text) -> (text) query;
+  "url" : () -> (text) query;
+  "maxResponseBytes" : () -> (opt nat) query;
+  "header" : () -> (vec HttpHeader) query;
+};

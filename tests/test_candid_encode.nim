@@ -7,6 +7,9 @@ import std/unittest
 import std/options
 import std/tables
 import std/sequtils
+import std/strutils
+import std/osproc
+import std/os
 import ../src/nicp_cdk/ic_types/candid_message/candid_encode
 import ../src/nicp_cdk/ic_types/candid_message/candid_decode
 import ../src/nicp_cdk/ic_types/ic_principal
@@ -209,3 +212,4 @@ suite("Candid round-trip tests"):
     check decoded.values[2].intVal == -456
     check decoded.values[3].kind == ctText
     check decoded.values[3].textVal == "test"
+

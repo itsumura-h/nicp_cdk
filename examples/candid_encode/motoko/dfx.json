@@ -1,0 +1,16 @@
+{
+  "canisters": {
+    "candid_encode_motoko_backend": {
+      "main": "src/candid_encode_motoko_backend/main.mo",
+      "type": "motoko"
+    }
+  },
+  "defaults": {
+    "build": {
+      "args": "",
+      "packtool": ""
+    }
+  },
+  "output_env_file": ".env",
+  "version": 1
+}
