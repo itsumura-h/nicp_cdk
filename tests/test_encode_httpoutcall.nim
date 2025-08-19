@@ -85,8 +85,17 @@ suite("Candid compare with Motoko tests"):
     check motokoResult == nimResult
   
   
-  # test("header"):
-  #   let motokoResult = callMotokoCanisterFunction("header")
-  #   echo motokoResult
-  #   let nimResult = callNimCanisterFunction("header")
-  #   echo nimResult
+  test("header"):
+    let motokoResult = callMotokoCanisterFunction("header")
+    echo motokoResult
+    let nimResult = callNimCanisterFunction("header")
+    echo nimResult
+    check motokoResult == nimResult
+
+
+  test("body"):
+    let motokoResult = callMotokoCanisterFunction("body")
+    echo motokoResult
+    let nimResult = callNimCanisterFunction("body")
+    echo nimResult
+    check motokoResult == nimResult

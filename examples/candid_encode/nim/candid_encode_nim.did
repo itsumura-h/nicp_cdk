@@ -8,4 +8,5 @@ service : {
   "url" : () -> (text) query;
   "maxResponseBytes" : () -> (opt nat) query;
   "header" : () -> (vec HttpHeader) query;
+  "body" : () -> (opt blob) query;
 };

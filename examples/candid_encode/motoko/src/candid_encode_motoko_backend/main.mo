@@ -46,4 +46,8 @@ actor {
     ];
     return request_headers;
   };
+
+  public query func body() : async ?Blob {
+    return null;
+  };
 };

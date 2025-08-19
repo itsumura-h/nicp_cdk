@@ -16,3 +16,7 @@ proc header() {.query.} =
     HttpHeader(name: "User-Agent", value: "price-feed"),
   ]
   reply(request_headers)
+
+
+proc body() {.query.} =
+  reply(none(seq[uint8]))

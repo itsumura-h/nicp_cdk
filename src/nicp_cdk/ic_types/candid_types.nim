@@ -485,6 +485,44 @@ proc newCandidOptWithType*[T](value: Option[T]): CandidValue =
     none(CandidValue)
   CandidValue(kind: ctOpt, optVal: optValue)
 
+
+
+# Type-to-CandidType mapping for generic type inference
+proc getCandidType*[T](_: typedesc[T]): CandidType =
+  ## Get CandidType from Nim type at compile time
+  when T is seq[uint8]:
+    ctBlob
+  elif T is uint:
+    ctNat
+  elif T is uint8:
+    ctNat8
+  elif T is uint16:
+    ctNat16
+  elif T is uint32:
+    ctNat32
+  elif T is uint64:
+    ctNat64
+  elif T is int:
+    ctInt
+  elif T is int8:
+    ctInt8
+  elif T is int16:
+    ctInt16
+  elif T is int32:
+    ctInt32
+  elif T is int64:
+    ctInt64
+  elif T is float32:
+    ctFloat32
+  elif T is float64:
+    ctFloat64
+  elif T is string:
+    ctText
+  elif T is bool:
+    ctBool
+  else:
+    ctNull  # fallback
+
 proc newCandidVec*(values: seq[CandidValue]): CandidValue =
   CandidValue(kind: ctVec, vecVal: values)
 

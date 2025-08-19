@@ -157,13 +157,21 @@ proc reply*(msg: Option[CandidValue]) =
 
 
 proc reply*[T](msg: Option[T]) =
-  ## Reply with an optional value
+  ## Reply with an optional value with correct type inference
   let optValue = if msg.isSome():
-    some(msg.get().newCandidValue())
+    when T is seq[uint8]:
+      some(newCandidBlob(msg.get()))
+    else:
+      some(msg.get().newCandidValue())
   else:
     none(CandidValue)
+  
   let value = newCandidOpt(optValue)
-  let encoded = encodeCandidMessage(@[value])
+  
+  # Use compile-time type inference to determine correct Candid type
+  const candidType = getCandidType(T)
+  let encoded = encodeCandidMessageWithTypeHints(@[value], @[candidType])
+  
   ic0_msg_reply_data_append(ptrToInt(addr encoded[0]), encoded.len)
   ic0_msg_reply()
 

@@ -432,6 +432,74 @@ proc encodeValue(value: CandidValue, typeRef: int, typeTable: seq[TypeTableEntry
 # ================================================================================
 # Public Procedures
 # ================================================================================
+
+proc encodeCandidMessageWithTypeHints*(values: seq[CandidValue], typeHints: seq[CandidType] = @[]): seq[byte] =
+  ## Encodes Candid message with optional type hints for none values
+  result = @[]
+  
+  # 1. Add magic number
+  result.add(magicHeader)
+ 
+  # 2. Build type table
+  var builder = TypeBuilder(
+    typeTable: @[],
+    typeIndexMap: initTable[string, int]()
+  )
+
+  var valueTypes: seq[int] = @[]
+  # Analyze each value and add to type table
+  for i, value in values:
+    let typeRef = if value.kind == ctBlob:
+      # Add vec type to type table as non-primitive (used as composite type)
+      let vecTypeDesc = TypeDescriptor(kind: ctVec, vecElementType: TypeDescriptor(kind: ctNat8))
+      addTypeToTable(builder, vecTypeDesc)
+    elif value.kind == ctVec and value.vecVal.len > 0 and value.vecVal[0].kind == ctBlob:
+      # Special processing for vec blob (seq[seq[uint8]])
+      let blobTypeDesc = TypeDescriptor(kind: ctVec, vecElementType: TypeDescriptor(kind: ctNat8))
+      let vecBlobTypeDesc = TypeDescriptor(kind: ctVec, vecElementType: blobTypeDesc)
+      addTypeToTable(builder, vecBlobTypeDesc)
+    elif value.kind == ctOpt and value.optVal.isNone():
+      # Use type hint if provided
+      if i < typeHints.len:
+        let hintType = typeHints[i]
+        case hintType:
+        of ctBlob:
+          let vecNat8TypeDesc = TypeDescriptor(kind: ctVec, vecElementType: TypeDescriptor(kind: ctNat8))
+          let optBlobTypeDesc = TypeDescriptor(kind: ctOpt, optInnerType: vecNat8TypeDesc)
+          addTypeToTable(builder, optBlobTypeDesc)
+        else:
+          let optHintTypeDesc = TypeDescriptor(kind: ctOpt, optInnerType: TypeDescriptor(kind: hintType))
+          addTypeToTable(builder, optHintTypeDesc)
+      else:
+        # Default to nat if no hint provided
+        let optNatTypeDesc = TypeDescriptor(kind: ctOpt, optInnerType: TypeDescriptor(kind: ctNat))
+        addTypeToTable(builder, optNatTypeDesc)
+    elif value.kind == ctOpt and value.optVal.isSome() and value.optVal.get().kind == ctBlob:
+      # Special handling for opt blob: create proper opt blob type descriptor
+      let vecNat8TypeDesc = TypeDescriptor(kind: ctVec, vecElementType: TypeDescriptor(kind: ctNat8))
+      let optBlobTypeDesc = TypeDescriptor(kind: ctOpt, optInnerType: vecNat8TypeDesc)
+      addTypeToTable(builder, optBlobTypeDesc)
+    elif isPrimitiveType(value.kind):
+      typeCodeFromCandidType(value.kind)
+    else:
+      let typeDesc = inferTypeDescriptor(value)
+      addTypeToTable(builder, typeDesc)
+    valueTypes.add(typeRef)
+  
+  # 3. Encode type table
+  result.add(encodeULEB128(uint(builder.typeTable.len)))
+  for entry in builder.typeTable:
+    result.add(encodeTypeTableEntry(entry))
+
+  # 4. Encode type sequence
+  result.add(encodeULEB128(uint(valueTypes.len)))
+  for typeRef in valueTypes:
+    result.add(encodeSLEB128(int32(typeRef)))
+  
+  # 5. Encode value sequence
+  for i, value in values:
+    result.add(encodeValue(value, valueTypes[i], builder.typeTable))
+
 proc encodeCandidMessage*(values: seq[CandidValue]): seq[byte] =
   ## Encodes Candid message
   result = @[]
@@ -458,10 +526,15 @@ proc encodeCandidMessage*(values: seq[CandidValue]): seq[byte] =
       let vecBlobTypeDesc = TypeDescriptor(kind: ctVec, vecElementType: blobTypeDesc)
       addTypeToTable(builder, vecBlobTypeDesc)
     elif value.kind == ctOpt and value.optVal.isNone():
-      # Special handling for none options: infer type as opt nat
+      # Special handling for none options: infer type as opt nat by default
       # This is a workaround for cases where we can't infer the inner type
       let optNatTypeDesc = TypeDescriptor(kind: ctOpt, optInnerType: TypeDescriptor(kind: ctNat))
       addTypeToTable(builder, optNatTypeDesc)
+    elif value.kind == ctOpt and value.optVal.isSome() and value.optVal.get().kind == ctBlob:
+      # Special handling for opt blob: create proper opt blob type descriptor
+      let vecNat8TypeDesc = TypeDescriptor(kind: ctVec, vecElementType: TypeDescriptor(kind: ctNat8))
+      let optBlobTypeDesc = TypeDescriptor(kind: ctOpt, optInnerType: vecNat8TypeDesc)
+      addTypeToTable(builder, optBlobTypeDesc)
     elif isPrimitiveType(value.kind):
       typeCodeFromCandidType(value.kind)
     else:
