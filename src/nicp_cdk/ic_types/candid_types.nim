@@ -477,6 +477,14 @@ proc newCandidVariant*(tag: uint32, value: CandidValue): CandidValue =
 proc newCandidOpt*(value: Option[CandidValue]): CandidValue =
   CandidValue(kind: ctOpt, optVal: value)
 
+proc newCandidOptWithType*[T](value: Option[T]): CandidValue =
+  ## Option[T]から正しい型情報を保持するCandidOptを作成
+  let optValue = if value.isSome():
+    some(value.get().newCandidValue())
+  else:
+    none(CandidValue)
+  CandidValue(kind: ctOpt, optVal: optValue)
+
 proc newCandidVec*(values: seq[CandidValue]): CandidValue =
   CandidValue(kind: ctVec, vecVal: values)
 

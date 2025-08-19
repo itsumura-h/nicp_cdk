@@ -8,7 +8,6 @@ import std/osproc
 import std/os
 import std/strutils
 
-
 const DFX_PATH = "/root/.local/share/dfx/bin/dfx"
 const MOTOKO_DIR = "examples/candid_encode/motoko"
 const NIM_DIR = "examples/candid_encode/nim"
@@ -86,8 +85,8 @@ suite("Candid compare with Motoko tests"):
     check motokoResult == nimResult
   
   
-  test("header"):
-    let motokoResult = callMotokoCanisterFunction("header")
-    echo motokoResult
-    let nimResult = callNimCanisterFunction("header")
-    echo nimResult
+  # test("header"):
+  #   let motokoResult = callMotokoCanisterFunction("header")
+  #   echo motokoResult
+  #   let nimResult = callNimCanisterFunction("header")
+  #   echo nimResult

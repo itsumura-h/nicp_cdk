@@ -159,7 +159,7 @@ proc reply*(msg: Option[CandidValue]) =
 proc reply*[T](msg: Option[T]) =
   ## Reply with an optional value
   let optValue = if msg.isSome():
-    msg
+    some(msg.get().newCandidValue())
   else:
     none(CandidValue)
   let value = newCandidOpt(optValue)

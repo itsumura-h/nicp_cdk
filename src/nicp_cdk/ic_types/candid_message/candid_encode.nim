@@ -457,6 +457,11 @@ proc encodeCandidMessage*(values: seq[CandidValue]): seq[byte] =
       let blobTypeDesc = TypeDescriptor(kind: ctVec, vecElementType: TypeDescriptor(kind: ctNat8))
       let vecBlobTypeDesc = TypeDescriptor(kind: ctVec, vecElementType: blobTypeDesc)
       addTypeToTable(builder, vecBlobTypeDesc)
+    elif value.kind == ctOpt and value.optVal.isNone():
+      # Special handling for none options: infer type as opt nat
+      # This is a workaround for cases where we can't infer the inner type
+      let optNatTypeDesc = TypeDescriptor(kind: ctOpt, optInnerType: TypeDescriptor(kind: ctNat))
+      addTypeToTable(builder, optNatTypeDesc)
     elif isPrimitiveType(value.kind):
       typeCodeFromCandidType(value.kind)
     else:
