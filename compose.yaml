@@ -7,5 +7,4 @@ services:
     volumes:
       - .:/application
     ports:
-      # - 3002:3002 # frontend
       - 4943:4943 # icp

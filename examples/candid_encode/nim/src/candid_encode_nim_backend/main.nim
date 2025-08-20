@@ -20,3 +20,11 @@ proc header() {.query.} =
 
 proc body() {.query.} =
   reply(none(seq[uint8]))
+
+
+proc `method`() {.query.} =
+  reply(HttpMethod.GET)
+
+
+# proc transform() {.query.} =
+#   reply(none(TransformArgs))

@@ -3,10 +3,21 @@ type HttpHeader = record {
   value : text;
 };
 
+type HttpMethod = variant {
+  get;
+  post;
+  put;
+  patch;
+  delete;
+  head;
+  options;
+};
+
 service : {
   "greet" : (text) -> (text) query;
   "url" : () -> (text) query;
   "maxResponseBytes" : () -> (opt nat) query;
   "header" : () -> (vec HttpHeader) query;
   "body" : () -> (opt blob) query;
+  "method" : () -> (HttpMethod) query;
 };

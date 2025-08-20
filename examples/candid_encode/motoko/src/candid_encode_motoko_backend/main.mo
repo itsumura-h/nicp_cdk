@@ -50,4 +50,13 @@ actor {
   public query func body() : async ?Blob {
     return null;
   };
+
+  public query func method() : async HttpMethod {
+    return #get;
+  };
+
+  // public query func transform() : async ?{
+  //   function : shared query (TransformArgs) -> async HttpResponsePayload;
+  //   context : Blob;
+  // };
 };

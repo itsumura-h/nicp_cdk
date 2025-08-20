@@ -36,13 +36,13 @@ type
     value*: string
 
   HttpMethod* {.pure.} = enum
-    GET = "GET"
-    POST = "POST"
-    HEAD = "HEAD"
-    PUT = "PUT"
-    DELETE = "DELETE"
-    PATCH = "PATCH"
-    OPTIONS = "OPTIONS"
+    GET = "get"
+    POST = "post"
+    HEAD = "head"
+    PUT = "put"
+    DELETE = "delete"
+    PATCH = "patch"
+    OPTIONS = "options"
 
   HttpResponse* = object
     status*: uint

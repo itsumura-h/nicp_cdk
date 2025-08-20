@@ -99,3 +99,11 @@ suite("Candid compare with Motoko tests"):
     let nimResult = callNimCanisterFunction("body")
     echo nimResult
     check motokoResult == nimResult
+
+
+  test("method"):
+    let motokoResult = callMotokoCanisterFunction("method")
+    echo motokoResult
+    let nimResult = callNimCanisterFunction("method")
+    echo nimResult
+    check motokoResult == nimResult
