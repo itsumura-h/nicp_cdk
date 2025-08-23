@@ -24,10 +24,11 @@ RUN cargo build --release --target wasm32-wasip1
 
 # wasi2ic
 WORKDIR /root
-RUN cargo install wasi2ic
+# RUN cargo install wasi2ic
+
 
 # ================================================================================
-FROM ubuntu:24.04 AS app
+# FROM ubuntu:24.04 AS app
 
 # prevent timezone dialogue
 ENV DEBIAN_FRONTEND=noninteractive
@@ -52,11 +53,12 @@ RUN apt install -y lldb lld gcc-multilib
 RUN apt autoremove -y
 
 # icp
-# https://github.com/dfinity/sdk/releases/latest
+# Install specific dfx version 0.28.0 to avoid proc_exit issues in 0.29.0+
+# https://github.com/dfinity/sdk/releases/tag/0.28.0
 WORKDIR /root
 RUN curl -OL https://internetcomputer.org/install.sh
 RUN chmod +x install.sh
-RUN DFXVM_INIT_YES=yes ./install.sh
+RUN DFX_VERSION=0.28.0 DFXVM_INIT_YES=yes ./install.sh
 RUN rm -f install.sh
 
 # wasi
@@ -95,9 +97,9 @@ RUN mv nimlangserver /root/.nimble/bin/
 
 # copy from wasi-tools
 WORKDIR /root
-COPY --from=wasi-tools /root/ic-wasi-polyfill/target/wasm32-wasip1/release/* /root/.ic-wasi-polyfill/
+# COPY --from=wasi-tools /root/ic-wasi-polyfill/target/wasm32-wasip1/release/* /root/.ic-wasi-polyfill/
 ENV IC_WASI_POLYFILL_PATH "/root/.ic-wasi-polyfill"
-COPY --from=wasi-tools /root/.cargo/bin/* /root/.cargo/bin/
+# COPY --from=wasi-tools /root/.cargo/bin/* /root/.cargo/bin/
 ENV PATH $PATH:/root/.cargo/bin
 
 # node

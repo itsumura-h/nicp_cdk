@@ -22,7 +22,8 @@ switch("passC", "-I" & cHeadersPath)
 switch("passL", "-L" & cHeadersPath)
 
 # ic wasi polyfill path
-let icWasiPolyfillPath = getEnv("IC_WASI_POLYFILL_PATH")
+# let icWasiPolyfillPath = getEnv("IC_WASI_POLYFILL_PATH")
+let icWasiPolyfillPath = "/root/ic-wasi-polyfill/target/wasm32-wasip1/release/"
 switch("passL", "-L" & icWasiPolyfillPath)
 switch("passL", "-lic_wasi_polyfill")
 

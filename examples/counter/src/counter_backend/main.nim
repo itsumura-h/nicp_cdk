@@ -9,8 +9,8 @@ proc set() {.update.} =
   let request = Request.new()
   let value = request.getNat(0)
   counter = value
-  reply()
+  replyNull()
 
 proc inc() {.update.} =
   counter += 1
-  reply()
+  replyNull()

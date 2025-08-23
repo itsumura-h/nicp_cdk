@@ -1,4 +1,4 @@
-actor {
+persistent actor {
   type HttpHeader = {
     name : Text;
     value : Text;
