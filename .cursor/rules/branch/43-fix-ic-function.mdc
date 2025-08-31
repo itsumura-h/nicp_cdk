@@ -1,0 +1,327 @@
+---
+description: 43-fix-ic-functionブランチでの開発時に読み込む
+alwaysApply: false
+---
+43-fix-ic-function
+===
+
+このブランチで実装することは以下の通りです。
+- ICPのCandid Function型の完全仕様に基づき、NimとMotokoで完全な互換性を持つencode/decodeを実装する
+- Function型のシグネチャ情報（引数型、戻り値型、注釈）の適切な処理を実装する
+- query、oneway、composite_query注釈の正確なエンコーディング・デコーディングを実装する
+- Motoko共有関数との完全互換性を確保する
+
+## 進捗
+- [x] ICPのFunction型仕様を詳細調査
+- [x] 現在のNim実装におけるFunction型エンコード・デコードを分析
+- [x] Motokoテストケースの型エラー修正（blob関数の修正）
+- [ ] Motokoの共有関数エンコーディングとの互換性要件を調査
+- [ ] Function型のシグネチャ情報の型テーブルエンコーディングを実装
+- [ ] 注釈（query、oneway、composite_query）のバイナリエンコーディングを実装
+- [ ] デコード時のシグネチャ検証機能を実装
+- [ ] Motoko互換性テストケースを作成
+- [ ] 既存テストケースの拡張（注釈付きFunction型）
+
+## 参考資料
+- Candid仕様書: https://internetcomputer.org/docs/current/references/candid-ref
+- Candid IDL specification: https://github.com/dfinity/candid/blob/master/spec/Candid.md
+- Motoko言語仕様: https://internetcomputer.org/docs/current/motoko/main/motoko
+- 現在の実装: src/nicp_cdk/ic_types/candid_types.nim (CandidFunc)
+- エンコーダー: src/nicp_cdk/ic_types/candid_message/candid_encode.nim
+- デコーダー: src/nicp_cdk/ic_types/candid_message/candid_decode.nim
+- テスト: tests/types/test_func.nim
+
+## 調査結果・設計まとめ
+
+### ICPのCandid Function型仕様
+
+#### Function型の構造
+Candidの`func`型は以下の要素で構成される：
+
+1. **型シグネチャ**（型テーブルに格納）：
+   - 引数型リスト (`args: seq[type]`)
+   - 戻り値型リスト (`returns: seq[type]`)
+   - 注釈 (`annotations: seq[annotation]`)
+
+2. **値表現**（値領域に格納）：
+   - Principal ID (canister ID)
+   - メソッド名 (UTF-8文字列)
+
+#### 注釈の種類と意味
+
+1. **query**: 
+   - 関数が状態を変更しないクエリメソッド
+   - キャッシュされた状態に対して効率的に実行可能
+   - より安価な「クエリ呼び出し」メカニズムを使用
+
+2. **oneway**:
+   - 戻り値を持たない（fire-and-forget）
+   - 呼び出し元は関数の戻りを待たない
+   - 応答継続やコールバックを受け入れない
+
+3. **composite_query**:
+   - IC固有の特別なquery関数
+   - 他の`composite_query`と`query`関数のみ呼び出し可能
+   - `composite_query`間でのみ呼び出し可能（`query`や`update`からは不可）
+   - サブネットを跨げない制限あり
+
+#### バイナリエンコーディング形式
+
+**型テーブル内のFunction型エントリ**:
+```
+- 型コード: -22 (SLEB128)
+- 引数数: N (ULEB128)
+- 引数型1: type_ref (SLEB128)
+- ...
+- 引数型N: type_ref (SLEB128)
+- 戻り値数: M (ULEB128)
+- 戻り値型1: type_ref (SLEB128)
+- ...
+- 戻り値型M: type_ref (SLEB128)
+- 注釈バイト数: L (ULEB128)
+- 注釈データ: L bytes
+```
+
+**値領域のFunction値**:
+```
+- Principal長: P (ULEB128)
+- Principal bytes: P bytes
+- メソッド名長: S (ULEB128)
+- メソッド名bytes: S bytes (UTF-8)
+```
+
+#### 注釈のバイナリ表現
+
+注釈は以下のバイト値で表現される：
+- `query`: 0x01
+- `oneway`: 0x02  
+- `composite_query`: 0x03
+
+複数注釈の場合は連続して格納される。
+
+### 現在のNim実装の分析
+
+#### 実装済み機能
+1. **CandidFunc型定義**: Principal、methodName、args、returns、annotationsフィールド
+2. **基本エンコーディング**: Principal + メソッド名のエンコード
+3. **基本デコーディング**: Principal + メソッド名のデコード
+4. **ヘルパー関数**: newCandidFunc、newQueryFunc、newUpdateFunc
+
+#### 未実装・不完全な機能
+1. **シグネチャ情報の型テーブルエンコーディング**: 引数・戻り値型が型テーブルに反映されない
+2. **注釈のバイナリエンコーディング**: 文字列注釈がバイナリ形式に変換されない
+3. **デコード時の型検証**: 期待シグネチャとの照合機能なし
+4. **Motoko互換性**: 共有関数の完全互換性が未確認
+
+### Motokoとの互換性要件
+
+#### Motoko共有関数の特徴
+1. **shared functions**: Actor間通信用関数、必ず`async T`型を返す
+2. **型制約**: 引数・戻り値は共有可能型のみ
+3. **注釈サポート**: `query`、`oneway`注釈をネイティブサポート
+4. **Actor model**: メッセージパッシングベースの実行
+
+#### 互換性確保の要件
+1. **シグネチャ一致**: 引数・戻り値型の完全一致
+2. **注釈一致**: query/oneway注釈の正確な伝播
+3. **エンコーディング統一**: バイナリ形式の完全互換
+4. **エラーハンドリング**: 型不一致時の適切なエラー報告
+
+### 実装方針
+
+#### 1. 型テーブルエンコーディング拡張
+- `CandidFunc`の`args`と`returns`を型テーブルに正しく反映
+- 再帰的な型参照の適切な処理
+- 型の重複排除と参照管理
+
+#### 2. 注釈バイナリエンコーディング実装
+```nim
+proc encodeAnnotations(annotations: seq[string]): seq[byte] =
+  result = @[]
+  for annotation in annotations:
+    case annotation:
+    of "query": result.add(0x01'u8)
+    of "oneway": result.add(0x02'u8)  
+    of "composite_query": result.add(0x03'u8)
+```
+
+#### 3. デコード時検証機能
+- 期待シグネチャとの照合
+- 注釈の妥当性検証
+- 型の互換性チェック
+
+#### 4. Motoko互換性テスト
+- 同一Function値のクロス言語エンコード・デコード
+- 注釈付きFunction型の相互運用
+- エラーケースの一致確認
+
+### 設計上の制約と考慮事項
+
+1. **後方互換性**: 既存のFunction型値との互換性を維持
+2. **パフォーマンス**: エンコード・デコードの効率性
+3. **メモリ使用量**: シグネチャ情報の適切な管理
+4. **エラー処理**: 不正なFunction型への対応
+5. **型安全性**: コンパイル時型チェックとの整合性
+
+この設計により、NimとMotoko間でICPのFunction型の完全な互換性を実現し、ICPエコシステム内での言語間相互運用性を確保する。43-fix-ic-function
+===
+
+このブランチで実装することは以下の通りです。
+- ICPのCandid Function型の完全仕様に基づき、NimとMotokoで完全な互換性を持つencode/decodeを実装する
+- Function型のシグネチャ情報（引数型、戻り値型、注釈）の適切な処理を実装する
+- query、oneway、composite_query注釈の正確なエンコーディング・デコーディングを実装する
+- Motoko共有関数との完全互換性を確保する
+
+## 進捗
+- [x] ICPのFunction型仕様を詳細調査
+- [x] 現在のNim実装におけるFunction型エンコード・デコードを分析
+- [x] Motokoテストケースの型エラー修正（blob関数の修正）
+- [ ] Motokoの共有関数エンコーディングとの互換性要件を調査
+- [ ] Function型のシグネチャ情報の型テーブルエンコーディングを実装
+- [ ] 注釈（query、oneway、composite_query）のバイナリエンコーディングを実装
+- [ ] デコード時のシグネチャ検証機能を実装
+- [ ] Motoko互換性テストケースを作成
+- [ ] 既存テストケースの拡張（注釈付きFunction型）
+
+## 参考資料
+- Candid仕様書: https://internetcomputer.org/docs/current/references/candid-ref
+- Candid IDL specification: https://github.com/dfinity/candid/blob/master/spec/Candid.md
+- Motoko言語仕様: https://internetcomputer.org/docs/current/motoko/main/motoko
+- 現在の実装: src/nicp_cdk/ic_types/candid_types.nim (CandidFunc)
+- エンコーダー: src/nicp_cdk/ic_types/candid_message/candid_encode.nim
+- デコーダー: src/nicp_cdk/ic_types/candid_message/candid_decode.nim
+- テスト: tests/types/test_func.nim
+
+## 調査結果・設計まとめ
+
+### ICPのCandid Function型仕様
+
+#### Function型の構造
+Candidの`func`型は以下の要素で構成される：
+
+1. **型シグネチャ**（型テーブルに格納）：
+   - 引数型リスト (`args: seq[type]`)
+   - 戻り値型リスト (`returns: seq[type]`)
+   - 注釈 (`annotations: seq[annotation]`)
+
+2. **値表現**（値領域に格納）：
+   - Principal ID (canister ID)
+   - メソッド名 (UTF-8文字列)
+
+#### 注釈の種類と意味
+
+1. **query**: 
+   - 関数が状態を変更しないクエリメソッド
+   - キャッシュされた状態に対して効率的に実行可能
+   - より安価な「クエリ呼び出し」メカニズムを使用
+
+2. **oneway**:
+   - 戻り値を持たない（fire-and-forget）
+   - 呼び出し元は関数の戻りを待たない
+   - 応答継続やコールバックを受け入れない
+
+3. **composite_query**:
+   - IC固有の特別なquery関数
+   - 他の`composite_query`と`query`関数のみ呼び出し可能
+   - `composite_query`間でのみ呼び出し可能（`query`や`update`からは不可）
+   - サブネットを跨げない制限あり
+
+#### バイナリエンコーディング形式
+
+**型テーブル内のFunction型エントリ**:
+```
+- 型コード: -22 (SLEB128)
+- 引数数: N (ULEB128)
+- 引数型1: type_ref (SLEB128)
+- ...
+- 引数型N: type_ref (SLEB128)
+- 戻り値数: M (ULEB128)
+- 戻り値型1: type_ref (SLEB128)
+- ...
+- 戻り値型M: type_ref (SLEB128)
+- 注釈バイト数: L (ULEB128)
+- 注釈データ: L bytes
+```
+
+**値領域のFunction値**:
+```
+- Principal長: P (ULEB128)
+- Principal bytes: P bytes
+- メソッド名長: S (ULEB128)
+- メソッド名bytes: S bytes (UTF-8)
+```
+
+#### 注釈のバイナリ表現
+
+注釈は以下のバイト値で表現される：
+- `query`: 0x01
+- `oneway`: 0x02  
+- `composite_query`: 0x03
+
+複数注釈の場合は連続して格納される。
+
+### 現在のNim実装の分析
+
+#### 実装済み機能
+1. **CandidFunc型定義**: Principal、methodName、args、returns、annotationsフィールド
+2. **基本エンコーディング**: Principal + メソッド名のエンコード
+3. **基本デコーディング**: Principal + メソッド名のデコード
+4. **ヘルパー関数**: newCandidFunc、newQueryFunc、newUpdateFunc
+
+#### 未実装・不完全な機能
+1. **シグネチャ情報の型テーブルエンコーディング**: 引数・戻り値型が型テーブルに反映されない
+2. **注釈のバイナリエンコーディング**: 文字列注釈がバイナリ形式に変換されない
+3. **デコード時の型検証**: 期待シグネチャとの照合機能なし
+4. **Motoko互換性**: 共有関数の完全互換性が未確認
+
+### Motokoとの互換性要件
+
+#### Motoko共有関数の特徴
+1. **shared functions**: Actor間通信用関数、必ず`async T`型を返す
+2. **型制約**: 引数・戻り値は共有可能型のみ
+3. **注釈サポート**: `query`、`oneway`注釈をネイティブサポート
+4. **Actor model**: メッセージパッシングベースの実行
+
+#### 互換性確保の要件
+1. **シグネチャ一致**: 引数・戻り値型の完全一致
+2. **注釈一致**: query/oneway注釈の正確な伝播
+3. **エンコーディング統一**: バイナリ形式の完全互換
+4. **エラーハンドリング**: 型不一致時の適切なエラー報告
+
+### 実装方針
+
+#### 1. 型テーブルエンコーディング拡張
+- `CandidFunc`の`args`と`returns`を型テーブルに正しく反映
+- 再帰的な型参照の適切な処理
+- 型の重複排除と参照管理
+
+#### 2. 注釈バイナリエンコーディング実装
+```nim
+proc encodeAnnotations(annotations: seq[string]): seq[byte] =
+  result = @[]
+  for annotation in annotations:
+    case annotation:
+    of "query": result.add(0x01'u8)
+    of "oneway": result.add(0x02'u8)  
+    of "composite_query": result.add(0x03'u8)
+```
+
+#### 3. デコード時検証機能
+- 期待シグネチャとの照合
+- 注釈の妥当性検証
+- 型の互換性チェック
+
+#### 4. Motoko互換性テスト
+- 同一Function値のクロス言語エンコード・デコード
+- 注釈付きFunction型の相互運用
+- エラーケースの一致確認
+
+### 設計上の制約と考慮事項
+
+1. **後方互換性**: 既存のFunction型値との互換性を維持
+2. **パフォーマンス**: エンコード・デコードの効率性
+3. **メモリ使用量**: シグネチャ情報の適切な管理
+4. **エラー処理**: 不正なFunction型への対応
+5. **型安全性**: コンパイル時型チェックとの整合性
+
+この設計により、NimとMotoko間でICPのFunction型の完全な互換性を実現し、ICPエコシステム内での言語間相互運用性を確保する。

@@ -11,12 +11,18 @@ proc replyNull*() =
   ic0_msg_reply_data_append(ptrToInt(addr encoded[0]), encoded.len)
   ic0_msg_reply()
 
+
 proc replyEmpty*() =
   # Candid's () -> () signifies an empty tuple.
   # Encode Candid message with an empty list of values.
   let encoded = encodeCandidMessage(@[])
   ic0_msg_reply_data_append(ptrToInt(addr encoded[0]), encoded.len)
   ic0_msg_reply()
+
+
+proc reply*() =
+  replyEmpty()
+
 
 proc reply*(msg: bool) =
   let value = newCandidBool(msg)

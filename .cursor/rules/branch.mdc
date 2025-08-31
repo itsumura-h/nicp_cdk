@@ -1,6 +1,4 @@
 ---
-description: 
-globs: 
 alwaysApply: true
 ---
 現在のブランチ名と一致するファイル名のファイルが `/application/.cursor/rules/branch/` 配下にあった場合は、それを読み込んでください。
@@ -11,6 +9,10 @@ alwaysApply: true
 以下はブランチルールの雛形です
 
 ```
+---
+description: {ブランチ名}ブランチでの開発時に読み込む
+alwaysApply: false
+---
 {ブランチルール名}
 ===
 

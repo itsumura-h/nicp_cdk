@@ -1,0 +1,13 @@
+service : {
+  "boolFunc" : () -> (bool) query;
+  "intFunc" : () -> (int) query;
+  "int8Func" : () -> (int8) query;
+  "int16Func" : () -> (int16) query;
+  "int32Func" : () -> (int32) query;
+  "int64Func" : () -> (int64) query;
+  "float64Func" : () -> (float64) query;
+  "textFunc" : () -> (text) query;
+  "blobFunc" : () -> (blob) query;
+  "responseNull" : () -> (null) query;
+  "responseEmpty" : () -> () query;
+};
