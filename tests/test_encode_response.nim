@@ -39,6 +39,15 @@ proc callNimCanisterFunction(functionName: string, args: string = ""): string =
   finally:
     setCurrentDir(originalDir)
 
+
+proc rowTest(fucName:string) =
+  let motokoResult = callMotokoCanisterFunction(fucName)
+  echo "Motoko result: ", motokoResult
+  let nimResult = callNimCanisterFunction(fucName)
+  echo "Nim result:    ", nimResult
+  check motokoResult == nimResult
+
+
 proc deploy() =
   echo "Deploying canisters..."
   let originalDir = getCurrentDir()
@@ -62,83 +71,54 @@ proc deploy() =
     setCurrentDir(originalDir)
     echo "Changed back to directory: ", getCurrentDir()
 
+
 suite "Candid compare with Motoko tests":
   deploy()
   
   test "bool":
-    let motokoResult = callMotokoCanisterFunction("bool")
-    echo "Motoko result: ", motokoResult
-    let nimResult = callNimCanisterFunction("boolFunc")
-    echo "Nim result:    ", nimResult
-    check motokoResult == nimResult
+    rowTest("boolFunc")
   
   test "int":
-    let motokoResult = callMotokoCanisterFunction("int")
-    echo "Motoko result: ", motokoResult
-    let nimResult = callNimCanisterFunction("intFunc")
-    echo "Nim result:    ", nimResult
-    check motokoResult == nimResult
+    rowTest("intFunc")
   
   test "int8":
-    let motokoResult = callMotokoCanisterFunction("int8")
-    echo "Motoko result: ", motokoResult
-    let nimResult = callNimCanisterFunction("int8Func")
-    echo "Nim result:    ", nimResult
-    check motokoResult == nimResult
-  
+    rowTest("int8Func")
+
   test "int16":
-    let motokoResult = callMotokoCanisterFunction("int16")
-    echo "Motoko result: ", motokoResult
-    let nimResult = callNimCanisterFunction("int16Func")
-    echo "Nim result:    ", nimResult
-    check motokoResult == nimResult
-  
+    rowTest("int16Func")
+
   test "int32":
-    let motokoResult = callMotokoCanisterFunction("int32")
-    echo "Motoko result: ", motokoResult
-    let nimResult = callNimCanisterFunction("int32Func")
-    echo "Nim result:    ", nimResult
-    check motokoResult == nimResult
-  
+    rowTest("int32Func")
+
   test "int64":
-    let motokoResult = callMotokoCanisterFunction("int64")
-    echo "Motoko result: ", motokoResult
-    let nimResult = callNimCanisterFunction("int64Func")
-    echo "Nim result:    ", nimResult
-    check motokoResult == nimResult
-  
-  
-  test "float64":
-    let motokoResult = callMotokoCanisterFunction("float64")
-    echo "Motoko result: ", motokoResult
-    let nimResult = callNimCanisterFunction("float64Func")
-    echo "Nim result:    ", nimResult
-    check motokoResult == nimResult
-  
+    rowTest("int64Func")
+
+  test "nat":
+    rowTest("natFunc")
+
+  test "nat8":
+    rowTest("nat8Func")
+
+  test "nat16":
+    rowTest("nat16Func")
+
+  test "nat32":
+    rowTest("nat32Func")
+
+  test "nat64":
+    rowTest("nat64Func")
+    
+  test "float":
+    rowTest("floatFunc")  
+
   test "text":
-    let motokoResult = callMotokoCanisterFunction("text")
-    echo "Motoko result: ", motokoResult
-    let nimResult = callNimCanisterFunction("textFunc")
-    echo "Nim result:    ", nimResult
-    check motokoResult == nimResult
-  
+    rowTest("textFunc")
+
   test "blob":
-    let motokoResult = callMotokoCanisterFunction("blob")
-    echo "Motoko result: ", motokoResult
-    let nimResult = callNimCanisterFunction("blobFunc")
-    echo "Nim result:    ", nimResult
-    check motokoResult == nimResult
+    rowTest("blobFunc")
   
   test "responseNull":
-    let motokoResult = callMotokoCanisterFunction("responseNull")
-    echo "Motoko result: ", motokoResult
-    let nimResult = callNimCanisterFunction("responseNull")
-    echo "Nim result:    ", nimResult
-    check motokoResult == nimResult
-  
+    rowTest("responseNull")
+
   test "responseEmpty":
-    let motokoResult = callMotokoCanisterFunction("responseEmpty")
-    echo "Motoko result: ", motokoResult
-    let nimResult = callNimCanisterFunction("responseEmpty")
-    echo "Nim result:    ", nimResult
-    check motokoResult == nimResult
+    rowTest("responseEmpty")

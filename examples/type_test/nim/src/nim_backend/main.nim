@@ -25,7 +25,27 @@ proc int64Func() {.query.} =
   reply(1'i64)
 
 
-proc float64Func() {.query.} =
+proc natFunc() {.query.} =
+  reply(1'u)
+
+
+proc nat8Func() {.query.} =
+  reply(1'u8)
+
+
+proc nat16Func() {.query.} =
+  reply(1'u16)
+
+
+proc nat32Func() {.query.} =
+  reply(1'u32)
+
+
+proc nat64Func() {.query.} =
+  reply(1'u64)
+
+
+proc floatFunc() {.query.} =
   reply(1.0'f64)
 
 
