@@ -58,6 +58,22 @@ proc blobFunc() {.query.} =
   reply(data)
 
 
+proc vecNatFunc() {.query.} =
+  reply(@[1'u, 2'u, 3'u, 4'u, 5'u])
+
+
+proc vecTextFunc() {.query.} =
+  reply(@["Hello", "World", "Candid", "Vector"])
+
+
+proc vecBoolFunc() {.query.} =
+  reply(@[true, false, true, false])
+
+
+proc vecIntFunc() {.query.} =
+  reply(@[1, -2, 3, -4, 5])
+
+
 proc responseNull() {.query.} =
   reply(nil)
 

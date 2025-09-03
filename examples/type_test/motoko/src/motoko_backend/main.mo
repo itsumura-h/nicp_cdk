@@ -2,6 +2,14 @@ import Blob "mo:base/Blob";
 import Text "mo:base/Text";
 
 persistent actor {
+  public query func responseNull() : async Null {
+    return null;
+  };
+
+  public query func responseEmpty() : async () {
+    return ();
+  };
+
   public query func boolFunc() : async Bool {
     return true;
   };
@@ -58,11 +66,21 @@ persistent actor {
     return Text.encodeUtf8("Hello, World!");
   };
 
-  public query func responseNull() : async Null {
-    return null;
+  public query func vecNatFunc() : async [Nat] {
+    return [1, 2, 3, 4, 5];
   };
 
-  public query func responseEmpty() : async () {
-    return ();
+  public query func vecTextFunc() : async [Text] {
+    return ["Hello", "World", "Candid", "Vector"];
   };
+
+  public query func vecBoolFunc() : async [Bool] {
+    return [true, false, true, false];
+  };
+
+  public query func vecIntFunc() : async [Int] {
+    return [1, -2, 3, -4, 5];
+  };
+
+
 };

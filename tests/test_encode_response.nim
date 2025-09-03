@@ -122,3 +122,15 @@ suite "Candid compare with Motoko tests":
 
   test "responseEmpty":
     rowTest("responseEmpty")
+
+  test "vec nat":
+    rowTest("vecNatFunc")
+
+  test "vec text":
+    rowTest("vecTextFunc")
+
+  test "vec bool":
+    rowTest("vecBoolFunc")
+
+  test "vec int":
+    rowTest("vecIntFunc")

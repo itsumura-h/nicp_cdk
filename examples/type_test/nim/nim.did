@@ -13,6 +13,10 @@ service : {
   "floatFunc" : () -> (float64) query;
   "textFunc" : () -> (text) query;
   "blobFunc" : () -> (blob) query;
+  "vecNatFunc" : () -> (vec nat) query;
+  "vecTextFunc" : () -> (vec text) query;
+  "vecBoolFunc" : () -> (vec bool) query;
+  "vecIntFunc" : () -> (vec int) query;
   "responseNull" : () -> (null) query;
   "responseEmpty" : () -> () query;
 };
