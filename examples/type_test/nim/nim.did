@@ -17,6 +17,10 @@ service : {
   "vecTextFunc" : () -> (vec text) query;
   "vecBoolFunc" : () -> (vec bool) query;
   "vecIntFunc" : () -> (vec int) query;
+  "vecVecNatFunc" : () -> (vec vec nat) query;
+  "vecVecTextFunc" : () -> (vec vec text) query;
+  "vecVecBoolFunc" : () -> (vec vec bool) query;
+  "vecVecIntFunc" : () -> (vec vec int) query;
   "responseNull" : () -> (null) query;
   "responseEmpty" : () -> () query;
 };

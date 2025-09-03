@@ -134,3 +134,15 @@ suite "Candid compare with Motoko tests":
 
   test "vec int":
     rowTest("vecIntFunc")
+
+  test "vec vec nat":
+    rowTest("vecVecNatFunc")
+
+  test "vec vec text":
+    rowTest("vecVecTextFunc")
+
+  test "vec vec bool":
+    rowTest("vecVecBoolFunc")
+
+  test "vec vec int":
+    rowTest("vecVecIntFunc")

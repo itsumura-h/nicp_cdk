@@ -82,5 +82,21 @@ persistent actor {
     return [1, -2, 3, -4, 5];
   };
 
+  public query func vecVecNatFunc() : async [[Nat]] {
+    return [[1, 2], [3, 4, 5]];
+  };
+
+  public query func vecVecTextFunc() : async [[Text]] {
+    return [["Hello", "World"], ["Candid", "Vector"]];
+  };
+
+  public query func vecVecBoolFunc() : async [[Bool]] {
+    return [[true, false], [false, true]];
+  };
+
+  public query func vecVecIntFunc() : async [[Int]] {
+    return [[1, -2], [3, -4, 5]];
+  };
+
 
 };
