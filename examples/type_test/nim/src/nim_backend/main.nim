@@ -1,6 +1,5 @@
 import nicp_cdk
 import nicp_cdk/ic_types/ic_text
-import nicp_cdk/ic_types/candid_types
 
 proc boolFunc() {.query.} =
   reply(true)
@@ -76,30 +75,30 @@ proc vecIntFunc() {.query.} =
 
 
 proc vecVecNatFunc() {.query.} =
-  let inner1 = newCandidVec(@[1'u, 2'u])
-  let inner2 = newCandidVec(@[3'u, 4'u, 5'u])
-  let outer = newCandidVec(@[inner1, inner2])
+  let inner1 = @[1'u, 2'u]
+  let inner2 = @[3'u, 4'u, 5'u]
+  let outer = @[inner1, inner2]
   reply(outer)
 
 
 proc vecVecTextFunc() {.query.} =
-  let inner1 = newCandidVec(@["Hello", "World"])
-  let inner2 = newCandidVec(@["Candid", "Vector"])
-  let outer = newCandidVec(@[inner1, inner2])
+  let inner1 = @["Hello", "World"]
+  let inner2 = @["Candid", "Vector"]
+  let outer = @[inner1, inner2]
   reply(outer)
 
 
 proc vecVecBoolFunc() {.query.} =
-  let inner1 = newCandidVec(@[true, false])
-  let inner2 = newCandidVec(@[false, true])
-  let outer = newCandidVec(@[inner1, inner2])
+  let inner1 = @[true, false]
+  let inner2 = @[false, true]
+  let outer = @[inner1, inner2]
   reply(outer)
 
 
 proc vecVecIntFunc() {.query.} =
-  let inner1 = newCandidVec(@[1, -2])
-  let inner2 = newCandidVec(@[3, -4, 5])
-  let outer = newCandidVec(@[inner1, inner2])
+  let inner1 = @[1, -2]
+  let inner2 = @[3, -4, 5]
+  let outer = @[inner1, inner2]
   reply(outer)
 
 
