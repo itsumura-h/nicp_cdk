@@ -66,6 +66,46 @@ persistent actor {
     return Text.encodeUtf8("Hello, World!");
   };
 
+  public query func optTextSome() : async ?Text {
+    return ?"Hello, Option!";
+  };
+
+  public query func optTextNone() : async ?Text {
+    return null;
+  };
+
+  public query func optIntSome() : async ?Int {
+    return ?1;
+  };
+
+  public query func optIntNone() : async ?Int {
+    return null;
+  };
+
+  public query func optNatSome() : async ?Nat {
+    return ?1;
+  };
+
+  public query func optNatNone() : async ?Nat {
+    return null;
+  };
+
+  public query func optFloatSome() : async ?Float {
+    return ?1.0;
+  };
+
+  public query func optFloatNone() : async ?Float {
+    return null;
+  };
+
+  public query func optBoolSome() : async ?Bool {
+    return ?true;
+  };
+
+  public query func optBoolNone() : async ?Bool {
+    return null;
+  };
+
   public query func vecNatFunc() : async [Nat] {
     return [1, 2, 3, 4, 5];
   };

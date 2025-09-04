@@ -1,4 +1,5 @@
 import nicp_cdk
+import std/options
 import nicp_cdk/ic_types/ic_text
 
 proc boolFunc() {.query.} =
@@ -108,3 +109,43 @@ proc responseNull() {.query.} =
 
 proc responseEmpty() {.query.} =
   reply()
+
+
+proc optTextSome() {.query.} =
+  reply(some("Hello, Option!"))
+
+
+proc optTextNone() {.query.} =
+  reply(none(string))
+
+
+proc optIntSome() {.query.} =
+  reply(some(1))
+
+
+proc optIntNone() {.query.} =
+  reply(none(int))
+
+
+proc optNatSome() {.query.} =
+  reply(some(1'u))
+
+
+proc optNatNone() {.query.} =
+  reply(none(uint))
+
+
+proc optFloatSome() {.query.} =
+  reply(some(1.0'f64))
+
+
+proc optFloatNone() {.query.} =
+  reply(none(float64))
+
+
+proc optBoolSome() {.query.} =
+  reply(some(true))
+
+
+proc optBoolNone() {.query.} =
+  reply(none(bool))

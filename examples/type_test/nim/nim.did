@@ -13,6 +13,16 @@ service : {
   "floatFunc" : () -> (float64) query;
   "textFunc" : () -> (text) query;
   "blobFunc" : () -> (blob) query;
+  "optTextSome" : () -> (opt text) query;
+  "optTextNone" : () -> (opt text) query;
+  "optIntSome" : () -> (opt int) query;
+  "optIntNone" : () -> (opt int) query;
+  "optNatSome" : () -> (opt nat) query;
+  "optNatNone" : () -> (opt nat) query;
+  "optFloatSome" : () -> (opt float64) query;
+  "optFloatNone" : () -> (opt float64) query;
+  "optBoolSome" : () -> (opt bool) query;
+  "optBoolNone" : () -> (opt bool) query;
   "vecNatFunc" : () -> (vec nat) query;
   "vecTextFunc" : () -> (vec text) query;
   "vecBoolFunc" : () -> (vec bool) query;

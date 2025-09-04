@@ -40,12 +40,12 @@ proc callNimCanisterFunction(functionName: string, args: string = ""): string =
     setCurrentDir(originalDir)
 
 
-proc rowTest(fucName:string) =
+proc rowTest(fucName:string):bool =
   let motokoResult = callMotokoCanisterFunction(fucName)
   echo "Motoko result: ", motokoResult
   let nimResult = callNimCanisterFunction(fucName)
   echo "Nim result:    ", nimResult
-  check motokoResult == nimResult
+  return motokoResult == nimResult
 
 
 proc deploy() =
@@ -76,73 +76,103 @@ suite "Candid compare with Motoko tests":
   deploy()
   
   test "bool":
-    rowTest("boolFunc")
+    check rowTest("boolFunc")
   
   test "int":
-    rowTest("intFunc")
+    check rowTest("intFunc")
   
   test "int8":
-    rowTest("int8Func")
+    check rowTest("int8Func")
 
   test "int16":
-    rowTest("int16Func")
+    check rowTest("int16Func")
 
   test "int32":
-    rowTest("int32Func")
+    check rowTest("int32Func")
 
   test "int64":
-    rowTest("int64Func")
+    check rowTest("int64Func")
 
   test "nat":
-    rowTest("natFunc")
+    check rowTest("natFunc")
 
   test "nat8":
-    rowTest("nat8Func")
+    check rowTest("nat8Func")
 
   test "nat16":
-    rowTest("nat16Func")
+    check rowTest("nat16Func")
 
   test "nat32":
-    rowTest("nat32Func")
+    check rowTest("nat32Func")
 
   test "nat64":
-    rowTest("nat64Func")
+    check rowTest("nat64Func")
     
   test "float":
-    rowTest("floatFunc")  
+    check rowTest("floatFunc")  
 
   test "text":
-    rowTest("textFunc")
+    check rowTest("textFunc")
 
   test "blob":
-    rowTest("blobFunc")
+    check rowTest("blobFunc")
+
+  test "opt text some":
+    check rowTest("optTextSome")
+
+  test "opt text none":
+    check rowTest("optTextNone")
+
+  test "opt int some":
+    check rowTest("optIntSome")
+
+  test "opt int none":
+    check rowTest("optIntNone")
+
+  test "opt nat some":
+    check rowTest("optNatSome")
+
+  test "opt nat none":
+    check rowTest("optNatNone")
+
+  test "opt float some":
+    check rowTest("optFloatSome")
+
+  test "opt float none":
+    check rowTest("optFloatNone")
+
+  test "opt bool some":
+    check rowTest("optBoolSome")
+
+  test "opt bool none":
+    check rowTest("optBoolNone")
   
   test "responseNull":
-    rowTest("responseNull")
+    check rowTest("responseNull")
 
   test "responseEmpty":
-    rowTest("responseEmpty")
+    check rowTest("responseEmpty")
 
   test "vec nat":
-    rowTest("vecNatFunc")
+    check rowTest("vecNatFunc")
 
   test "vec text":
-    rowTest("vecTextFunc")
+    check rowTest("vecTextFunc")
 
   test "vec bool":
-    rowTest("vecBoolFunc")
+    check rowTest("vecBoolFunc")
 
   test "vec int":
-    rowTest("vecIntFunc")
+    check rowTest("vecIntFunc")
 
   test "vec vec nat":
-    rowTest("vecVecNatFunc")
+    check rowTest("vecVecNatFunc")
 
   test "vec vec text":
-    rowTest("vecVecTextFunc")
+    check rowTest("vecVecTextFunc")
 
   test "vec vec bool":
-    rowTest("vecVecBoolFunc")
+    check rowTest("vecVecBoolFunc")
 
   test "vec vec int":
-    rowTest("vecVecIntFunc")
+    check rowTest("vecVecIntFunc")
