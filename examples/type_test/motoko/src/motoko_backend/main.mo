@@ -2,6 +2,10 @@ import Blob "mo:base/Blob";
 import Text "mo:base/Text";
 
 persistent actor {
+  // Variant types for testing
+  type Color = { #Red; #Green; #Blue };
+  type Result = { #success : Text; #error : Text };
+  type Status = { #active : { id : Nat }; #inactive };
   public query func responseNull() : async Null {
     return null;
   };
@@ -149,4 +153,17 @@ persistent actor {
       meta = { note = "ok" }
     };
   };
+
+  // variant: simple enum-like (no payload)
+  public query func variantColorRed() : async Color { return #Red; };
+  public query func variantColorGreen() : async Color { return #Green; };
+  public query func variantColorBlue() : async Color { return #Blue; };
+
+  // variant: with payload
+  public query func variantResultOk() : async Result { return #success("ok"); };
+  public query func variantResultErr() : async Result { return #error("ng"); };
+
+  // variant: mixed null and record payload
+  // public query func variantStatusActive() : async Status { return #active({ id = 1 }); };
+  // public query func variantStatusInactive() : async Status { return #inactive; };
 };

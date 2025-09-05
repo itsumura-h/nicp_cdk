@@ -35,4 +35,14 @@ service : {
   "responseEmpty" : () -> () query;
   "recordSimple" : () -> (record { name : text; age : int }) query;
   "recordNested" : () -> (record { user : record { id : nat; active : bool }; meta : record { note : text } }) query;
+  // variant: simple enum-like Color
+  "variantColorRed" : () -> (variant { Red; Green; Blue }) query;
+  "variantColorGreen" : () -> (variant { Red; Green; Blue }) query;
+  "variantColorBlue" : () -> (variant { Red; Green; Blue }) query;
+  // variant: Result with payload
+  "variantResultOk" : () -> (variant { success : text; error : text }) query;
+  "variantResultErr" : () -> (variant { success : text; error : text }) query;
+  // variant: Status mixed payloads
+  "variantStatusActive" : () -> (variant { active : record { id : nat }; inactive }) query;
+  "variantStatusInactive" : () -> (variant { active : record { id : nat }; inactive }) query;
 };

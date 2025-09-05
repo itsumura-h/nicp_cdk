@@ -2,6 +2,7 @@ import nicp_cdk
 import std/options
 import nicp_cdk/ic_types/ic_text
 import nicp_cdk/ic_types/ic_record
+import nicp_cdk/ic_types/candid_types
 
 
 proc responseNull() {.query.} =
@@ -174,3 +175,47 @@ proc recordNested() {.query.} =
     }
   }
   reply(outer)
+
+
+# =========================
+# Variant (Enum) functions
+# =========================
+type
+  Color* = enum
+    Red, Green, Blue
+
+  # Result: success/error でTextを持つ
+  ResultKind* = enum
+    success = "ok"
+    error = "ng"
+
+  # Status: active はレコード{id: Nat}、inactive は値なし
+  Status* = enum
+    active, inactive
+
+# Color: 値なしvariant相当
+proc variantColorRed() {.query.} =
+  reply(Color.Red)
+
+proc variantColorGreen() {.query.} =
+  reply(Color.Green)
+
+proc variantColorBlue() {.query.} =
+  reply(Color.Blue)
+
+# Result: 値ありvariant（Text）
+proc variantResultOk() {.query.} =
+  reply(ResultKind.success)
+
+proc variantResultErr() {.query.} =
+  reply(ResultKind.error)
+
+# # Status: active はレコードpayload、inactiveは値なし
+# proc variantStatusActive() {.query.} =
+#   let payload = %*{"id": 1'u}
+#   let v = newCandidVariant("active", newCandidRecord(payload))
+#   reply(v)
+
+# proc variantStatusInactive() {.query.} =
+#   let v = newCandidVariant("inactive", newCandidNull())
+#   reply(v)
