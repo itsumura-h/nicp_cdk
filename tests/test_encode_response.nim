@@ -176,3 +176,9 @@ suite "Candid compare with Motoko tests":
 
   test "opt bool none":
     check rowTest("optBoolNone")
+
+  test "record simple":
+    check rowTest("recordSimple")
+
+  test "record nested":
+    check rowTest("recordNested")

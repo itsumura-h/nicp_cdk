@@ -33,4 +33,6 @@ service : {
   "vecVecIntFunc" : () -> (vec vec int) query;
   "responseNull" : () -> (null) query;
   "responseEmpty" : () -> () query;
+  "recordSimple" : () -> (record { name : text; age : int }) query;
+  "recordNested" : () -> (record { user : record { id : nat; active : bool }; meta : record { note : text } }) query;
 };

@@ -1,6 +1,7 @@
 import nicp_cdk
 import std/options
 import nicp_cdk/ic_types/ic_text
+import nicp_cdk/ic_types/ic_record
 
 
 proc responseNull() {.query.} =
@@ -150,3 +151,26 @@ proc optBoolSome() {.query.} =
 
 proc optBoolNone() {.query.} =
   reply(none(bool))
+
+
+# record: 単純なレコードを返す
+proc recordSimple() {.query.} =
+  let rec = %*{
+    "name": "Alice",
+    "age": 30
+  }
+  reply(rec)
+
+
+# record: ネストしたレコードを返す
+proc recordNested() {.query.} =
+  let outer = %*{
+    "user": %*{
+      "id": 1'u,
+      "active": true
+    },
+    "meta": %*{
+      "note": "ok"
+    }
+  }
+  reply(outer)

@@ -136,4 +136,17 @@ persistent actor {
   public query func optBoolNone() : async ?Bool {
     return null;
   };
+
+  // record: 単純なレコードを返す
+  public query func recordSimple() : async { name : Text; age : Int } {
+    return { name = "Alice"; age = 30 };
+  };
+
+  // record: ネストしたレコードを返す
+  public query func recordNested() : async { user : { id : Nat; active : Bool }; meta : { note : Text } } {
+    return {
+      user = { id = 1; active = true };
+      meta = { note = "ok" }
+    };
+  };
 };
