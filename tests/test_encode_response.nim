@@ -74,6 +74,12 @@ proc deploy() =
 
 suite "Candid compare with Motoko tests":
   deploy()
+
+  test "responseNull":
+    check rowTest("responseNull")
+
+  test "responseEmpty":
+    check rowTest("responseEmpty")
   
   test "bool":
     check rowTest("boolFunc")
@@ -117,6 +123,30 @@ suite "Candid compare with Motoko tests":
   test "blob":
     check rowTest("blobFunc")
 
+  test "vec nat":
+    check rowTest("vecNatFunc")
+
+  test "vec text":
+    check rowTest("vecTextFunc")
+
+  test "vec bool":
+    check rowTest("vecBoolFunc")
+
+  test "vec int":
+    check rowTest("vecIntFunc")
+
+  test "vec vec nat":
+    check rowTest("vecVecNatFunc")
+
+  test "vec vec text":
+    check rowTest("vecVecTextFunc")
+
+  test "vec vec bool":
+    check rowTest("vecVecBoolFunc")
+
+  test "vec vec int":
+    check rowTest("vecVecIntFunc")
+
   test "opt text some":
     check rowTest("optTextSome")
 
@@ -146,33 +176,3 @@ suite "Candid compare with Motoko tests":
 
   test "opt bool none":
     check rowTest("optBoolNone")
-  
-  test "responseNull":
-    check rowTest("responseNull")
-
-  test "responseEmpty":
-    check rowTest("responseEmpty")
-
-  test "vec nat":
-    check rowTest("vecNatFunc")
-
-  test "vec text":
-    check rowTest("vecTextFunc")
-
-  test "vec bool":
-    check rowTest("vecBoolFunc")
-
-  test "vec int":
-    check rowTest("vecIntFunc")
-
-  test "vec vec nat":
-    check rowTest("vecVecNatFunc")
-
-  test "vec vec text":
-    check rowTest("vecVecTextFunc")
-
-  test "vec vec bool":
-    check rowTest("vecVecBoolFunc")
-
-  test "vec vec int":
-    check rowTest("vecVecIntFunc")

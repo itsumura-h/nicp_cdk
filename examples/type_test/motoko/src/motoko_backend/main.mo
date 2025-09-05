@@ -66,6 +66,37 @@ persistent actor {
     return Text.encodeUtf8("Hello, World!");
   };
 
+  public query func vecNatFunc() : async [Nat] {
+    return [1, 2, 3, 4, 5];
+  };
+
+  public query func vecTextFunc() : async [Text] {
+    return ["Hello", "World", "Candid", "Vector"];
+  };
+
+  public query func vecBoolFunc() : async [Bool] {
+    return [true, false, true, false];
+  };
+
+  public query func vecIntFunc() : async [Int] {
+    return [1, -2, 3, -4, 5];
+  };
+
+  public query func vecVecNatFunc() : async [[Nat]] {
+    return [[1, 2], [3, 4, 5]];
+  };
+
+  public query func vecVecTextFunc() : async [[Text]] {
+    return [["Hello", "World"], ["Candid", "Vector"]];
+  };
+
+  public query func vecVecBoolFunc() : async [[Bool]] {
+    return [[true, false], [false, true]];
+  };
+
+  public query func vecVecIntFunc() : async [[Int]] {
+    return [[1, -2], [3, -4, 5]];
+  };
   public query func optTextSome() : async ?Text {
     return ?"Hello, Option!";
   };
@@ -105,38 +136,4 @@ persistent actor {
   public query func optBoolNone() : async ?Bool {
     return null;
   };
-
-  public query func vecNatFunc() : async [Nat] {
-    return [1, 2, 3, 4, 5];
-  };
-
-  public query func vecTextFunc() : async [Text] {
-    return ["Hello", "World", "Candid", "Vector"];
-  };
-
-  public query func vecBoolFunc() : async [Bool] {
-    return [true, false, true, false];
-  };
-
-  public query func vecIntFunc() : async [Int] {
-    return [1, -2, 3, -4, 5];
-  };
-
-  public query func vecVecNatFunc() : async [[Nat]] {
-    return [[1, 2], [3, 4, 5]];
-  };
-
-  public query func vecVecTextFunc() : async [[Text]] {
-    return [["Hello", "World"], ["Candid", "Vector"]];
-  };
-
-  public query func vecVecBoolFunc() : async [[Bool]] {
-    return [[true, false], [false, true]];
-  };
-
-  public query func vecVecIntFunc() : async [[Int]] {
-    return [[1, -2], [3, -4, 5]];
-  };
-
-
 };

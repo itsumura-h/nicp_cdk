@@ -2,6 +2,15 @@ import nicp_cdk
 import std/options
 import nicp_cdk/ic_types/ic_text
 
+
+proc responseNull() {.query.} =
+  reply(nil)
+
+
+proc responseEmpty() {.query.} =
+  reply()
+
+
 proc boolFunc() {.query.} =
   reply(true)
 
@@ -101,14 +110,6 @@ proc vecVecIntFunc() {.query.} =
   let inner2 = @[3, -4, 5]
   let outer = @[inner1, inner2]
   reply(outer)
-
-
-proc responseNull() {.query.} =
-  reply(nil)
-
-
-proc responseEmpty() {.query.} =
-  reply()
 
 
 proc optTextSome() {.query.} =

@@ -75,8 +75,12 @@ proc inferTypeDescriptor(value: CandidValue): TypeDescriptor =
     if value.optVal.isSome:
       result.optInnerType = inferTypeDescriptor(value.optVal.get())
     else:
-      # If null value, inner type cannot be inferred, so assume null for now
-      result.optInnerType = TypeDescriptor(kind: ctNull)
+      # None の場合でも、エンコーダが保持する型ヒントがあればそれを使う
+      if value.optInnerHint.isSome:
+        result.optInnerType = TypeDescriptor(kind: value.optInnerHint.get())
+      else:
+        # 型ヒントが無ければ暫定的にnullとして扱う（互換保持）
+        result.optInnerType = TypeDescriptor(kind: ctNull)
   of ctVec:
     if value.vecVal.len > 0:
       let firstElement = value.vecVal[0]

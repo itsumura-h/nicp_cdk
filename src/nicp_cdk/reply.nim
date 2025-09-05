@@ -5,23 +5,17 @@ import ./ic_types/candid_message/candid_encode
 import ./ic_types/ic_principal
 
 
-proc replyNull*() =
+proc reply*(msg: type(nil)) =
   let value = newCandidNull()
   let encoded = encodeCandidMessage(@[value])
   ic0_msg_reply_data_append(ptrToInt(addr encoded[0]), encoded.len)
   ic0_msg_reply()
 
 
-proc replyEmpty*() =
-  # Candid's () -> () signifies an empty tuple.
-  # Encode Candid message with an empty list of values.
+proc reply*() =
   let encoded = encodeCandidMessage(@[])
   ic0_msg_reply_data_append(ptrToInt(addr encoded[0]), encoded.len)
   ic0_msg_reply()
-
-
-proc reply*() =
-  replyEmpty()
 
 
 proc reply*(msg: bool) =
@@ -152,10 +146,7 @@ proc reply*(msg: seq[uint8]) =
 
 proc reply*(msg: Option[CandidValue]) =
   ## Reply with an optional value
-  let optValue = if msg.isSome():
-    msg
-  else:
-    none(CandidValue)
+  let optValue = if msg.isSome(): msg else: none(CandidValue)
   let value = newCandidOpt(optValue)
   let encoded = encodeCandidMessage(@[value])
   ic0_msg_reply_data_append(ptrToInt(addr encoded[0]), encoded.len)
@@ -188,6 +179,19 @@ proc reply*(msg: CandidVariant) =
 proc reply*(msg: CandidFunc) =
   ## Reply with a function value
   let value = CandidValue(kind: ctFunc, funcVal: msg)
+  let encoded = encodeCandidMessage(@[value])
+  ic0_msg_reply_data_append(ptrToInt(addr encoded[0]), encoded.len)
+  ic0_msg_reply()
+
+proc reply*[T](msg: Option[T]) =
+  ## Reply with an optional generic value with inner type hint
+  let innerCt = candidTypeOf[T]()
+  let optCv =
+    if msg.isSome():
+      some(newCandidValue(msg.get()))
+    else:
+      none(CandidValue)
+  let value = newCandidOptWithInnerType(innerCt, optCv)
   let encoded = encodeCandidMessage(@[value])
   ic0_msg_reply_data_append(ptrToInt(addr encoded[0]), encoded.len)
   ic0_msg_reply()

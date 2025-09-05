@@ -41,7 +41,9 @@ type
     of ctPrincipal: principalVal*: Principal
     of ctRecord: recordVal*: CandidRecord
     of ctVariant: variantVal*: CandidVariant
-    of ctOpt: optVal*: Option[CandidValue]
+    of ctOpt:
+      optVal*: Option[CandidValue]
+      optInnerHint*: Option[CandidType]
     of ctVec: vecVal*: seq[CandidValue]
     of ctBlob: blobVal*: seq[uint8]
     of ctFunc: funcVal*: CandidFunc
@@ -460,7 +462,57 @@ proc newCandidVariant*(tag: uint32, value: CandidValue): CandidValue =
   CandidValue(kind: ctVariant, variantVal: variant)
 
 proc newCandidOpt*(value: Option[CandidValue]): CandidValue =
-  CandidValue(kind: ctOpt, optVal: value)
+  CandidValue(kind: ctOpt, optVal: value, optInnerHint: none(CandidType))
+
+proc newCandidOptWithInnerType*(innerType: CandidType, value: Option[CandidValue]): CandidValue =
+  ## Option 用のCandidValueを生成し、noneの場合でも内側の型ヒントを保持する
+  CandidValue(kind: ctOpt, optVal: value, optInnerHint: some(innerType))
+
+proc candidTypeOf*[T](): CandidType =
+  ## Nimの型Tから対応するCandidTypeを取得
+  when T is bool:
+    ctBool
+  elif T is int:
+    ctInt
+  elif T is int8:
+    ctInt8
+  elif T is int16:
+    ctInt16
+  elif T is int32:
+    ctInt32
+  elif T is int64:
+    ctInt64
+  elif T is uint:
+    ctNat
+  elif T is uint8:
+    ctNat8
+  elif T is uint16:
+    ctNat16
+  elif T is uint32:
+    ctNat32
+  elif T is uint64:
+    ctNat64
+  elif T is float32:
+    ctFloat32
+  elif T is float64:
+    ctFloat64
+  elif T is float:
+    ctFloat
+  elif T is string:
+    ctText
+  elif T is Principal:
+    ctPrincipal
+  elif T is CandidValue:
+    # CandidValue自体の場合は利用側が中身に依存
+    # デフォルトでnullにしておき、呼び出し側が明示的にヒント指定する想定
+    ctNull
+  else:
+    when compiles(newCandidValue(default(T))):
+      # newCandidValueでCandidValueへ変換できる型は、そのインスタンスから種類を推定
+      let tmp = newCandidValue(default(T))
+      tmp.kind
+    else:
+      raise newException(ValueError, "Unsupported Nim type for candidTypeOf: " & $typeof(T))
 
 proc newCandidVec*(values: seq[CandidValue]): CandidValue =
   CandidValue(kind: ctVec, vecVal: values)
@@ -472,7 +524,11 @@ proc newCandidVecEmpty*(): CandidValue =
 proc newCandidVec*[T](values: seq[T]): CandidValue =
   result = CandidValue(kind: ctVec, vecVal: @[])
   for item in values:
-    result.vecVal.add(newCandidValue(item))
+    when T is seq:
+      # ネストしたベクタは再帰的にベクタとして組み立て
+      result.vecVal.add(newCandidVec(item))
+    else:
+      result.vecVal.add(newCandidValue(item))
 
 proc newCandidFunc*(principal: Principal, methodName: string, args: seq[CandidType] = @[], returns: seq[CandidType] = @[], annotations: seq[string] = @[]): CandidValue =
   let funcRef = CandidFunc(
