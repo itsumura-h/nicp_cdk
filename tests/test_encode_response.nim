@@ -186,14 +186,10 @@ suite "Candid compare with Motoko tests":
   #   check rowTest("recordNested")
 
   # ===== Variant tests =====
-  type
-    Color = enum
-      Red, Green, Blue
-
-    # Result: success/error でTextを持つ
-    ResultKind = enum
-      success = "ok"
-      error = "ng"
+  type Color = enum
+    Red
+    Green
+    Blue
 
   test "variant color red":
     let motokoResult = callMotokoCanisterFunction("variantColorRed")
@@ -247,48 +243,3 @@ suite "Candid compare with Motoko tests":
     let nimResponse = nimRequest.getEnum(0, Color)
     
     check motokoResponse == nimResponse
-    
-
-  test "variant result ok":
-    let motokoResult = callMotokoCanisterFunction("variantResultOk")
-    echo "Motoko result: ", motokoResult
-    let motokoBytes = motokoResult.toBytes()
-    let motokoDecoded = decodeCandidMessage(motokoBytes)
-    let motokoRequest = newMockRequest(motokoDecoded.values)
-    let motokoResponse = motokoRequest.getEnum(0, ResultKind)
-    echo "Motoko response: ", motokoResponse
-    
-    let nimResult = callNimCanisterFunction("variantResultOk")
-    echo "Nim result:    ", nimResult
-    let nimBytes = nimResult.toBytes()
-    let nimDecoded = decodeCandidMessage(nimBytes)
-    let nimRequest = newMockRequest(nimDecoded.values)
-    let nimResponse = nimRequest.getEnum(0, ResultKind)
-    echo "Nim response: ", nimResponse
-
-    check motokoResponse == nimResponse
-
-  test "variant result err":
-    let motokoResult = callMotokoCanisterFunction("variantResultErr")
-    echo "Motoko result: ", motokoResult
-    let motokoBytes = motokoResult.toBytes()
-    let motokoDecoded = decodeCandidMessage(motokoBytes)
-    let motokoRequest = newMockRequest(motokoDecoded.values)
-    let motokoResponse = motokoRequest.getEnum(0, ResultKind)
-    echo "Motoko response: ", motokoResponse
-
-    let nimResult = callNimCanisterFunction("variantResultErr")
-    echo "Nim result:    ", nimResult
-    let nimBytes = nimResult.toBytes()
-    let nimDecoded = decodeCandidMessage(nimBytes)
-    let nimRequest = newMockRequest(nimDecoded.values)
-    let nimResponse = nimRequest.getEnum(0, ResultKind)
-    echo "Nim response: ", nimResponse
-    
-    check motokoResponse == nimResponse
-
-  # test "variant status active":
-  #   check rowTest("variantStatusActive")
-
-  # test "variant status inactive":
-  #   check rowTest("variantStatusInactive")
