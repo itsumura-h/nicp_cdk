@@ -4,6 +4,7 @@ import nicp_cdk/ic_types/ic_text
 import nicp_cdk/ic_types/ic_record
 import nicp_cdk/ic_types/candid_types
 import nicp_cdk/ic_types/ic_principal
+import nicp_cdk/ic_types/ic_func
 
 
 proc responseNull() {.query.} =
@@ -212,3 +213,18 @@ proc principalAnonymous() {.query.} =
 proc principalCanister() {.query.} =
   let principal = Principal.fromText("rrkah-fqaaa-aaaaa-aaaaq-cai")
   reply(principal)
+
+
+# =========================
+# Function reference tests
+# =========================
+
+proc greet() {.query.} =
+  let request = Request.new()
+  let msg = request.getStr(0)
+  reply("Hello, " & msg & "!")
+
+proc funcRefTextQuery() {.query.} =
+  # 自キャニスター上の "greet" を参照として返す
+  let f = IcFunc.new(FuncType.Query, "greet", @[ctText], some(ctText))
+  reply(f)

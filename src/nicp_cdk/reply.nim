@@ -176,7 +176,7 @@ proc reply*(msg: CandidVariant) =
   ic0_msg_reply()
 
 
-proc reply*(msg: CandidFunc) =
+proc reply*(msg: IcFunc) =
   ## Reply with a function value
   let value = CandidValue(kind: ctFunc, funcVal: msg)
   let encoded = encodeCandidMessage(@[value])

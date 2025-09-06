@@ -46,7 +46,7 @@ type
       optInnerHint*: Option[CandidType]
     of ctVec: vecVal*: seq[CandidValue]
     of ctBlob: blobVal*: seq[uint8]
-    of ctFunc: funcVal*: CandidFunc
+    of ctFunc: funcVal*: IcFunc
     of ctService: serviceVal*: Principal
     of ctReserved, ctEmpty: discard
     of ctQuery: discard
@@ -141,11 +141,11 @@ type
       elems*: seq[CandidRecord]
 
   # 既存のCandidFunc型定義を拡張
-  CandidFunc* = ref object
+  IcFunc* = ref object
     principal*: Principal
     methodName*: string
     args*: seq[CandidType]         # 引数の型リスト
-    returns*: seq[CandidType]      # 戻り値の型リスト  
+    returns*: Option[CandidType]   # 戻り値の型（単一、nilの場合は戻り値なし）
     annotations*: seq[string]      # query, oneway, composite_queryなど
 
 
@@ -530,8 +530,8 @@ proc newCandidVec*[T](values: seq[T]): CandidValue =
     else:
       result.vecVal.add(newCandidValue(item))
 
-proc newCandidFunc*(principal: Principal, methodName: string, args: seq[CandidType] = @[], returns: seq[CandidType] = @[], annotations: seq[string] = @[]): CandidValue =
-  let funcRef = CandidFunc(
+proc newCandidFunc*(principal: Principal, methodName: string, args: seq[CandidType] = @[], returns: Option[CandidType] = none(CandidType), annotations: seq[string] = @[]): CandidValue =
+  let funcRef = IcFunc(
     principal: principal,
     methodName: methodName,
     args: args,
@@ -656,43 +656,19 @@ proc isEnumCompatible*[T: enum](enumType: typedesc[T]): bool =
     return false
 
 # CandidFunc型のヘルパー関数を追加
-proc newSimpleFunc*(principal: Principal, methodName: string): CandidFunc =
+proc newSimpleFunc*(principal: Principal, methodName: string): IcFunc =
   ## 引数・戻り値なしのシンプルなfunc参照を作成
-  CandidFunc(
+  IcFunc(
     principal: principal,
     methodName: methodName,
     args: @[],
-    returns: @[],
+    returns: none(CandidType),
     annotations: @[]
   )
 
-proc newQueryFunc*(principal: Principal, methodName: string, returns: seq[CandidType] = @[]): CandidFunc =
-  ## Query annotationを持つfunc参照を作成
-  CandidFunc(
-    principal: principal,
-    methodName: methodName,
-    args: @[],
-    returns: returns,
-    annotations: @["query"]
-  )
+  
 
-proc newUpdateFunc*(principal: Principal, methodName: string, args: seq[CandidType] = @[], returns: seq[CandidType] = @[]): CandidFunc =
-  ## Update func参照を作成（annotation無し）
-  return CandidFunc(
-    principal: principal,
-    methodName: methodName,
-    args: args,
-    returns: returns,
-    annotations: @[]
-  )
-
-proc isQuery*(f: CandidFunc): bool =
-  ## func参照がquery関数かどうか判定
-  "query" in f.annotations
-
-proc isOneway*(f: CandidFunc): bool =
-  ## func参照がoneway関数かどうか判定
-  "oneway" in f.annotations
+  
 
 proc newCandidVecBlob*(blobs: seq[seq[uint8]]): CandidValue =
   ## seq[seq[uint8]]からvec blob型のCandidValueを作成

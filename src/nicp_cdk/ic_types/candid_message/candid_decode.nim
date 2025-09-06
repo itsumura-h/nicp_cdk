@@ -348,29 +348,92 @@ proc decodeValue(data: seq[byte], offset: var int, typeRef: int, typeTable: seq[
         offset += 1
     of ctFunc:
       # Function reference: principal + method name
-      let principalLength = decodeULEB128(data, offset)
-      if offset + int(principalLength) > data.len:
-        raise newException(CandidDecodeError, "Unexpected end of data")
-      let principalBytes = data[offset..<offset + int(principalLength)]
-      let principal = Principal.fromBlob(principalBytes)
-      offset += int(principalLength)
+      # Extract function signature from type table
+      var funcArgs: seq[CandidType] = @[]
+      var funcReturns: Option[CandidType] = none(CandidType)
+      var funcAnnotations: seq[string] = @[]
       
-      let methodNameLength = decodeULEB128(data, offset)
-      if offset + int(methodNameLength) > data.len:
-        raise newException(CandidDecodeError, "Unexpected end of data")
-      var methodName = newString(int(methodNameLength))
-      for i in 0..<int(methodNameLength):
-        methodName[i] = char(data[offset + i])
-      offset += int(methodNameLength)
+      # Convert type references to CandidType
+      for argTypeRef in typeEntry.funcArgs:
+        if argTypeRef < 0:
+          funcArgs.add(typeCodeToCandidType(argTypeRef))
+        else:
+          # For composite types, we would need to resolve them, but for now assume primitive
+          funcArgs.add(ctEmpty)  # placeholder
       
-      let funcRef = CandidFunc(
-        principal: principal,
-        methodName: methodName,
-        args: @[],
-        returns: @[],
-        annotations: @[]
-      )
-      result.funcVal = funcRef
+      # Handle single return type
+      if typeEntry.funcReturns.len > 0:
+        let retTypeRef = typeEntry.funcReturns[0]
+        if retTypeRef < 0:
+          funcReturns = some(typeCodeToCandidType(retTypeRef))
+        else:
+          # For composite types, we would need to resolve them, but for now assume primitive
+          funcReturns = some(ctEmpty)  # placeholder
+      
+      # Convert annotation bytes to strings
+      for annByte in typeEntry.funcAnnotations:
+        case annByte:
+        of 0x01: funcAnnotations.add("query")
+        of 0x02: funcAnnotations.add("oneway")
+        of 0x03: funcAnnotations.add("composite_query")
+        else: discard
+      
+      # Try canonical form first: [ULEB len][bytes] + [ULEB len][bytes]
+      let startOffset = offset
+      var parsed = false
+      try:
+        var off = startOffset
+        let principalLengthA = decodeULEB128(data, off)
+        if off + int(principalLengthA) > data.len:
+          raise newException(CandidDecodeError, "principal length out of range (A)")
+        let principalBytesA = data[off ..< off + int(principalLengthA)]
+        let principalA = Principal.fromBlob(principalBytesA)
+        off += int(principalLengthA)
+        let methodNameLengthA = decodeULEB128(data, off)
+        if off + int(methodNameLengthA) > data.len:
+          raise newException(CandidDecodeError, "method name length out of range (A)")
+        var methodNameA = newString(int(methodNameLengthA))
+        for i in 0..<int(methodNameLengthA):
+          methodNameA[i] = char(data[off + i])
+        off += int(methodNameLengthA)
+        result.funcVal = IcFunc(
+          principal: principalA,
+          methodName: methodNameA,
+          args: funcArgs,
+          returns: funcReturns,
+          annotations: funcAnnotations
+        )
+        offset = off
+        parsed = true
+      except CatchableError:
+        parsed = false
+      if not parsed:
+        # Try ID-form variant: [0x01][ULEB len][bytes] + [ULEB len][bytes]
+        var off = startOffset
+        if off >= data.len or data[off] != 1.byte:
+          raise newException(CandidDecodeError, "Failed to decode func principal (no suitable format)")
+        inc off
+        let principalLengthB = decodeULEB128(data, off)
+        if off + int(principalLengthB) > data.len:
+          raise newException(CandidDecodeError, "principal length out of range (B)")
+        let principalBytesB = data[off ..< off + int(principalLengthB)]
+        let principalB = Principal.fromBlob(principalBytesB)
+        off += int(principalLengthB)
+        let methodNameLengthB = decodeULEB128(data, off)
+        if off + int(methodNameLengthB) > data.len:
+          raise newException(CandidDecodeError, "Unexpected end of data")
+        var methodNameB = newString(int(methodNameLengthB))
+        for i in 0..<int(methodNameLengthB):
+          methodNameB[i] = char(data[off + i])
+        off += int(methodNameLengthB)
+        result.funcVal = IcFunc(
+          principal: principalB,
+          methodName: methodNameB,
+          args: funcArgs,
+          returns: funcReturns,
+          annotations: funcAnnotations
+        )
+        offset = off
     of ctService:
       # Service reference: principal only
       let principalLength = decodeULEB128(data, offset)

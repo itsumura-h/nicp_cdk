@@ -38,6 +38,8 @@ service : {
   "principalFunc" : () -> (principal) query;
   "principalAnonymous" : () -> (principal) query;
   "principalCanister" : () -> (principal) query;
+  // function reference returning: query () -> (text)
+  "funcRefTextQuery" : () -> (func () -> (text) query) query;
   // variant: simple enum-like Color
   "variantColorRed" : () -> (variant { Red; Green; Blue }) query;
   "variantColorGreen" : () -> (variant { Red; Green; Blue }) query;

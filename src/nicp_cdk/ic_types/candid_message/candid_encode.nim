@@ -95,6 +95,23 @@ proc inferTypeDescriptor(value: CandidValue): TypeDescriptor =
   of ctBlob:
     # Blob is always processed as vec nat8
     discard
+  of ctFunc:
+    # Build function type descriptor from value.funcVal metadata
+    result.funcArgs = @[]
+    for argCt in value.funcVal.args:
+      # Only primitive kinds are supported directly here; others may require richer descriptors
+      result.funcArgs.add(TypeDescriptor(kind: argCt))
+    result.funcReturns = @[]
+    if value.funcVal.returns.isSome:
+      result.funcReturns.add(TypeDescriptor(kind: value.funcVal.returns.get))
+    # Encode annotations as bytes per spec
+    result.funcAnnotations = @[]
+    for ann in value.funcVal.annotations:
+      case ann
+      of "query": result.funcAnnotations.add(0x01'u8)
+      of "oneway": result.funcAnnotations.add(0x02'u8)
+      of "composite_query": result.funcAnnotations.add(0x03'u8)
+      else: discard
   else:
     discard
 
@@ -453,20 +470,21 @@ proc encodeCandidMessage*(values: seq[CandidValue]): seq[byte] =
   var valueTypes: seq[int] = @[]
   # Analyze each value and add to type table
   for value in values:
-    let typeRef = if value.kind == ctBlob:
+    var typeRef: int
+    if value.kind == ctBlob:
       # Add vec type to type table as non-primitive (used as composite type)
       let vecTypeDesc = TypeDescriptor(kind: ctVec, vecElementType: TypeDescriptor(kind: ctNat8))
-      addTypeToTable(builder, vecTypeDesc)
+      typeRef = addTypeToTable(builder, vecTypeDesc)
     elif value.kind == ctVec and value.vecVal.len > 0 and value.vecVal[0].kind == ctBlob:
       # Special processing for vec blob (seq[seq[uint8]])
       let blobTypeDesc = TypeDescriptor(kind: ctVec, vecElementType: TypeDescriptor(kind: ctNat8))
       let vecBlobTypeDesc = TypeDescriptor(kind: ctVec, vecElementType: blobTypeDesc)
-      addTypeToTable(builder, vecBlobTypeDesc)
+      typeRef = addTypeToTable(builder, vecBlobTypeDesc)
     elif isPrimitiveType(value.kind):
-      typeCodeFromCandidType(value.kind)
+      typeRef = typeCodeFromCandidType(value.kind)
     else:
       let typeDesc = inferTypeDescriptor(value)
-      addTypeToTable(builder, typeDesc)
+      typeRef = addTypeToTable(builder, typeDesc)
     valueTypes.add(typeRef)
   
   # 3. Encode type table

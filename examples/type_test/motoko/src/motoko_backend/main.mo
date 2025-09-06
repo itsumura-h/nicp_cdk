@@ -180,4 +180,14 @@ persistent actor {
   public query func principalCanister() : async Principal {
     return Principal.fromText("rrkah-fqaaa-aaaaa-aaaaq-cai");
   };
+  
+  // Function reference: returns a query function () -> (Text) on a fixed canister principal
+  
+  public query func greet(msg: Text): async Text {
+    return "Hello, " # msg # "!";
+  };
+  
+  public query func funcRefTextQuery() : async (shared query (Text) -> async Text) {
+    return greet;
+  };
 };

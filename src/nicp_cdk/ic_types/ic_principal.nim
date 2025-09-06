@@ -3,6 +3,7 @@ import std/strutils
 import base32 # https://github.com/OpenSystemsLab/base32.nim :contentReference[oaicite:9]{index=9}
 import ../algorithm/crc32
 import ../algorithm/leb128
+import ../ic0/ic0
 
 
 # https://wiki.internetcomputer.org/wiki/Principal
@@ -110,3 +111,10 @@ proc readPrincipal*(data: seq[byte]; offset: var int): Principal =
   offset += principalLength
   let principal = Principal.fromBlob(principalBytes)
   return principal
+
+proc selfPrincipal*(): Principal =
+  ## Get the principal of the current canister
+  let n = ic0_canister_self_size()
+  var data = newSeq[byte](n)
+  ic0_canister_self_copy(cast[int](addr data[0]), 0, n)
+  return Principal.fromBlob(data)

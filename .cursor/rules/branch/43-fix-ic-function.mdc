@@ -26,7 +26,7 @@ alwaysApply: false
 - Candid仕様書: https://internetcomputer.org/docs/current/references/candid-ref
 - Candid IDL specification: https://github.com/dfinity/candid/blob/master/spec/Candid.md
 - Motoko言語仕様: https://internetcomputer.org/docs/current/motoko/main/motoko
-- 現在の実装: src/nicp_cdk/ic_types/candid_types.nim (CandidFunc)
+- 現在の実装: src/nicp_cdk/ic_types/candid_types.nim (IcFunc)
 - エンコーダー: src/nicp_cdk/ic_types/candid_message/candid_encode.nim
 - デコーダー: src/nicp_cdk/ic_types/candid_message/candid_decode.nim
 - テスト: tests/types/test_func.nim
@@ -130,7 +130,7 @@ Candidの`func`型は以下の要素で構成される：
 ### 実装方針
 
 #### 1. 型テーブルエンコーディング拡張
-- `CandidFunc`の`args`と`returns`を型テーブルに正しく反映
+- `IcFunc`の`args`と`returns`を型テーブルに正しく反映
 - 再帰的な型参照の適切な処理
 - 型の重複排除と参照管理
 
@@ -187,7 +187,7 @@ proc encodeAnnotations(annotations: seq[string]): seq[byte] =
 - Candid仕様書: https://internetcomputer.org/docs/current/references/candid-ref
 - Candid IDL specification: https://github.com/dfinity/candid/blob/master/spec/Candid.md
 - Motoko言語仕様: https://internetcomputer.org/docs/current/motoko/main/motoko
-- 現在の実装: src/nicp_cdk/ic_types/candid_types.nim (CandidFunc)
+- 現在の実装: src/nicp_cdk/ic_types/candid_types.nim (IcFunc)
 - エンコーダー: src/nicp_cdk/ic_types/candid_message/candid_encode.nim
 - デコーダー: src/nicp_cdk/ic_types/candid_message/candid_decode.nim
 - テスト: tests/types/test_func.nim
@@ -291,7 +291,7 @@ Candidの`func`型は以下の要素で構成される：
 ### 実装方針
 
 #### 1. 型テーブルエンコーディング拡張
-- `CandidFunc`の`args`と`returns`を型テーブルに正しく反映
+- `IcFunc`の`args`と`returns`を型テーブルに正しく反映
 - 再帰的な型参照の適切な処理
 - 型の重複排除と参照管理
 
