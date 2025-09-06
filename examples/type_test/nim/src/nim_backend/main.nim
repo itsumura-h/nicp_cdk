@@ -3,6 +3,7 @@ import std/options
 import nicp_cdk/ic_types/ic_text
 import nicp_cdk/ic_types/ic_record
 import nicp_cdk/ic_types/candid_types
+import nicp_cdk/ic_types/ic_principal
 
 
 proc responseNull() {.query.} =
@@ -180,18 +181,10 @@ proc recordNested() {.query.} =
 # =========================
 # Variant (Enum) functions
 # =========================
-type
-  Color* = enum
-    Red, Green, Blue
-
-  # Result: success/error でTextを持つ
-  ResultKind* = enum
-    success = "ok"
-    error = "ng"
-
-  # Status: active はレコード{id: Nat}、inactive は値なし
-  Status* = enum
-    active, inactive
+type Color* = enum
+  Red
+  Green
+  Blue
 
 # Color: 値なしvariant相当
 proc variantColorRed() {.query.} =
@@ -203,19 +196,19 @@ proc variantColorGreen() {.query.} =
 proc variantColorBlue() {.query.} =
   reply(Color.Blue)
 
-# Result: 値ありvariant（Text）
-proc variantResultOk() {.query.} =
-  reply(ResultKind.success)
 
-proc variantResultErr() {.query.} =
-  reply(ResultKind.error)
+# =========================
+# Principal functions
+# =========================
 
-# # Status: active はレコードpayload、inactiveは値なし
-# proc variantStatusActive() {.query.} =
-#   let payload = %*{"id": 1'u}
-#   let v = newCandidVariant("active", newCandidRecord(payload))
-#   reply(v)
+proc principalFunc() {.query.} =
+  let principal = Principal.fromText("aaaaa-aa")
+  reply(principal)
 
-# proc variantStatusInactive() {.query.} =
-#   let v = newCandidVariant("inactive", newCandidNull())
-#   reply(v)
+proc principalAnonymous() {.query.} =
+  let principal = Principal.fromText("2vxsx-fae")
+  reply(principal)
+
+proc principalCanister() {.query.} =
+  let principal = Principal.fromText("rrkah-fqaaa-aaaaa-aaaaq-cai")
+  reply(principal)

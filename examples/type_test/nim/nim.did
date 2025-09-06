@@ -35,6 +35,9 @@ service : {
   "responseEmpty" : () -> () query;
   "recordSimple" : () -> (record { name : text; age : int }) query;
   "recordNested" : () -> (record { user : record { id : nat; active : bool }; meta : record { note : text } }) query;
+  "principalFunc" : () -> (principal) query;
+  "principalAnonymous" : () -> (principal) query;
+  "principalCanister" : () -> (principal) query;
   // variant: simple enum-like Color
   "variantColorRed" : () -> (variant { Red; Green; Blue }) query;
   "variantColorGreen" : () -> (variant { Red; Green; Blue }) query;

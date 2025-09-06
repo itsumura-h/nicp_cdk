@@ -1,5 +1,6 @@
 import Blob "mo:base/Blob";
 import Text "mo:base/Text";
+import Principal "mo:base/Principal";
 
 persistent actor {
   // Variant types for testing
@@ -166,4 +167,17 @@ persistent actor {
   // variant: mixed null and record payload
   // public query func variantStatusActive() : async Status { return #active({ id = 1 }); };
   // public query func variantStatusInactive() : async Status { return #inactive; };
+
+  // Principal type tests
+  public query func principalFunc() : async Principal {
+    return Principal.fromText("aaaaa-aa");
+  };
+
+  public query func principalAnonymous() : async Principal {
+    return Principal.fromText("2vxsx-fae");
+  };
+
+  public query func principalCanister() : async Principal {
+    return Principal.fromText("rrkah-fqaaa-aaaaa-aaaaq-cai");
+  };
 };
