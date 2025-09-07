@@ -432,7 +432,9 @@ proc encodeValue(value: CandidValue, typeRef: int, typeTable: seq[TypeTableEntry
         result.add(byteVal)
     
     of ctFunc:
-      # Function reference: principal + method name
+      # Function reference: ID form + principal + method name
+      # Use same format as principal (ID form 0x01)
+      result.add(1.byte)  # ID form identifier
       let principalBytes = value.funcVal.principal.bytes
       result.add(encodeULEB128(uint(principalBytes.len)))
       result.add(principalBytes)

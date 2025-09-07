@@ -260,9 +260,10 @@ suite "Candid compare with Motoko tests":
     let motokoResult = callMotokoCanisterFunction("funcRefTextQuery")
     echo "Motoko result: ", motokoResult
     let motokoBytes = motokoResult.toBytes()
-    # Motokoのfunc参照は末尾にメソッド名がエンコードされる（'05' + 'greet'）ため、生バイトから検証
-    let motokoHex = candid_types.toString(motokoBytes)
-    check motokoHex.endsWith("056772656574")
+    let motokoDecoded = decodeCandidMessage(motokoBytes)
+    let motokoRequest = newMockRequest(motokoDecoded.values)
+    let motokoFunc = motokoRequest.getFunc(0)
+    echo "Motoko func: ", motokoFunc.repr
 
     let nimResult = callNimCanisterFunction("funcRefTextQuery")
     echo "Nim result:    ", nimResult
@@ -273,4 +274,6 @@ suite "Candid compare with Motoko tests":
     echo "Nim func: ", nimFunc.repr
 
     # method 名は Nim 側で "greet"
-    check nimFunc.methodName == "greet"
+    check motokoFunc.methodName == nimFunc.methodName
+    check motokoFunc.args == nimFunc.args
+    check motokoFunc.returns == nimFunc.returns

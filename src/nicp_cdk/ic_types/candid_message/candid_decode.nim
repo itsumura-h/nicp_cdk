@@ -378,62 +378,91 @@ proc decodeValue(data: seq[byte], offset: var int, typeRef: int, typeTable: seq[
         of 0x03: funcAnnotations.add("composite_query")
         else: discard
       
-      # Try canonical form first: [ULEB len][bytes] + [ULEB len][bytes]
-      let startOffset = offset
-      var parsed = false
-      try:
-        var off = startOffset
-        let principalLengthA = decodeULEB128(data, off)
-        if off + int(principalLengthA) > data.len:
-          raise newException(CandidDecodeError, "principal length out of range (A)")
-        let principalBytesA = data[off ..< off + int(principalLengthA)]
-        let principalA = Principal.fromBlob(principalBytesA)
-        off += int(principalLengthA)
-        let methodNameLengthA = decodeULEB128(data, off)
-        if off + int(methodNameLengthA) > data.len:
-          raise newException(CandidDecodeError, "method name length out of range (A)")
-        var methodNameA = newString(int(methodNameLengthA))
-        for i in 0..<int(methodNameLengthA):
-          methodNameA[i] = char(data[off + i])
-        off += int(methodNameLengthA)
-        result.funcVal = IcFunc(
-          principal: principalA,
-          methodName: methodNameA,
-          args: funcArgs,
-          returns: funcReturns,
-          annotations: funcAnnotations
-        )
-        offset = off
-        parsed = true
-      except CatchableError:
-        parsed = false
-      if not parsed:
-        # Try ID-form variant: [0x01][ULEB len][bytes] + [ULEB len][bytes]
-        var off = startOffset
-        if off >= data.len or data[off] != 1.byte:
-          raise newException(CandidDecodeError, "Failed to decode func principal (no suitable format)")
-        inc off
-        let principalLengthB = decodeULEB128(data, off)
-        if off + int(principalLengthB) > data.len:
-          raise newException(CandidDecodeError, "principal length out of range (B)")
-        let principalBytesB = data[off ..< off + int(principalLengthB)]
-        let principalB = Principal.fromBlob(principalBytesB)
-        off += int(principalLengthB)
-        let methodNameLengthB = decodeULEB128(data, off)
-        if off + int(methodNameLengthB) > data.len:
-          raise newException(CandidDecodeError, "Unexpected end of data")
-        var methodNameB = newString(int(methodNameLengthB))
-        for i in 0..<int(methodNameLengthB):
-          methodNameB[i] = char(data[off + i])
-        off += int(methodNameLengthB)
-        result.funcVal = IcFunc(
-          principal: principalB,
-          methodName: methodNameB,
-          args: funcArgs,
-          returns: funcReturns,
-          annotations: funcAnnotations
-        )
-        offset = off
+      # Function value can have two formats:
+      # 1. Nim format: [ULEB principal_len][principal bytes][ULEB method_len][method name bytes]
+      # 2. Motoko format: [ID form 0x01][ULEB principal_len][principal bytes][...metadata...][ULEB method_len][method name bytes]
+      
+      var principal: Principal
+      var methodName: string
+      
+      # Try to detect format by checking first byte
+      if offset < data.len and data[offset] == 1.byte:
+        # Motoko format with ID form
+        inc offset  # Skip ID form
+        
+        # Decode principal
+        let principalLength = decodeULEB128(data, offset)
+        if offset + int(principalLength) > data.len:
+          raise newException(CandidDecodeError, "Principal length out of range")
+        let principalBytes = data[offset ..< offset + int(principalLength)]
+        principal = Principal.fromBlob(principalBytes)
+        offset += int(principalLength)
+        
+        # Skip unknown middle section and find method name
+        # Based on analysis, we need to skip to offset where we find the method name
+        # The pattern is: skip until we find a reasonable method name length followed by valid ASCII
+        var found = false
+        while offset < data.len - 1:
+          let potentialLength = data[offset]
+          # Check if this could be a method name length (reasonable range)
+          if potentialLength > 0 and potentialLength <= 50 and offset + int(potentialLength) < data.len:
+            # Check if the following bytes look like a valid method name
+            var validName = true
+            for i in 1..int(potentialLength):
+              let c = data[offset + i]
+              if c < 32 or c > 126:  # Not printable ASCII
+                validName = false
+                break
+            if validName:
+              # Double-check by looking for common method name patterns
+              var methodBytes = newSeq[byte](int(potentialLength))
+              for i in 0..<int(potentialLength):
+                methodBytes[i] = data[offset + 1 + i]
+              let testName = cast[string](methodBytes)
+              # If it looks like a reasonable method name, use it
+              if testName.len > 0 and testName[0] >= 'a' and testName[0] <= 'z':
+                found = true
+                break
+          inc offset
+        
+        if not found:
+          raise newException(CandidDecodeError, "Could not find method name section in Motoko format")
+        
+        # Decode method name
+        let methodNameLength = decodeULEB128(data, offset)
+        if offset + int(methodNameLength) > data.len:
+          raise newException(CandidDecodeError, "Method name length out of range")
+        methodName = newString(int(methodNameLength))
+        for i in 0..<int(methodNameLength):
+          methodName[i] = char(data[offset + i])
+        offset += int(methodNameLength)
+        
+      else:
+        # Nim format without ID form
+        # Decode principal
+        let principalLength = decodeULEB128(data, offset)
+        if offset + int(principalLength) > data.len:
+          raise newException(CandidDecodeError, "Principal length out of range")
+        let principalBytes = data[offset ..< offset + int(principalLength)]
+        principal = Principal.fromBlob(principalBytes)
+        offset += int(principalLength)
+        
+        # Decode method name
+        let methodNameLength = decodeULEB128(data, offset)
+        if offset + int(methodNameLength) > data.len:
+          raise newException(CandidDecodeError, "Method name length out of range")
+        methodName = newString(int(methodNameLength))
+        for i in 0..<int(methodNameLength):
+          methodName[i] = char(data[offset + i])
+        offset += int(methodNameLength)
+      
+      result.funcVal = IcFunc(
+        principal: principal,
+        methodName: methodName,
+        args: funcArgs,
+        returns: funcReturns,
+        annotations: funcAnnotations
+      )
     of ctService:
       # Service reference: principal only
       let principalLength = decodeULEB128(data, offset)
