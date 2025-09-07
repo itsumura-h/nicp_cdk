@@ -167,7 +167,7 @@ proc getVariant*(self:Request, index:int): CandidVariant =
 
 
 # Get the argument at the specified index as a Function
-proc getFunc*(self:Request, index:int): CandidFunc =
+proc getFunc*(self:Request, index:int): IcFunc =
   ## Get the argument at the specified index as a function
   assert self.values[index].kind == ctFunc, "Expected func type, got: " & $self.values[index].kind
   return self.values[index].funcVal

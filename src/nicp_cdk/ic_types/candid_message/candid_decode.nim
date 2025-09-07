@@ -348,29 +348,121 @@ proc decodeValue(data: seq[byte], offset: var int, typeRef: int, typeTable: seq[
         offset += 1
     of ctFunc:
       # Function reference: principal + method name
-      let principalLength = decodeULEB128(data, offset)
-      if offset + int(principalLength) > data.len:
-        raise newException(CandidDecodeError, "Unexpected end of data")
-      let principalBytes = data[offset..<offset + int(principalLength)]
-      let principal = Principal.fromBlob(principalBytes)
-      offset += int(principalLength)
+      # Extract function signature from type table
+      var funcArgs: seq[CandidType] = @[]
+      var funcReturns: Option[CandidType] = none(CandidType)
+      var funcAnnotations: seq[string] = @[]
       
-      let methodNameLength = decodeULEB128(data, offset)
-      if offset + int(methodNameLength) > data.len:
-        raise newException(CandidDecodeError, "Unexpected end of data")
-      var methodName = newString(int(methodNameLength))
-      for i in 0..<int(methodNameLength):
-        methodName[i] = char(data[offset + i])
-      offset += int(methodNameLength)
+      # Convert type references to CandidType
+      for argTypeRef in typeEntry.funcArgs:
+        if argTypeRef < 0:
+          funcArgs.add(typeCodeToCandidType(argTypeRef))
+        else:
+          # For composite types, we would need to resolve them, but for now assume primitive
+          funcArgs.add(ctEmpty)  # placeholder
       
-      let funcRef = CandidFunc(
+      # Handle single return type
+      if typeEntry.funcReturns.len > 0:
+        let retTypeRef = typeEntry.funcReturns[0]
+        if retTypeRef < 0:
+          funcReturns = some(typeCodeToCandidType(retTypeRef))
+        else:
+          # For composite types, we would need to resolve them, but for now assume primitive
+          funcReturns = some(ctEmpty)  # placeholder
+      
+      # Convert annotation bytes to strings
+      for annByte in typeEntry.funcAnnotations:
+        case annByte:
+        of 0x01: funcAnnotations.add("query")
+        of 0x02: funcAnnotations.add("oneway")
+        of 0x03: funcAnnotations.add("composite_query")
+        else: discard
+      
+      # Function value can have two formats:
+      # 1. Nim format: [ULEB principal_len][principal bytes][ULEB method_len][method name bytes]
+      # 2. Motoko format: [ID form 0x01][ULEB principal_len][principal bytes][...metadata...][ULEB method_len][method name bytes]
+      
+      var principal: Principal
+      var methodName: string
+      
+      # Try to detect format by checking first byte
+      if offset < data.len and data[offset] == 1.byte:
+        # Motoko format with ID form
+        inc offset  # Skip ID form
+        
+        # Decode principal
+        let principalLength = decodeULEB128(data, offset)
+        if offset + int(principalLength) > data.len:
+          raise newException(CandidDecodeError, "Principal length out of range")
+        let principalBytes = data[offset ..< offset + int(principalLength)]
+        principal = Principal.fromBlob(principalBytes)
+        offset += int(principalLength)
+        
+        # Skip unknown middle section and find method name
+        # Based on analysis, we need to skip to offset where we find the method name
+        # The pattern is: skip until we find a reasonable method name length followed by valid ASCII
+        var found = false
+        while offset < data.len - 1:
+          let potentialLength = data[offset]
+          # Check if this could be a method name length (reasonable range)
+          if potentialLength > 0 and potentialLength <= 50 and offset + int(potentialLength) < data.len:
+            # Check if the following bytes look like a valid method name
+            var validName = true
+            for i in 1..int(potentialLength):
+              let c = data[offset + i]
+              if c < 32 or c > 126:  # Not printable ASCII
+                validName = false
+                break
+            if validName:
+              # Double-check by looking for common method name patterns
+              var methodBytes = newSeq[byte](int(potentialLength))
+              for i in 0..<int(potentialLength):
+                methodBytes[i] = data[offset + 1 + i]
+              let testName = cast[string](methodBytes)
+              # If it looks like a reasonable method name, use it
+              if testName.len > 0 and testName[0] >= 'a' and testName[0] <= 'z':
+                found = true
+                break
+          inc offset
+        
+        if not found:
+          raise newException(CandidDecodeError, "Could not find method name section in Motoko format")
+        
+        # Decode method name
+        let methodNameLength = decodeULEB128(data, offset)
+        if offset + int(methodNameLength) > data.len:
+          raise newException(CandidDecodeError, "Method name length out of range")
+        methodName = newString(int(methodNameLength))
+        for i in 0..<int(methodNameLength):
+          methodName[i] = char(data[offset + i])
+        offset += int(methodNameLength)
+        
+      else:
+        # Nim format without ID form
+        # Decode principal
+        let principalLength = decodeULEB128(data, offset)
+        if offset + int(principalLength) > data.len:
+          raise newException(CandidDecodeError, "Principal length out of range")
+        let principalBytes = data[offset ..< offset + int(principalLength)]
+        principal = Principal.fromBlob(principalBytes)
+        offset += int(principalLength)
+        
+        # Decode method name
+        let methodNameLength = decodeULEB128(data, offset)
+        if offset + int(methodNameLength) > data.len:
+          raise newException(CandidDecodeError, "Method name length out of range")
+        methodName = newString(int(methodNameLength))
+        for i in 0..<int(methodNameLength):
+          methodName[i] = char(data[offset + i])
+        offset += int(methodNameLength)
+      
+      result.funcVal = IcFunc(
         principal: principal,
         methodName: methodName,
-        args: @[],
-        returns: @[],
-        annotations: @[]
+        args: funcArgs,
+        returns: funcReturns,
+        annotations: funcAnnotations
       )
-      result.funcVal = funcRef
     of ctService:
       # Service reference: principal only
       let principalLength = decodeULEB128(data, offset)

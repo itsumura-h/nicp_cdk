@@ -6,12 +6,7 @@ discard """
 import unittest
 import ../src/nicp_cdk/ic_types/candid_message/candid_decode
 import ../src/nicp_cdk/ic_types/candid_types
-
-
-proc toBytes*(data: seq[int]): seq[byte] =
-  result = newSeq[byte](data.len)
-  for i, d in data:
-    result[i] = d.byte
+import ../src/nicp_cdk/ic_types/type_transfer
 
 
 suite("Candidテスト"):
