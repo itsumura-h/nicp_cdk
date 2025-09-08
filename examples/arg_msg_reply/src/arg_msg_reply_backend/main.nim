@@ -22,10 +22,10 @@ type
 
 
 proc nullResponse() {.query.} =
-  replyNull()
+  reply(nil)
 
 proc emptyResponse() {.query.} =
-  replyEmpty()
+  reply()
 
 proc boolArg() {.query.} =
   let request = Request.new()

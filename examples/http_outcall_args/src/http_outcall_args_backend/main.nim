@@ -25,12 +25,14 @@ type
     context: seq[byte]
     response: HttpResponsePayload
 
+  TransformFunc = proc(response: TransformArgs): HttpResponsePayload {.nimcall.}
+
   HttpRequestArgs = ref object
     url: string
     max_response_bytes: Option[uint]
     headers: seq[HttpHeader]
     body: Option[seq[byte]]
-    transform: Option[TransformArgs]
+    transform: Option[TransformFunc]
     `method`: HttpMethod
     is_replicated: Option[bool]
 
@@ -52,7 +54,7 @@ proc httpRequestArgs() {.query.} =
     headers: requestHeaders,
     body: none(seq[byte]), # optional for request
     `method`: HttpMethod.get,
-    transform: none(TransformArgs),
+    transform: none(TransformFunc),
     # Toggle this flag to switch between replicated and non-replicated http outcalls.
     is_replicated: some(false)
   )
