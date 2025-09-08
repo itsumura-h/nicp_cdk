@@ -1,10 +1,10 @@
 {
   "canisters": {
-    "http_outcall_args_backend": {
-      "candid": "http_outcall_args.did",
-      "package": "http_outcall_args_backend",
+    "nim_backend": {
+      "candid": "nim.did",
+      "package": "nim_backend",
       "build": "build.sh",
-      "main": "src/http_outcall_args_backend/main.nim",
+      "main": "src/nim_backend/main.nim",
       "wasm": "main.wasm",
       "type": "custom",
       "metadata": [

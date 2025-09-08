@@ -1,6 +1,6 @@
 import std/options
-import ../../../../src/nicp_cdk
-import ../../../../src/nicp_cdk/ic_types/candid_types
+import ../../../../../src/nicp_cdk
+import ../../../../../src/nicp_cdk/ic_types/candid_types
 
 type
   HttpHeader = ref object

@@ -1,7 +1,7 @@
 import Nat64 "mo:base/Nat64";
 import Text "mo:base/Text";
 
-actor {
+persistent actor {
   type HttpHeader = {
     name : Text;
     value : Text;
