@@ -1,10 +1,10 @@
-import nicp_cdk
 import std/options
-import nicp_cdk/ic_types/ic_text
-import nicp_cdk/ic_types/ic_record
-import nicp_cdk/ic_types/candid_types
-import nicp_cdk/ic_types/ic_principal
-import nicp_cdk/ic_types/ic_func
+import ../../../../../src/nicp_cdk
+import ../../../../../src/nicp_cdk/ic_types/ic_text
+import ../../../../../src/nicp_cdk/ic_types/ic_record
+import ../../../../../src/nicp_cdk/ic_types/candid_types
+import ../../../../../src/nicp_cdk/ic_types/ic_principal
+import ../../../../../src/nicp_cdk/ic_types/ic_func
 
 
 proc responseNull() {.query.} =
