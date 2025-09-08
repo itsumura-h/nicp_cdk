@@ -1,6 +1,6 @@
-import ../../../../src/nicp_cdk
+import ../../../../../src/nicp_cdk
 # import ../../../../src/nicp_cdk/canisters/management_canister
-import controller
+import ./controller
 
 
 proc greet() {.query.} =

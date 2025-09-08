@@ -35,6 +35,7 @@ dfx canister call http_outcall_backend getRequest
 - [x] **NimとMotokoの実装ロジック比較分析完了**
 - [x] **NimのCandidRecord形式をMotokoと同等に修正**
 - [x] 包括的な設計書の作成 (docs/ja/refarence/httpoutcall.md)
+- [x] **独自型（object、tuple、ref object）の再帰的CandidRecord変換機能を追加**
 
 ## 参考資料
 - ICP HTTP Outcall仕様: https://internetcomputer.org/docs/current/developer-docs/integrations/http_requests/

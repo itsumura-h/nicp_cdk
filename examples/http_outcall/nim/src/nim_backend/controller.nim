@@ -2,8 +2,21 @@ import std/asyncdispatch
 import std/options
 import std/sequtils
 import std/strutils
-import ../../../../src/nicp_cdk
-import ../../../../src/nicp_cdk/canisters/management_canister
+import ../../../../../src/nicp_cdk
+import ../../../../../src/nicp_cdk/canisters/management_canister
+
+
+proc transform*() {.query.} =
+  let request = Request.new()
+  let args = request.getRecord(0)
+  let status = args["response"]["status"].getNat()
+  let headers = args["response"]["headers"].getArray().map(
+    proc(x: CandidRecord): HttpHeader =
+      HttpHeader(name: x["name"].getStr(), value: x["value"].getStr())
+  )
+  let body = args["response"]["body"].getBlob()
+  let response = HttpResponsePayload(status: status, headers: headers, body: body)
+  reply(response)
 
 
 proc get_icp_usd_exchange*() {.async.} =
@@ -29,6 +42,7 @@ proc get_icp_usd_exchange*() {.async.} =
       body: none(seq[uint8]),
       max_response_bytes: none(uint),  # Motokoと同じ（null指定）
       transform: none(HttpTransform),  # Transform関数なし
+      # transform: some(IcFunc.new(FuncType.Query, "transform", @[ctHttpResponsePayload, ctBlob], ctHttpResponsePayload)),
       is_replicated: some(false)
     )
     

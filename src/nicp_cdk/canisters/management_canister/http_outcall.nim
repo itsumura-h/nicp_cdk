@@ -23,31 +23,31 @@ import ./management_canister_type
 type
   TransformArgs* = object
     response*: HttpResponsePayload
-    context*: seq[uint8]  # Blob型（バイトシーケンス）
+    context*: seq[byte]  # Blob型（バイトシーケンス）
 
-  HttpResponsePayload* = object
-    status*: int
-    headers*: seq[(string, string)]
-    body*: seq[uint8]
-
-type
   HttpHeader* = ref object
     name*: string
     value*: string
 
+  HttpResponsePayload* = object
+    status*: uint
+    headers*: seq[HttpHeader]
+    body*: seq[byte]
+
+
   HttpMethod* {.pure.} = enum
-    GET = "GET"
-    POST = "POST"
-    HEAD = "HEAD"
-    PUT = "PUT"
-    DELETE = "DELETE"
-    PATCH = "PATCH"
-    OPTIONS = "OPTIONS"
+    GET = 0
+    POST = 1
+    HEAD = 2
+    PUT = 3
+    DELETE = 4
+    PATCH = 5
+    OPTIONS = 6
 
   HttpResponse* = object
     status*: uint
-    headers*: seq[(string, string)]
-    body*: seq[uint8]
+    headers*: seq[HttpHeader]
+    body*: seq[byte]
 
   HttpTransformFunction* = proc(response: HttpResponse): HttpResponse {.nimcall.}
 
@@ -59,7 +59,7 @@ type
     url*: string
     max_response_bytes*: Option[uint]
     headers*: seq[HttpHeader]
-    body*: Option[seq[uint8]]
+    body*: Option[seq[byte]]
     `method`*: HttpMethod
     transform*: Option[HttpTransform]
     is_replicated*: Option[bool]
@@ -241,7 +241,7 @@ proc candidValueToHttpResponse(candidValue: CandidValue): HttpResponse =
   let bodyVal = recordVal["body"].getBlob()
 
   # Convert headers array to seq[(string, string)]
-  var headers: seq[(string, string)] = @[]
+  var headers: seq[HttpHeader] = @[]
   if headersVal.kind == ckArray:
     for headerItem in headersVal.elems:
       if headerItem.kind == ckRecord:
@@ -264,7 +264,7 @@ proc candidValueToHttpResponse(candidValue: CandidValue): HttpResponse =
             count += 1
           
           if foundKey and foundValue:
-            headers.add((key, value))
+            headers.add(HttpHeader(name: key, value: value))
 
   return HttpResponse(
     status: statusVal,
@@ -447,7 +447,7 @@ proc onTransformCallback(env: uint32) {.exportc.} =
     # 変換されたレスポンスをCandidValueに変換して返す
     var headersArray: seq[CandidRecord] = @[]
     for header in transformedResponse.headers:
-      headersArray.add(%(@[%header[0], %header[1]]))
+      headersArray.add(%(@[%header.name, %header.value]))
     
     let resultResponse = %* {
       "status": transformedResponse.status,
@@ -463,7 +463,7 @@ proc onTransformCallback(env: uint32) {.exportc.} =
     # Transform処理でエラーが発生した場合
     let errorResponse = %* {
       "status": 500.uint64,
-      "headers": newSeq[(string, string)](),
+      "headers": newSeq[HttpHeader](),
       "body": toBytes("Transform function error: " & e.msg)
     }
     let encoded = encodeCandidMessage(@[recordToCandidValue(errorResponse)])
@@ -505,8 +505,8 @@ proc getHeader*(response: HttpResponse, name: string): Option[string] =
   ## 指定されたヘッダー値を取得
   let nameLower = name.toLowerAscii()
   for header in response.headers:
-    if header[0].toLowerAscii() == nameLower:
-      return some(header[1])
+    if header.name.toLowerAscii() == nameLower:
+      return some(header.value)
   return none(string)
 
 
@@ -519,7 +519,7 @@ proc expectJsonResponse*(response: HttpResponse): string =
   let contentType = response.getHeader("content-type")
   if contentType.isNone or not contentType.get.contains("application/json"):
     raise newException(ValueError, 
-      "Expected JSON response but got: " & contentType.get("unknown"))
+      "Expected JSON response but got: " & contentType.get)
   
   return response.getTextBody()
 
