@@ -25,27 +25,26 @@ proc callCanisterFunction(functionName: string, args: string = ""): string =
   finally:
     setCurrentDir(originalDir)
 
+
+proc deploy() =
+  echo "Deploying canister..."
+  let originalDir = getCurrentDir()
+  try:
+    setCurrentDir(ARG_MSG_REPLY_DIR)
+    echo "Changed to directory: ", getCurrentDir()
+    let deployResult = execProcess(DFX_PATH & " deploy -y")
+    echo "Deploy output: ", deployResult
+    # deployが成功した場合を確認
+    check deployResult.contains("Deployed") or deployResult.contains("Creating") or 
+          deployResult.contains("Installing")
+  finally:
+    setCurrentDir(originalDir)
+    echo "Changed back to directory: ", getCurrentDir()
+
+
 suite "Deploy Tests":
-  setup:
-    echo "Starting deploy test setup..."
+  deploy()
 
-  teardown:
-    echo "Deploy test teardown complete"
-
-  test "Deploy canister":
-    echo "Deploying canister..."
-    let originalDir = getCurrentDir()
-    try:
-      setCurrentDir(ARG_MSG_REPLY_DIR)
-      echo "Changed to directory: ", getCurrentDir()
-      let deployResult = execProcess(DFX_PATH & " deploy -y")
-      echo "Deploy output: ", deployResult
-      # deployが成功した場合を確認
-      check deployResult.contains("Deployed") or deployResult.contains("Creating") or 
-            deployResult.contains("Installing")
-    finally:
-      setCurrentDir(originalDir)
-      echo "Changed back to directory: ", getCurrentDir()
 
 suite "Null Type Tests":
   setup:
@@ -61,6 +60,7 @@ suite "Null Type Tests":
     # null値が返されることを確認
     check callResult.contains("(null : null)")
 
+
 suite "Empty Type Tests":
   setup:
     echo "Starting empty type test setup..."
@@ -74,6 +74,7 @@ suite "Empty Type Tests":
     echo "Call output: ", callResult
     # 空の応答が返されることを確認
     check callResult.contains("()")
+
 
 suite "Bool Type Tests":
   setup:
@@ -96,6 +97,7 @@ suite "Bool Type Tests":
     # false値が返されることを確認（型注釈なし）
     check callResult.contains("(false)")
 
+
 suite "Nat Type Tests":
   setup:
     echo "Starting nat type test setup..."
@@ -109,6 +111,7 @@ suite "Nat Type Tests":
     echo "Call output: ", callResult
     # nat値が返されることを確認
     check callResult.contains("(42 : nat)")
+
 
 suite "Int Type Tests":
   setup:
@@ -131,6 +134,7 @@ suite "Int Type Tests":
     # 負のint値が返されることを確認
     check callResult.contains("(-42 : int)")
 
+
 suite "Nat8 Type Tests":
   setup:
     echo "Starting nat8 type test setup..."
@@ -151,6 +155,7 @@ suite "Nat8 Type Tests":
     echo "Call output: ", callResult
     # 0のnat8値が返されることを確認
     check callResult.contains("(0 : nat8)")
+
 
 suite "Nat16 Type Tests":
   setup:
@@ -180,6 +185,7 @@ suite "Nat16 Type Tests":
     # 0のnat16値が返されることを確認
     check callResult.contains("(0 : nat16)")
 
+
 suite "Nat32 Type Tests":
   setup:
     echo "Starting nat32 type test setup..."
@@ -208,6 +214,7 @@ suite "Nat32 Type Tests":
     # 0のnat32値が返されることを確認
     check callResult.contains("(0 : nat32)")
 
+
 suite "Nat64 Type Tests":
   setup:
     echo "Starting nat64 type test setup..."
@@ -235,6 +242,7 @@ suite "Nat64 Type Tests":
     echo "Call output: ", callResult
     # 0のnat64値が返されることを確認
     check callResult.contains("(0 : nat64)")
+
 
 suite "Int8 Type Tests":
   setup:
@@ -271,6 +279,7 @@ suite "Int8 Type Tests":
     # 最小int8値が返されることを確認
     check callResult.contains("(-128 : int8)")
 
+
 suite "Int16 Type Tests":
   setup:
     echo "Starting int16 type test setup..."
@@ -306,6 +315,7 @@ suite "Int16 Type Tests":
     # 最小int16値が返されることを確認
     check callResult.contains("(-32_768 : int16)")
 
+
 suite "Int32 Type Tests":
   setup:
     echo "Starting int32 type test setup..."
@@ -340,6 +350,7 @@ suite "Int32 Type Tests":
     echo "Call output: ", callResult
     # 最小int32値が返されることを確認
     check callResult.contains("(-2_147_483_648 : int32)")
+
 
 suite "Int64 Type Tests":
   setup:
@@ -383,6 +394,7 @@ suite "Int64 Type Tests":
     # 大きな値でも正常に処理される場合があるので、正常な結果またはエラーのどちらでもOKとする
     check callResult.contains("(1_000_000_000_000_000_000 : int64)") or callResult.contains("IC0506")
 
+
 suite "Float32 Type Tests":
   setup:
     echo "Starting float32 type test setup..."
@@ -418,6 +430,7 @@ suite "Float32 Type Tests":
     # 小さなfloat32値が返されることを確認
     check callResult.contains("0.001") or callResult.contains("1e-03")
 
+
 suite "Float64 Type Tests":
   setup:
     echo "Starting float64 type test setup..."
@@ -452,6 +465,7 @@ suite "Float64 Type Tests":
     echo "Call output: ", callResult
     # 高精度float64値が返されることを確認
     check callResult.contains("1.23456789012345") or callResult.contains("1.23457e+00")
+
 
 suite "Text Type Tests":
   setup:
@@ -509,6 +523,7 @@ suite "Text Type Tests":
     # スペースを含む文字列のtext値が返されることを確認（型注釈なし）
     check callResult.contains("(\"hello world\")")
 
+
 suite "Blob Type Tests":
   setup:
     echo "Starting blob type test setup..."
@@ -534,6 +549,7 @@ suite "Blob Type Tests":
     echo "Call output: ", callResult
     check callResult.contains("(blob \"\")")
 
+
 suite "Option Type Tests":
   setup:
     echo "Starting option type test setup..."
@@ -553,6 +569,7 @@ suite "Option Type Tests":
     echo "Call output: ", callResult
     check callResult.contains("(null)")
 
+
 suite "Vector Type Tests":
   setup:
     echo "Starting vector type test setup..."
@@ -565,6 +582,7 @@ suite "Vector Type Tests":
     let callResult = callCanisterFunction("vecArg", "(vec {10; 20; 30} : vec nat16)")
     echo "Call output: ", callResult
     check callResult.contains("(vec { 10 : nat16; 20 : nat16; 30 : nat16 })")
+
 
 suite "Variant Type Tests":
   setup:
@@ -585,6 +603,7 @@ suite "Variant Type Tests":
     echo "Call output: ", callResult
     check callResult.contains("(variant { error = \"something went wrong\" })")
 
+
 suite "Func Type Tests":
   setup:
     echo "Starting func type test setup..."
@@ -595,10 +614,10 @@ suite "Func Type Tests":
   test "Test funcArg function":
     echo "Testing funcArg function..."
     # dfx canister call arg_msg_reply_backend funcArg '(func "aaaaa-aa"."raw_rand")'
-    let callResult = callCanisterFunction("funcArg", "(func \"aaaaa-aa\".\"raw_rand\")")
+    let callResult = callCanisterFunction("funcArg", "(func \"aaaaa-aa\".raw_rand)")
     echo "Call output: ", callResult
-    # func型の処理でエラーが発生することを確認
-    check callResult.contains("IC0506") or callResult.contains("TypeError") or callResult.contains("error")
+    check callResult.contains("(func \"aaaaa-aa\".raw_rand)")
+
 
 suite "Record Type Tests":
   setup:

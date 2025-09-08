@@ -878,15 +878,19 @@ proc `%`*[T](arr: seq[T]): CandidRecord =
   ## 配列をCandidRecordに変換
   var candidArray = CandidRecord(kind: ckArray, elems: @[])
   for item in arr:
-    candidArray.elems.add(%item)
+    candidArray.elems.add(%(item))
   candidArray
 
 proc `%`*[I, T](arr: array[I, T]): CandidRecord =
   ## 固定長配列をCandidRecordに変換
   var candidArray = CandidRecord(kind: ckArray, elems: @[])
   for item in arr:
-    candidArray.elems.add(%item)
+    candidArray.elems.add(%(item))
   candidArray
+
+proc `%`*(tup: (string, string)): CandidRecord =
+  ## (string, string)タプルをCandidRecordに変換
+  CandidRecord(kind: ckArray, elems: @[%tup[0], %tup[1]])
 
 proc `%`*(table: openArray[(string, CandidRecord)]): CandidRecord =
   ## テーブル（レコード）をCandidRecordに変換
@@ -1082,3 +1086,100 @@ proc `%`*[T: enum](enumValue: T): CandidRecord =
   let enumStr = $enumValue
   let variant = CandidVariant(tag: candidHash(enumStr), value: newCandidNull())
   CandidRecord(kind: ckVariant, variantVal: variant)
+
+# ===== 独自型（object、tuple）の再帰的変換 =====
+
+proc `%`*(value: object): CandidRecord =
+  ## Object型をCandidRecordに再帰的に変換
+  ## 各フィールドを再帰的に%演算子で変換してRecordに格納
+  var record = CandidRecord(kind: ckRecord, fields: initOrderedTable[string, CandidValue]())
+  for key, fieldValue in value.fieldPairs:
+    let candidValue = when fieldValue is bool:
+      recordToCandidValue(%fieldValue)
+    elif fieldValue is SomeInteger:
+      recordToCandidValue(%fieldValue)
+    elif fieldValue is SomeFloat:
+      recordToCandidValue(%fieldValue)
+    elif fieldValue is string:
+      recordToCandidValue(%fieldValue)
+    elif fieldValue is seq[uint8]:
+      recordToCandidValue(%fieldValue)
+    elif fieldValue is Principal:
+      recordToCandidValue(%fieldValue)
+    elif fieldValue is enum:
+      recordToCandidValue(%fieldValue)
+    elif fieldValue is Option:
+      recordToCandidValue(%fieldValue)
+    elif fieldValue is seq:
+      recordToCandidValue(%fieldValue)
+    elif fieldValue is array:
+      recordToCandidValue(%fieldValue)
+    elif fieldValue is object:
+      recordToCandidValue(%fieldValue)
+    elif fieldValue is ref object:
+      recordToCandidValue(%fieldValue)
+    elif fieldValue is tuple:
+      recordToCandidValue(%fieldValue)
+    else:
+      # 未知の型は文字列として変換
+      recordToCandidValue(%($fieldValue))
+    
+    # フィールドのバリデーション
+    validateRecordFieldType(candidValue, key)
+    record.fields[key] = candidValue
+  record
+
+proc `%`*(value: ref object): CandidRecord =
+  ## ref object型をCandidRecordに再帰的に変換
+  ## nilチェックを行い、nilでない場合は参照先を変換
+  if value.isNil:
+    CandidRecord(kind: ckNull)
+  else:
+    %value[]
+
+proc `%`*[T: tuple](value: T): CandidRecord =
+  ## Tuple型をCandidRecord配列として変換
+  ## 名前付きタプルも含めて、すべて配列として処理
+  ## 名前付きタプルをRecordとして変換したい場合は toRecord マクロを使用
+  var candidArray = CandidRecord(kind: ckArray, elems: @[])
+  for fieldValue in value.fields:
+    candidArray.elems.add(%fieldValue)
+  candidArray
+
+# ===== 名前付きタプル専用変換マクロ =====
+
+macro toRecord*(value: typed): CandidRecord =
+  ## 名前付きタプルを明示的にRecordに変換するマクロ
+  ## 使用例: (name: "Bob", score: 95).toRecord
+  let valueType = value.getType()
+  
+  if valueType.typeKind == ntyTuple:
+    let typeInst = valueType.getTypeInst()
+    
+    if typeInst.kind == nnkTupleTy:
+      let recordVar = genSym(nskVar, "record")
+      var stmts = newStmtList()
+      
+      stmts.add quote do:
+        var `recordVar` = CandidRecord(kind: ckRecord, fields: initOrderedTable[string, CandidValue]())
+      
+      for i in 0..<typeInst.len:
+        let field = typeInst[i]
+        if field.kind == nnkIdentDefs and (field[0].kind == nnkIdent or field[0].kind == nnkSym):
+          let fieldName = field[0].strVal
+          let fieldAccess = newDotExpr(value, newIdentNode(fieldName))
+          
+          stmts.add quote do:
+            let candidValue = recordToCandidValue(%`fieldAccess`)
+            validateRecordFieldType(candidValue, `fieldName`)
+            `recordVar`.fields[`fieldName`] = candidValue
+      
+      stmts.add recordVar
+      result = newBlockStmt(stmts)
+    else:
+      # タプル型でない場合はエラー
+      result = quote do:
+        raise newException(ValueError, "toRecord can only be used with named tuples")
+  else:
+    result = quote do:
+      raise newException(ValueError, "toRecord can only be used with tuples")

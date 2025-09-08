@@ -20,7 +20,7 @@ wasi2icのツール
 https://github.com/wasm-forge/wasi2ic
 
 Candidのバイト列をデコードするツール  
-https://fxa77-fiaaa-aaaae-aaana-cai.raw.icp0.io/
+https://fxa77-fiaaa-aaaae-aaana-cai.raw.icp0.io/explain
 
 Candid型定義  
 https://github.com/dfinity/candid/blob/master/spec/Candid.md#types
@@ -134,11 +134,42 @@ dfx.json
 - `dfx deploy arg_msg_reply_backend`
 - 実行 `dfx canister call --query arg_msg_reply_backend greet '("world")'`
 
+### Candid encodeされたレスポンスの取得
 
+キャニスターをcallする際に`--output raw`オプションを付けることで、レスポンスをCandid encodeされたバイト列として取得できます：
 
+```bash
+# 通常の実行（デコードされた結果）
+dfx canister call http_outcall_args_motoko_backend httpRequestArgs
 
+# Candid encodeされたバイト列で取得
+dfx canister call http_outcall_args_motoko_backend httpRequestArgs --output raw
+```
 
+**出力例**:
+```bash
+# 通常の実行結果
+(
+  record {
+    url = "https://api.exchange.coinbase.com/products/ICP-USD/candles?start=1682978460&end=1682978460&granularity=60";
+    method = variant { get };
+    max_response_bytes = null;
+    body = null;
+    transform = null;
+    headers = vec { record { value = "price-feed"; name = "User-Agent" } };
+    is_replicated = opt false;
+  },
+)
 
+# --output raw での実行結果
+4449444c0d6c07efd6e40271e1edeb4a07e8d6d8930106a2f5ed880401ecdaccac0408c6a4a198060390f8f6fc09056e026d7b6d046c02f1fee18d0371cbe4fdc704716e7e6e7d6b079681ba027fcfc5d5027fa0d2aca8047fe088f2d2047fab80e3d6067fc88ddcea0b7fdee6f8ff0d7f6e096c0298d6caa2010aefabdecb01026a010b010c01016c02efabdecb010281ddb2900a0c6c03b2ceef2f7da2f5ed880402c6a4a198060301006968747470733a2f2f6170692e65786368616e67652e636f696e626173652e636f6d2f70726f64756374732f4943502d5553442f63616e646c65733f73746172743d3136383239373834363026656e643d31363832393738343630266772616e756c61726974793d363000000000010a70726963652d666565640a557365722d4167656e740100
+```
+
+**用途**:
+- **デバッグ**: Candid形式の正確性を検証
+- **型変換テスト**: Nim実装でのCandidRecord変換の検証
+- **IC Management Canister通信**: HTTP Outcall等での正確なメッセージ形式確認
+- **開発支援**: 異なる言語間での型システム一貫性確認
 
 
 ---

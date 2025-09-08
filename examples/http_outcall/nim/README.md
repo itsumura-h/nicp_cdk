@@ -1,10 +1,10 @@
-# `t_ecdsa`
+# `nim`
 
-Welcome to your new `t_ecdsa` project and to the Internet Computer development community. By default, creating a new project adds this README and some template files to your project directory. You can edit these template files to customize your project and to include your own code to speed up the development cycle.
+Welcome to your new `nim` project and to the Internet Computer development community. By default, creating a new project adds this README and some template files to your project directory. You can edit these template files to customize your project and to include your own code to speed up the development cycle.
 
 To get started, you might want to explore the project directory structure and the default configuration file. Working with this project in your development environment will not affect any production deployment or identity tokens.
 
-To learn more before you start working with `t_ecdsa`, see the following documentation available online:
+To learn more before you start working with `nim`, see the following documentation available online:
 
 - [Quick Start](https://internetcomputer.org/docs/current/developer-docs/setup/deploy-locally)
 - [SDK Developer Tools](https://internetcomputer.org/docs/current/developer-docs/setup/install)
@@ -14,59 +14,10 @@ To learn more before you start working with `t_ecdsa`, see the following documen
 If you want to start working on your project right away, you might want to try the following commands:
 
 ```bash
-cd t_ecdsa/
+cd nim/
 dfx help
 dfx canister --help
 ```
-
-## ECDSA Signature Verification
-
-This project includes ECDSA signature verification functionality using secp256k1. The following functions are available:
-
-### Available Functions
-
-1. **`getNewPublicKey()`** - Get a new ECDSA public key for the caller
-2. **`getPublicKey()`** - Get the stored public key for the caller
-3. **`signMessage(text)`** - Sign a message using ECDSA
-4. **`verifySignature(ethereumAddress, message, signature, publicKey)`** - Verify ECDSA signature with Ethereum address
-5. **`verifyWithHash(publicKey, messageHash, signature)`** - Verify ECDSA signature with pre-hashed message
-6. **`verifyWithPublicKey(publicKey, message, signature)`** - Verify ECDSA signature with public key and message
-
-### Usage Examples
-
-#### Verify with Ethereum Address
-```bash
-dfx canister call t_ecdsa verifySignature '("0x742d35Cc6634C0532925a3b8D4C9db96C4b4d8b6", "Hello World", "0x1234...", "0x02...")'
-```
-
-#### Verify with Public Key
-```bash
-dfx canister call t_ecdsa verifyWithPublicKey '("0x02...", "Hello World", "0x1234...")'
-```
-
-#### Verify with Pre-hashed Message
-```bash
-dfx canister call t_ecdsa verifyWithHash '("0x02...", "0x1234...", "0x5678...")'
-```
-
-### Implementation Details
-
-The verification uses:
-- **secp256k1** for ECDSA signature verification
-- **Keccak-256** for message hashing (Ethereum standard)
-- **nimcrypto** for cryptographic operations
-- **status-im/nim-secp256k1** wrapper for secp256k1 operations
-
-### Signature Format
-
-Signatures should be provided in hex format:
-- **64 bytes**: `0x` + 128 hex characters (r + s)
-- **65 bytes**: `0x` + 130 hex characters (r + s + v)
-
-### Public Key Format
-
-Public keys should be provided in compressed format:
-- **33 bytes**: `0x02` or `0x03` + 32 bytes of key data
 
 ## Running the project locally
 

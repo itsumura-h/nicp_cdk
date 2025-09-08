@@ -57,7 +57,6 @@ proc getTypeSignature(typeDesc: TypeDescriptor): string =
     result = $typeDesc.kind
 
 
-
 proc inferTypeDescriptor(value: CandidValue): TypeDescriptor =
   ## Infers type descriptor from CandidValue
   result = TypeDescriptor(kind: value.kind)
