@@ -3,7 +3,7 @@ import Nat64 "mo:base/Nat64";
 import Text "mo:base/Text";
 
 //Actor
-actor {
+persistent actor {
   // 型定義をactor内で定義
   type HttpHeader = {
     name : Text;

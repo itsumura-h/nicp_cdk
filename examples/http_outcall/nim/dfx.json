@@ -1,10 +1,10 @@
 {
   "canisters": {
-    "http_outcall_backend": {
-      "candid": "http_outcall.did",
-      "package": "http_outcall_backend",
+    "nim_backend": {
+      "candid": "nim.did",
+      "package": "nim_backend",
       "build": "build.sh",
-      "main": "src/http_outcall_backend/main.nim",
+      "main": "src/nim_backend/main.nim",
       "wasm": "main.wasm",
       "type": "custom",
       "metadata": [
@@ -19,10 +19,6 @@
       "args": "",
       "packtool": ""
     },
-    "canister_http": {
-      "enabled": true,
-      "log_level": "debug"
-    },
     "replica": {
       "subnet_type": "system"
     }
@@ -32,10 +28,7 @@
   "networks": {
     "local": {
       "bind": "127.0.0.1:4943",
-      "type": "ephemeral",
-      "canister_http": {
-        "enabled": true
-      }
+      "type": "ephemeral"
     }
   }
 }
