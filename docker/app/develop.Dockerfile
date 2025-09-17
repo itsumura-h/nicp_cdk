@@ -34,16 +34,16 @@ FROM ubuntu:24.04 AS app
 ENV DEBIAN_FRONTEND=noninteractive
 
 RUN apt update && \
-    apt upgrade -y && \
-    apt install -y \
-    build-essential \
-    libunwind-dev \
-    xz-utils \
-    ca-certificates \
-    vim \
-    wget \
-    curl \
-    git
+    apt upgrade -y
+RUN apt install -y \
+        build-essential \
+        libunwind-dev \
+        xz-utils \
+        ca-certificates \
+        vim \
+        wget \
+        curl \
+        git
 
 # LLVM
 # reference: https://github.com/ICPorts-labs/chico/blob/main/examples/HelloWorld/Dockerfile#L32
@@ -97,14 +97,20 @@ RUN mv nimlangserver /root/.nimble/bin/
 # node
 # https://nodejs.org/en/download/prebuilt-binaries
 WORKDIR /root
-ARG NODE_VERSION=22.18.0
+ARG NODE_VERSION=22.19.0
 RUN curl -OL https://nodejs.org/dist/v${NODE_VERSION}/node-v${NODE_VERSION}-linux-x64.tar.xz
 RUN tar -xvf node-v${NODE_VERSION}-linux-x64.tar.xz
 RUN rm node-v${NODE_VERSION}-linux-x64.tar.xz
 RUN mv node-v${NODE_VERSION}-linux-x64 .node
 ENV PATH $PATH:/root/.node/bin
+
 # pnpm
 RUN curl -fsSL https://get.pnpm.io/install.sh | bash -s -- -y
+
+# foundry
+RUN curl -L https://foundry.paradigm.xyz | bash
+ENV PATH=$PATH:/root/.foundry/bin
+RUN foundryup
 
 # copy from wasi-tools
 WORKDIR /root
