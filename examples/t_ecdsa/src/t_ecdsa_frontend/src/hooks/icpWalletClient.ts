@@ -19,6 +19,7 @@ import {
   type WalletClient,
   createWalletClient,
   getAddress,
+  http,
 } from 'viem';
 import { toAccount } from 'viem/accounts';
 
@@ -118,41 +119,20 @@ export type IcpWalletClient = WalletClient;
 export interface CreateIcpWalletOptions {
   authClient: AuthClient;
   chain: Chain;
-  transport: Transport;
-}
-
-export interface CreateIcpWalletResult {
-  walletClient: IcpWalletClient;
-  principal: string;
-  address: Address;
-}
-
-export async function createIcpWallet({
-  authClient,
-  chain,
-  transport,
-}: CreateIcpWalletOptions): Promise<CreateIcpWalletResult> {
-  if (!(await authClient.isAuthenticated())) {
-    throw new Error('Auth client must be authenticated before creating wallet client.');
-  }
-
-  const account = await toIcpAccount(authClient);
-  const walletClient = createWalletClient({
-    account,
-    chain,
-    transport,
-  });
-
-  const principal = authClient.getIdentity().getPrincipal().toString();
-
-  return {
-    walletClient,
-    principal,
-    address: account.address,
-  };
+  transport?: Transport | undefined;
 }
 
 export async function createIcpWalletClient(options: CreateIcpWalletOptions): Promise<IcpWalletClient> {
-  const { walletClient } = await createIcpWallet(options);
+  if (!(await options.authClient.isAuthenticated())) {
+    throw new Error('Auth client must be authenticated before creating wallet client.');
+  }
+
+  const account = await toIcpAccount(options.authClient);
+  const walletClient = createWalletClient({
+    account,
+    chain: options.chain,
+    transport: options.transport ?? http(), // transportがundefinedまたは未指定の場合はダミー値を使用
+  });
+
   return walletClient;
 }

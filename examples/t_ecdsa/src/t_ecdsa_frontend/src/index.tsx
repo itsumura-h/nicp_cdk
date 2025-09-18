@@ -1,15 +1,14 @@
 import { hydrate, prerender as ssr } from 'preact-iso';
 import { useState, useEffect } from 'preact/hooks';
-import { Address, createPublicClient, http } from 'viem';
-import { mainnet } from 'viem/chains';
+import {
+	type LocalAccount,
+	Address,
+	verifyMessage,
+	http
+} from 'viem';
+import { anvil } from 'viem/chains';
 import { useIcpAuth } from './hooks/icpAuth';
 import { createIcpWalletClient, type IcpWalletClient } from './hooks/icpWalletClient';
-
-const transport = http();
-const publicClient = createPublicClient({
-	chain: mainnet,
-	transport,
-});
 
 export function App() {
 	const { authClient, isAuthenticated, isLoading, principal, login, logout } = useIcpAuth();
@@ -29,24 +28,22 @@ export function App() {
 		let cancelled = false;
 
 		(async () => {
-			try {
-				const client = await createIcpWalletClient({
-					authClient,
-					chain: mainnet,
-					transport,
-				});
-				if (cancelled) {
-					return;
-				}
-				setWalletClient(client);
-				const resolvedAddress: Address | null = client.account?.address ?? null;
-				if (!resolvedAddress) {
-					console.error('Failed to resolve account address from wallet client. Wallet client からアカウントアドレスを取得できませんでした。');
-				}
-				setAccountAddress(resolvedAddress);
+		try {
+			// ICPキャニスター経由で署名を行うLocalAccountを直接作成
+			const walletClient = await createIcpWalletClient({
+				authClient,
+				chain: anvil,
+				transport: http('http://anvil:8545'),
+			});
+			setWalletClient(walletClient);
+			if (cancelled) {
+				return;
+			}
+			setAccountAddress(walletClient.account.address);
+			console.log('ICP Account created successfully:', walletClient.account.address);
 			} catch (error) {
 				if (!cancelled) {
-					console.error('Failed to create ICP wallet client:', error);
+					console.error('Failed to create ICP account:', error);
 					setWalletClient(null);
 					setAccountAddress(null);
 				}
@@ -77,12 +74,14 @@ export function App() {
 		}
 
 		try {
+			// LocalAccountのsignMessage関数を直接呼び出し（RPC不要）
 			const signed = await walletClient.signMessage({
-				account: accountAddress,
+				account: walletClient.account,
 				message,
 			});
 			setSignature(signed);
-			const verified = await publicClient.verifyMessage({
+			// クライアント側で署名検証
+			const verified = await verifyMessage({
 				address: accountAddress,
 				message,
 				signature: signed,
