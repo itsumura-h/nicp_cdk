@@ -43,7 +43,8 @@ RUN apt install -y \
         vim \
         wget \
         curl \
-        git
+        git \
+        jq
 
 # LLVM
 # reference: https://github.com/ICPorts-labs/chico/blob/main/examples/HelloWorld/Dockerfile#L32

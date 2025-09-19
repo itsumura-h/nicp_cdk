@@ -87,6 +87,7 @@ nim c -r tests/test_call_solidity.nim
 - [x] t_ecdsa例のログインエラー修正（resolveAddress関数のgetNewPublicKey/getEvmAddress呼び出し順序修正）
 - [ ] Nimテストハーネス（Anvil/dfx起動→TSテスト実行→検証）
 - [ ] CI/ローカル実行手順の整備
+- [x] EIP-1193 プロバイダ設計／ドキュメント作成（/application/docs/ja/refarence/eip1193_icp_canister_wallet.md）
 
 ## 参考資料
 - Viem: https://viem.sh/docs/accounts/custom

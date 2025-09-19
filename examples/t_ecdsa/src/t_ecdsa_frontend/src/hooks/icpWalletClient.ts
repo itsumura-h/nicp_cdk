@@ -1,9 +1,3 @@
-import { AuthClient } from '@dfinity/auth-client';
-import {
-  canisterId as tEcdsaBackendCanisterId,
-  createActor as createTEcdsaBackendActor,
-} from '../../../declarations/t_ecdsa_backend';
-import type { _SERVICE as TEcdsaBackendService } from '../../../declarations/t_ecdsa_backend/t_ecdsa_backend.did';
 import {
   type Address,
   type Chain,
@@ -12,16 +6,31 @@ import {
   type RpcSchema,
   type SerializeTransactionFn,
   type SignableMessage,
+  type Signature,
   type TransactionSerializable,
   type Transport,
   type TypedData,
   type TypedDataDefinition,
   type WalletClient,
   createWalletClient,
+  fromBytes,
   getAddress,
   http,
+  keccak256,
+  serializeTransaction,
+  hashMessage,
+  hashTypedData,
+  serializeSignature,
+  hexToBytes,
 } from 'viem';
 import { toAccount } from 'viem/accounts';
+import { AuthClient } from '@dfinity/auth-client';
+import { Bytes } from './Bytes';
+import {
+  canisterId as tEcdsaBackendCanisterId,
+  createActor as createTEcdsaBackendActor,
+} from '../../../declarations/t_ecdsa_backend';
+import type { _SERVICE as TEcdsaBackendService } from '../../../declarations/t_ecdsa_backend/t_ecdsa_backend.did';
 
 const createBackendActor = (authClient: AuthClient): TEcdsaBackendService => {
   const identity = authClient.getIdentity();
@@ -82,19 +91,61 @@ const toIcpAccount = async (authClient: AuthClient): Promise<LocalAccount> => {
     message: SignableMessage;
   }): Promise<Hex> => {
     const normalisedMessage = normaliseSignableMessage(message);
+    
     const signature = await actor.signWithEthereum(normalisedMessage);
     return signature as Hex;
   };
 
-  const signTransaction = async <
+  const signTransaction = async<
     TTransactionSerializable extends TransactionSerializable,
   >(
-    _transaction: TTransactionSerializable,
-    _args?: {
+    transaction: TTransactionSerializable,
+    args?: {
       serializer?: SerializeTransactionFn<TTransactionSerializable>;
-    },
+    }
   ): Promise<Hex> => {
-    throw new Error('Transaction signing is not supported yet for ICP wallet.');
+    if (!args?.serializer) {
+      return signTransaction(transaction, {
+        serializer: serializeTransaction,
+      });
+    }
+    const serialized = args.serializer(transaction);
+    const hash = keccak256(serialized);
+    const hashBytes = hexToBytes(hash);
+    const signature = await actor.signWithEvmWallet(hashBytes);
+
+    // 署名が文字列として返される場合、それをr,s,vに分解する
+    if (typeof signature === 'string') {
+      const sigHex = signature.startsWith('0x') ? signature.slice(2) : signature;
+      
+      // 署名は65バイト (130文字) である必要がある
+      if (sigHex.length !== 130) {
+        throw new Error(`Invalid signature length: ${sigHex.length}, expected 130`);
+      }
+      
+      const r = '0x' + sigHex.slice(0, 64);
+      const s = '0x' + sigHex.slice(64, 128);
+      const v = parseInt(sigHex.slice(128, 130), 16);
+      
+      console.log('Parsed signature - r:', r, 's:', s, 'v:', v);
+      
+      const sig: Signature = {
+        r: r as Hex,
+        s: s as Hex,
+        v: BigInt(v),
+      };
+      
+      return args.serializer(transaction, sig);
+    }
+    
+    // 署名がオブジェクトの場合の処理
+    const sig: Signature = {
+      r: signature.r ? fromBytes(signature.r.asUint8Array || signature.r, 'hex') : '0x0',
+      s: signature.s ? fromBytes(signature.s.asUint8Array || signature.s, 'hex') : '0x0', 
+      v: BigInt(signature.v || 0),
+    };
+    
+    return args.serializer(transaction, sig);
   };
 
   const signTypedData = async <
@@ -114,15 +165,13 @@ const toIcpAccount = async (authClient: AuthClient): Promise<LocalAccount> => {
   });
 };
 
-export type IcpWalletClient = WalletClient;
-
 export interface CreateIcpWalletOptions {
   authClient: AuthClient;
   chain: Chain;
   transport?: Transport | undefined;
 }
 
-export async function createIcpWalletClient(options: CreateIcpWalletOptions): Promise<IcpWalletClient> {
+export async function createIcpWalletClient(options: CreateIcpWalletOptions): Promise<WalletClient> {
   if (!(await options.authClient.isAuthenticated())) {
     throw new Error('Auth client must be authenticated before creating wallet client.');
   }
@@ -136,3 +185,5 @@ export async function createIcpWalletClient(options: CreateIcpWalletOptions): Pr
 
   return walletClient;
 }
+
+export type IcpWalletClient = WalletClient;

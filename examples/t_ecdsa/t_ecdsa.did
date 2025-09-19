@@ -18,5 +18,5 @@ service : {
       ethereumAddress:text;
     }
   ) -> (bool);
-  "testSecp256k1": () -> (bool);
+  "signWithEvmWallet": (blob) -> (text);
 };

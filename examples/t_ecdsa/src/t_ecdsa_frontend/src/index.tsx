@@ -4,11 +4,14 @@ import {
 	type LocalAccount,
 	Address,
 	verifyMessage,
-	http
+	http,
 } from 'viem';
 import { anvil } from 'viem/chains';
 import { useIcpAuth } from './hooks/icpAuth';
 import { createIcpWalletClient, type IcpWalletClient } from './hooks/icpWalletClient';
+import { useCounterContract } from './hooks/useCounterContract';
+import { publicClient } from './hooks/client';
+import counterAbi from '../../../../../solidity/out/Counter.sol/Counter.json';
 
 export function App() {
 	const { authClient, isAuthenticated, isLoading, principal, login, logout } = useIcpAuth();
@@ -17,6 +20,10 @@ export function App() {
 	const [message, setMessage] = useState<string>('hello world');
 	const [signature, setSignature] = useState<string | null>(null);
 	const [isValid, setIsValid] = useState<boolean | null>(null);
+	const [counterValue, setCounterValue] = useState<bigint | null>(null);
+	
+	// カスタムフックでcounterContractを管理
+	const { counterContract, contractAddress } = useCounterContract();
 
 	useEffect(() => {
 		if (!authClient || !isAuthenticated) {
@@ -33,7 +40,7 @@ export function App() {
 			const walletClient = await createIcpWalletClient({
 				authClient,
 				chain: anvil,
-				transport: http('http://anvil:8545'),
+				transport: http('http://localhost:8545'),
 			});
 			setWalletClient(walletClient);
 			if (cancelled) {
@@ -94,6 +101,39 @@ export function App() {
 		}
 	};
 
+	const readCounterValue = async () => {
+		try {
+			const value = await publicClient.readContract({
+				address: contractAddress,
+				abi: counterAbi.abi,
+				functionName: 'number',
+			});
+			setCounterValue(value as bigint);
+		} catch (error) {
+			console.error('Failed to read counter value:', error);
+			setCounterValue(null);
+		}
+	};
+
+	const handleIncrement = async () => {
+		if (!walletClient || !contractAddress) {
+			return;
+		}
+		try {
+			await walletClient.writeContract({
+				address: contractAddress as Address,
+				chain: anvil,
+				account: walletClient.account,
+				abi: counterAbi.abi,
+				functionName: 'increment',
+			});
+			// インクリメント後にカウンター値を再読み込み
+			await readCounterValue();
+		} catch (error) {
+			console.error('Failed to increment counter:', error);
+		}
+	};
+
 	return (
 		<main>
 			<article>
@@ -106,6 +146,8 @@ export function App() {
 					<>
 						<p>Principal: {principal}</p>
 						<p>Account Address: {accountAddress}</p>
+						<p>Counter Contract: {contractAddress}</p>
+						<p>Contract Ready: {counterContract ? 'Yes' : 'No'}</p>
 					</>
 				)}
 				<hr />
@@ -120,7 +162,15 @@ export function App() {
 				</button>
 				<p>Signature: {signature}</p>
 				<p>isValid: {isValid !== null ? isValid.toString() : 'Not verified yet'}</p>
-		</article>
+				<hr />
+				<button onClick={readCounterValue} disabled={!contractAddress}>
+					Read Counter
+				</button>
+				<button onClick={handleIncrement} disabled={!walletClient || !contractAddress}>
+					Increment
+				</button>
+				<p>Counter: {counterValue !== null ? counterValue.toString() : 'Not read yet'}</p>
+			</article>
 		</main>
 	);
 }
