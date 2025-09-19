@@ -183,3 +183,44 @@ proc verifyWithEthereum*(message: string, signature: string, ethereumAddress: st
   
   # Verify the Ethereum signature using EIP-191 message hashing
   return ethereum.verifyEthereumSignatureWithAddress(ethereumAddress, message, signature)
+
+
+proc signWithEvmWallet*(caller: Principal, message: seq[uint8]): Future[string] {.async.} =
+  ## Signs a message using the EVM wallet.
+  ## 
+  ## This function receives a byte array that has already been converted to EIP-191 format
+  ## ("\x19Ethereum Signed Message:\n" + message length + message) and hashed with keccak256
+  ## on the TypeScript side. Therefore, it directly sends the pre-hashed message to the
+  ## ICP Management Canister for signing and converts the result to Ethereum format (65 bytes, r+s+v).
+  ## 
+  ## Parameters:
+  ## - caller: The Principal ID of the caller.
+  ## - message: Pre-hashed message in EIP-191 format (32 bytes).
+  ## 
+  ## Returns:
+  ## - Ethereum-formatted signature (65 bytes, 0x-prefixed) as a hexadecimal string.
+  let arg = EcdsaSignArgs(
+    message_hash: message,
+    derivation_path: @[caller.bytes],
+    key_id: EcdsaKeyId(
+      curve: EcdsaCurve.secp256k1,
+      name: "dfx_test_key"
+    )
+  )
+
+  # Generate the signature using the ICP Management Canister
+  let signResult = await ManagementCanister.sign(arg)
+  
+  # Retrieve the public key (needed for Recovery ID calculation)
+  let publicKeyBytes = database.getPublicKey(caller)
+  if publicKeyBytes.len == 0:
+    raise newException(Exception, "Public key not found for caller")
+  
+  # Convert ICP signature (64 bytes r+s) to Ethereum format (65 bytes r+s+v)
+  let ethereumSignature = ethereum.convertIcpSignatureToEthereum(
+    signResult.signature,
+    message,
+    publicKeyBytes
+  )
+  
+  return ethereumSignature

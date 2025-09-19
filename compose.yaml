@@ -1,4 +1,12 @@
 services:
+  anvil:
+    build:
+      context: .
+      dockerfile: ./docker/anvil/Dockerfile
+    tty: true
+    ports:
+      - 8545:8545
+
   app:
     build:
       context: .

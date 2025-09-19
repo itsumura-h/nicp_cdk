@@ -93,3 +93,18 @@ proc verifyWithEthereum*() =
   except Exception as e:
     echo "Error in verifyWithEthereum: ", e.msg
     reject("Failed to verify with Ethereum: " & e.msg)
+
+
+proc signWithEvmWallet*() {.async.} =
+  let request = Request.new()
+  let message = request.getBlob(0)
+  let caller = Msg.caller()
+
+  discard await usecase.getNewPublicKey(caller)
+  
+  try:
+    let signature = await usecase.signWithEvmWallet(caller, message)
+    reply(signature)
+  except Exception as e:
+    echo "Error in signWithEvmWallet: ", e.msg
+    reject("Failed to sign with EVM wallet: " & e.msg)

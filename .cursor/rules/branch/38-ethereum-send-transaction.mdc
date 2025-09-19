@@ -1,0 +1,394 @@
+---
+description: 38-ethereum-send-transactionブランチでの開発時に読み込む
+alwaysApply: false
+---
+38-ethereum-send-transaction
+===
+
+このブランチで実装することは以下の通りです。
+- ICPのキャニスター（tECDSA）でsecp256k1署名を行い、Viem互換インターフェースのTSアカウントからEVMトランザクション送信
+- `examples/call_solidity` に TypeScript 実装（Viem互換サインナー: `wallet/icpViem.ts`）を追加
+- 署名用Canister APIの拡張（トランザクションハッシュの署名とEthereum形式への変換）
+- `solidity/src/Counter.sol` に対して `setNumber`/`increment` を送信するe2eテストの作成（TS）
+- Nim製テストハーネスからTSテストを起動・検証できるようにする
+
+## デバッグ用実行コマンド
+```
+# 1) Anvil 起動（compose.yamlで既に起動済み）
+# docker compose up -d anvil
+# Anvilは http://anvil:8545 でアクセス可能（コンテナ間通信）
+# ホストからは http://localhost:8545
+# 注意: 現在Anvilが起動していない場合は手動起動が必要
+
+# 2) ICPローカル起動（run.shで既に起動済み）
+# dfx start --clean --background --host 0.0.0.0:4943 --domain localhost --domain 0.0.0.0
+# 必要に応じて: ./run.sh
+# 現在の状態: dfx ping で健全性確認済み
+
+# 3) call_solidity_backend キャニスターのデプロイ
+cd /application/examples/call_solidity
+dfx deploy -y
+
+# 4) 共有ライブラリのビルド
+cd /application/src/shared/typescript
+pnpm install && pnpm run build
+
+# 5) 実環境統合テストの実行（ESModule対応済み）
+cd /application/examples/call_solidity/src/call_solidity_frontend
+pnpm test:integration
+
+# 6) 全テストの実行（共有ライブラリ動作確認含む）
+pnpm test
+
+# 7) Nimテストハーネスから実行（最終目標）
+cd /application
+nim c -r tests/test_call_solidity.nim
+```
+
+## 進捗
+- [x] 既存リポ構成の把握（Solidity Counter, t_ecdsa, call_solidity）
+- [x] 方針策定：ICP署名→Viem互換アカウント→Counter操作→Nimでテスト駆動
+- [ ] Canister API 拡張案の実装（ハッシュ署名・rsv生成）
+- [x] Viem互換サインナー（TSモジュール）作成
+  - [x] IcpWalletClient.tsの実装完了（署名機能、型安全性対応）
+  - [x] lintエラー修正（ActorSubclass型、署名形式のr,s,v変換）
+  - [x] icpViem.tsラッパーの実装完了（クライアント管理、初期化処理）
+- [x] 共有ライブラリ化（tECDSA呼び出しViem互換ラッパーの共通化）
+  - [x] `/application/src/shared/typescript/` に共有ライブラリ配置
+  - [x] ジェネリック版IcpWalletClientの実装（キャニスター依存を除去）
+  - [x] pnpmワークスペース設定による依存関係管理
+  - [x] `examples/call_solidity` での共有ライブラリ使用への移行
+  - [x] 型安全性を保持した再利用可能な設計
+  - [x] 動作確認テスト完了
+- [x] フロントエンドのdfx deploy対応完了
+  - [x] distディレクトリとindex.htmlの作成
+  - [x] package.jsonのビルドスクリプト設定
+  - [x] TypeScript設定とtsconfig.json作成
+  - [x] 依存関係のインストールと設定
+  - [x] dfx deploy -y の正常動作確認
+- [x] Counterデプロイ・操作のTS e2eテスト実装
+  - [x] counter.icp.test.tsの作成（setNumber/increment テスト）
+  - [x] Foundryブロードキャスト成果物からのアドレス取得
+  - [x] Viem互換インターフェースでの署名・送信処理
+  - [x] Jest形式への変換とlintエラー修正
+  - [x] Jest設定ファイル（jest.config.js, jest.setup.js）の作成
+  - [x] pnpmでのJest依存関係追加とテストスクリプト設定
+  - [x] ESModule問題によりモック化テスト（basic.test.ts, counter.mock.test.ts）で動作確認
+- [x] 実環境統合テストの実装（モック化解除）
+  - [x] ESModule対応のJest設定構築（experimental-vm-modules使用）
+  - [x] Counter.solのAnvilデプロイ自動化（counter.integration.test.ts内）
+  - [x] ICPキャニスター（call_solidity_backend）との実連携テスト実装
+  - [x] 実際のtECDSA署名を使用したトランザクション送信テスト実装
+  - [x] エラーハンドリングと例外ケースのテスト実装
+  - [x] 統合テストファイル完成（counter.integration.test.ts）
+  - [x] 基本テスト動作確認（basic.test.ts）
+  - [x] ESModule制約によりモック使用テストは制限あり
+  - [x] 実環境（Anvil + ICP）でのテスト実行（環境起動が必要）
+- [x] t_ecdsa例のログインエラー修正（resolveAddress関数のgetNewPublicKey/getEvmAddress呼び出し順序修正）
+- [ ] Nimテストハーネス（Anvil/dfx起動→TSテスト実行→検証）
+- [ ] CI/ローカル実行手順の整備
+- [x] EIP-1193 プロバイダ設計／ドキュメント作成（/application/docs/ja/refarence/eip1193_icp_canister_wallet.md）
+
+## 参考資料
+- Viem: https://viem.sh/docs/accounts/custom
+- IC Management Canister ECDSA: https://internetcomputer.org/docs/current/references/ic-interface-spec/#ic-ecdsa_public_key
+- 既存ECDSA実装: `src/nicp_cdk/algorithm/{ecdsa,ethereum,hex_bytes}.nim`
+- t_ecdsa 実装例: `examples/t_ecdsa/src/t_ecdsa_backend/{controller.nim,usecase.nim}`
+- Counter: `solidity/src/Counter.sol`
+- Foundryデプロイ: `solidity/script/Counter/deployCounter.sh`
+- compose: `compose.yaml`（anvil:8545公開）
+
+## 調査結果・設計まとめ
+```
+[アーキテクチャ]
+ICP(tECDSA)で署名→TSのViem互換アカウントでr,s,vを使用してトランザクションを生成→Anvilへブロードキャスト→Counter呼び出し→読み出し検証。最上位のテストドライバはNimが担当（外部プロセス起動と終了管理）。
+
+[実環境統合テスト実装方針]
+ESModule問題の解決とモック化解除により、実際のICPキャニスターとAnvilを使用したe2eテストを実装する。
+
+1. Jest ESModule対応:
+   - Node.js v20+ の experimental-vm-modules フラグを使用
+   - jest.config.js で preset: 'ts-jest/presets/default-esm' を設定
+   - package.json に "type": "module" を追加（フロントエンドのみ）
+   - transformIgnorePatterns で @dfinity, viem パッケージを変換対象に含める
+
+2. Counter.sol デプロイ自動化:
+   - テスト開始時にAnvilの状態を確認
+   - 未デプロイの場合は Foundry script で自動デプロイ
+   - ブロードキャスト成果物からコントラクトアドレスを動的取得
+
+3. ICP実連携テスト:
+   - call_solidity_backend キャニスターが起動済みであることを前提
+   - Internet Identity による認証フローをテスト環境で実行
+   - 実際の tECDSA 署名を使用してトランザクション署名・送信
+
+4. テスト構成:
+   - counter.integration.test.ts: 実環境統合テスト
+   - 環境変数による設定（ANVIL_URL, CANISTER_ID等）
+   - テストタイムアウト延長（60秒）
+   - 適切なクリーンアップ処理
+
+5. エラーハンドリング:
+   - ネットワーク接続エラー
+   - キャニスター呼び出し失敗
+   - トランザクション失敗時の適切なエラーメッセージ
+   - ガス不足、nonce問題等のEthereum固有エラー
+
+[Canister API 拡張]
+目的：メッセージ署名(EIP-191)に加え、トランザクション（既にハッシュ済み32byte）の署名を行い、ICP側でEthereumのr+s+v(65byte)形式に完全変換してから返す。
+- signTxHashWithEthereum(hashHex: text) -> text
+  - 入力: 0xプレフィックス付き32byteハッシュ
+  - 出力: 0x + r(32) + s(32) + v(1)（65byte、Ethereum形式）
+  - 処理流れ:
+    1. ICP Management Canisterで64byte署名(r+s)を取得
+    2. `ethereum.convertIcpSignatureToEthereum`で適切なrecovery ID(v)を計算
+    3. 65byte形式(r+s+v)のEthereum署名を返却
+備考: 既存の `signWithEthereum(message)` はEIP-191のメッセージ用として維持。TS側での署名変換処理は不要。
+
+[TypeScript: Viem互換サインナー設計（共有ライブラリ化済み）]
+## 共有ライブラリ構成
+配置: `/application/src/shared/typescript/wallet/`
+- `IcpWalletClient.ts`: ジェネリック版メイン実装
+- `types.ts`: 共通型定義（WalletCanisterService等）
+- `index.ts`: エクスポート定義
+
+## 使用方法（各exampleから）
+```typescript
+// 1. package.jsonに依存関係追加
+{
+  "dependencies": {
+    "@nicp/shared-wallet": "link:../../../../../src/shared/typescript"
+  }
+}
+
+// 2. プロジェクト固有ラッパー作成
+import { createIcpWallet as createSharedIcpWallet } from '@nicp/shared-wallet';
+import { createActor, canisterId } from './declarations/your_backend';
+
+export async function createIcpWallet({ authClient, chain, transport }) {
+  return createSharedIcpWallet({
+    authClient, chain, transport,
+    createActor, canisterId,
+    internetIdentityCanisterId: 'your-ii-canister-id'
+  });
+}
+```
+
+## 実装詳細
+- createActor(): `@dfinity/agent` + `@dfinity/auth-client`でt_ecdsaのActorを生成
+- getAddress(): canisterの `getEvmAddress()` を利用
+- signMessage({ message }): canisterの `signWithEthereum(message)` を利用
+- signTransaction(unsignedTx):
+  1) viemの `serializeTransaction(unsignedTx)` でトランザクションをシリアライズ
+  2) keccak256(シリアライズ結果) を計算してハッシュを取得
+  3) canisterの `signTxHashWithEthereum(0x..32bytes)` を呼ぶ
+  4) 返却されたEthereum形式署名(65byte)をそのまま利用してviemの `serializeTransaction(unsignedTx, signature)` で最終TXを生成
+- アカウント生成: viemの `toAccount({ address, signMessage, signTransaction })`
+- クライアント: `createPublicClient`/`createWalletClient`（transport: http('http://localhost:8545')）
+
+## 共有ライブラリのメリット
+- 再利用性: 任意のプロジェクト（examples/*）で使用可能
+- 型安全性: ジェネリック型による柔軟な型チェック
+- 依存関係分離: 各プロジェクトが自身のキャニスターを注入
+- メンテナンス性: 1つのライブラリで全プロジェクトの機能管理
+
+注記: ICP側でEthereum形式への変換が完了するため、TS側での署名形式変換（r,s,v分解・組み立て）は不要。
+
+[Counter e2e テスト（TS）]
+- 前提: Anvil起動、t_ecdsaデプロイ済み
+- 手順:
+  1) Counterデプロイ（Foundry script か、TSからbytecode/abiでデプロイ）
+  2) walletClient（ICPアカウント）で `setNumber(uint256)` 実行
+  3) publicClientで `number()` を read して期待値を検証
+  4) `increment()` 実行→再度 `number()` 検証
+- 依存: `viem`, `@dfinity/agent`, `@dfinity/auth-client`, `tsx`（テスト実行用）
+
+[Nim テストハーネス]
+- 目的: Nimから一括で環境起動とTSテストの実行・検証を行う
+- 概要: `tests/test_call_solidity.nim`
+  - 前提: anvil（compose.yaml）とdfx（run.sh）は既に起動済み
+  - `execProcess` で `dfx deploy`（t_ecdsa）を実行
+  - `execProcess` で `pnpm dlx tsx test/counter.icp.e2e.ts` を実行
+  - 終了コード/出力を検証、必要に応じてクリーンアップ
+
+[環境・設定メモ]
+- dfx: `networks.local.replica.subnet_type = system` がECDSAで必要（既存の例に準拠）
+- 署名鍵: ローカルは `dfx_test_key`、derivation_path は `caller.bytes`
+- Anvil RPC: 
+  - コンテナ間通信: `http://anvil:8545`（compose.yamlで定義済み、既に起動中）
+  - ホストから: `http://localhost:8545`（ポート8545:8545でマッピング）
+
+## Counter デプロイ状態の確認と自動デプロイ手順（Anvil）
+「http://anvil:8545」に対してRPCリクエストを送り、`Counter.sol` が既にデプロイ済みかを確認し、未デプロイなら Foundry スクリプトでデプロイします。テストコード側でコントラクトアドレスを保持する方法も併記します。
+
+### 1) 既存デプロイの確認（eth_getCode）
+前回の Foundry ブロードキャスト成果物からアドレスを取得し、そのアドレスにコードが存在するかをAnvilに問い合わせます。
+
+```
+cd /application
+
+# 1-1) 前回のデプロイ先アドレスを取得（存在しない場合は空）
+ADDR=$(jq -r \
+  'try (.transactions[] | select(.contractName=="Counter") | .contractAddress) catch empty' \
+  solidity/broadcast/deployCounter.s.sol/31337/run-latest.json \
+  | tail -n1)
+
+echo "Last deployed Counter address: ${ADDR:-<none>}"
+
+# 1-2) アドレスがある場合のみ、コード有無を確認
+if [ -n "$ADDR" ]; then
+  CODE=$(curl -s -X POST http://anvil:8545 \
+    -H 'Content-Type: application/json' \
+    --data "{\"jsonrpc\":\"2.0\",\"method\":\"eth_getCode\",\"params\":[\"$ADDR\",\"latest\"],\"id\":1}" \
+    | jq -r .result)
+  echo "on-chain code: $CODE"
+else
+  CODE=0x
+fi
+```
+
+`CODE` が `0x` なら未デプロイと見なします。
+
+### 2) 未デプロイなら Foundry でデプロイ
+```
+if [ "$CODE" = "0x" ]; then
+  echo "Counter not found on anvil. Deploying..."
+  cd /application/solidity/script/Counter
+  ./deployCounter.sh
+  cd /application
+fi
+
+# 再度、ブロードキャスト成果物から最新アドレスを取得
+ADDR=$(jq -r \
+  'try (.transactions[] | select(.contractName=="Counter") | .contractAddress) catch empty' \
+  solidity/broadcast/deployCounter.s.sol/31337/run-latest.json \
+  | tail -n1)
+echo "Counter address (latest): $ADDR"
+```
+
+備考:
+- 既定のRPCは `http://anvil:8545`（Composeのサービス名解決）。
+- `deployCounter.sh` は `foundry.toml` の設定でビルド/ブロードキャストします（鍵はデモ用のAnvil既定鍵）。
+- ブロードキャスト成果物は `solidity/broadcast/deployCounter.s.sol/31337/run-latest.json` に出力されます。
+
+### 3) テストコードでコントラクトアドレスを保持する方法
+- TSテスト（推奨）: 環境変数 or ブロードキャスト成果物から読み取り。
+  - 例: `COUNTER_ADDRESS` を `.env` などに保存し、テストで `process.env.COUNTER_ADDRESS` を参照。
+  - もしくは `run-latest.json` を直接読み取り（viemの`Address`にキャスト）。
+
+  ```ts
+  // 例: examples/call_solidity のテスト内
+  import fs from 'node:fs';
+  const fromBroadcast = () => {
+    const j = JSON.parse(fs.readFileSync(
+      'solidity/broadcast/deployCounter.s.sol/31337/run-latest.json', 'utf8'
+    ));
+    const tx = j.transactions.find((t: any) => t.contractName === 'Counter');
+    return tx?.contractAddress as `0x${string}`;
+  };
+  const COUNTER_ADDRESS = (process.env.COUNTER_ADDRESS as `0x${string}`) ?? fromBroadcast();
+  ```
+
+- Solidityテスト（Foundryで実網RPCに接続する場合）: テストコードに定数として保持も可能。ただしAnvilを再起動して未デプロイになると失敗するため、フォークを作成してから既知アドレスを参照するのが前提です。
+
+  ```solidity
+  // solidity/test/CounterLive.t.sol (例)
+  // SPDX-License-Identifier: UNLICENSED
+  pragma solidity ^0.8.13;
+  import {Test} from "forge-std/Test.sol";
+  import {Counter} from "../src/Counter.sol";
+
+  contract CounterLiveTest is Test {
+      address constant COUNTER = 0xe7f1725e7734Ce288f8367e1Bb143E90bb3F0512; // 例: 既知のアドレス
+
+      function setUp() public {
+          // RPC直指定でも可。foundry.tomlにaliasを切るなら vm.createSelectFork("anvil")
+          vm.createSelectFork("http://anvil:8545");
+      }
+
+      function test_read() public view {
+          uint256 n = Counter(COUNTER).number();
+          // 期待値に応じて検証
+          assertTrue(n >= 0);
+      }
+  }
+  ```
+
+注意点:
+- 「テストコードに値を持っておく」こと自体は可能ですが、Anvilの状態が初期化されるとアドレスは無効化します。CIやローカルの安定性を考えると、
+  - 環境変数で受け取る、
+  - ブロードキャスト成果物から毎回読み出す、
+のいずれかを推奨します。
+
+
+[セキュリティ/互換性の考慮]
+- 署名対象がメッセージかトランザクションかでハッシュ仕様を分離（ダブルハッシュを避ける）
+- vの扱い（27/28 と yParity）およびEIP-1559(Type2)の差異は `viem` のAPIで吸収
+- 可観測性: Nimハーネスでログ収集・失敗時の出力を保持
+
+[今後の拡張]
+- EIP-712（Typed Data）の署名API追加
+- 本番ネットワークRPCやGas設定の外部化
+
+[共有ライブラリ詳細（tECDSA呼び出しViem互換ラッパー）]
+## ディレクトリ構造
+```
+/application/src/shared/typescript/
+├── package.json                    # @nicp/shared-wallet パッケージ設定
+├── tsconfig.json                   # TypeScript設定
+├── index.ts                        # メインエクスポート
+├── dist/                           # ビルド成果物
+└── wallet/
+    ├── IcpWalletClient.ts          # ジェネリック版実装
+    ├── types.ts                    # 共通型定義
+    └── index.ts                    # ウォレットエクスポート
+```
+
+## pnpmワークスペース設定
+```yaml
+# /application/pnpm-workspace.yaml
+packages:
+  - src/shared/typescript
+  - examples/call_solidity/src/call_solidity_frontend
+  - examples/t_ecdsa/src/t_ecdsa_frontend
+```
+
+## 使用例（examples/call_solidity）
+```typescript
+// package.json
+{
+  "dependencies": {
+    "@nicp/shared-wallet": "link:../../../../../src/shared/typescript"
+  }
+}
+
+// src/wallet/IcpWalletClient.ts（プロジェクト固有ラッパー）
+import { createIcpWallet as createSharedIcpWallet } from '@nicp/shared-wallet';
+import { createCallSolidityBackendActor, canisterId } from '../../../declarations/call_solidity_backend';
+
+export async function createIcpWallet({ authClient, chain, transport }) {
+  return createSharedIcpWallet({
+    authClient, chain, transport,
+    createActor: createCallSolidityBackendActor,
+    canisterId,
+    internetIdentityCanisterId
+  });
+}
+```
+
+## 他のexampleプロジェクトでの使用手順
+1. `package.json`に共有ライブラリの依存関係追加
+2. プロジェクト固有のラッパー作成（キャニスターActor注入）
+3. 既存コードの移行（インポート先変更）
+4. テスト実行で動作確認
+
+## 型安全性
+- `WalletCanisterService`インターフェースによるキャニスター要件定義
+- ジェネリック型パラメータによる柔軟な型チェック
+- Viem型との完全互換性
+
+## メンテナンス
+- 共有ライブラリ更新時は`pnpm run build`でビルド
+- 各プロジェクトは自動的に最新版を参照
+- 破壊的変更時は段階的移行可能
+```
