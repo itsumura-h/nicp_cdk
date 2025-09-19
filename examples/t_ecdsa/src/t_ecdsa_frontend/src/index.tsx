@@ -21,6 +21,7 @@ export function App() {
 	const [signature, setSignature] = useState<string | null>(null);
 	const [isValid, setIsValid] = useState<boolean | null>(null);
 	const [counterValue, setCounterValue] = useState<bigint | null>(null);
+	const [number, setNumber] = useState<bigint | null>(null);
 	
 	// カスタムフックでcounterContractを管理
 	const { counterContract, contractAddress } = useCounterContract();
@@ -81,7 +82,6 @@ export function App() {
 		}
 
 		try {
-			// LocalAccountのsignMessage関数を直接呼び出し（RPC不要）
 			const signed = await walletClient.signMessage({
 				account: walletClient.account,
 				message,
@@ -134,6 +134,26 @@ export function App() {
 		}
 	};
 
+	const handleSetNumber = async () => {
+		if (!walletClient || !contractAddress) {
+			return;
+		}
+		try {
+			await walletClient.writeContract({
+				address: contractAddress as Address,
+				chain: anvil,
+				account: walletClient.account,
+				abi: counterAbi.abi,
+				functionName: 'setNumber',
+				args: [number],
+			});
+			// インクリメント後にカウンター値を再読み込み
+			await readCounterValue();
+		} catch (error) {
+			console.error('Failed to set number:', error);
+		}
+	};
+
 	return (
 		<main>
 			<article>
@@ -167,8 +187,17 @@ export function App() {
 					Read Counter
 				</button>
 				<button onClick={handleIncrement} disabled={!walletClient || !contractAddress}>
-					Increment
+					+
 				</button>
+				<button onClick={handleSetNumber} disabled={!walletClient || !contractAddress}>
+					set
+				</button>
+				<input
+					type="number"
+					placeholder="Number"
+					onInput={(e) => setNumber(BigInt((e.target as HTMLInputElement).value))}
+					value={number?.toString()}
+				/>
 				<p>Counter: {counterValue !== null ? counterValue.toString() : 'Not read yet'}</p>
 			</article>
 		</main>

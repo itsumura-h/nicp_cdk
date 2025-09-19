@@ -19,13 +19,11 @@ import {
   keccak256,
   serializeTransaction,
   hashMessage,
-  hashTypedData,
   serializeSignature,
   hexToBytes,
 } from 'viem';
 import { toAccount } from 'viem/accounts';
 import { AuthClient } from '@dfinity/auth-client';
-import { Bytes } from './Bytes';
 import {
   canisterId as tEcdsaBackendCanisterId,
   createActor as createTEcdsaBackendActor,
@@ -90,10 +88,37 @@ const toIcpAccount = async (authClient: AuthClient): Promise<LocalAccount> => {
   }: {
     message: SignableMessage;
   }): Promise<Hex> => {
-    const normalisedMessage = normaliseSignableMessage(message);
+    const hash = hashMessage(message);
+    const hashBytes = hexToBytes(hash);
+    const signature = await actor.signWithEvmWallet(hashBytes);
     
-    const signature = await actor.signWithEthereum(normalisedMessage);
-    return signature as Hex;
+    // 0xプレフィックスを削除
+    const sigHex = signature.startsWith('0x') ? signature.slice(2) : signature;
+    
+    // 署名は65バイト (130文字) である必要がある
+    if (sigHex.length !== 130) {
+      throw new Error(`Invalid signature length: ${sigHex.length}, expected 130`);
+    }
+    
+    const r = '0x' + sigHex.slice(0, 64);
+    const s = '0x' + sigHex.slice(64, 128);
+    let v = parseInt(sigHex.slice(128, 130), 16);
+    
+    // Ethereumの署名では、v値は27または28である必要がある
+    // recovery IDが0または1の場合、27を加算する
+    if (v < 27) {
+      v += 27;
+    }
+    
+    console.log('Parsed signature - r:', r, 's:', s, 'v:', v);
+    
+    const sig: Signature = {
+      r: r as Hex,
+      s: s as Hex,
+      v: BigInt(v),
+    };
+    
+    return serializeSignature(sig);
   };
 
   const signTransaction = async<
@@ -114,35 +139,30 @@ const toIcpAccount = async (authClient: AuthClient): Promise<LocalAccount> => {
     const hashBytes = hexToBytes(hash);
     const signature = await actor.signWithEvmWallet(hashBytes);
 
-    // 署名が文字列として返される場合、それをr,s,vに分解する
-    if (typeof signature === 'string') {
-      const sigHex = signature.startsWith('0x') ? signature.slice(2) : signature;
-      
-      // 署名は65バイト (130文字) である必要がある
-      if (sigHex.length !== 130) {
-        throw new Error(`Invalid signature length: ${sigHex.length}, expected 130`);
-      }
-      
-      const r = '0x' + sigHex.slice(0, 64);
-      const s = '0x' + sigHex.slice(64, 128);
-      const v = parseInt(sigHex.slice(128, 130), 16);
-      
-      console.log('Parsed signature - r:', r, 's:', s, 'v:', v);
-      
-      const sig: Signature = {
-        r: r as Hex,
-        s: s as Hex,
-        v: BigInt(v),
-      };
-      
-      return args.serializer(transaction, sig);
+    // 0xプレフィックスを削除
+    const sigHex = signature.startsWith('0x') ? signature.slice(2) : signature;
+    
+    // 署名は65バイト (130文字) である必要がある
+    if (sigHex.length !== 130) {
+      throw new Error(`Invalid signature length: ${sigHex.length}, expected 130`);
     }
     
-    // 署名がオブジェクトの場合の処理
+    const r = '0x' + sigHex.slice(0, 64);
+    const s = '0x' + sigHex.slice(64, 128);
+    let v = parseInt(sigHex.slice(128, 130), 16);
+    
+    // Ethereumの署名では、v値は27または28である必要がある
+    // recovery IDが0または1の場合、27を加算する
+    if (v < 27) {
+      v += 27;
+    }
+    
+    console.log('Parsed signature - r:', r, 's:', s, 'v:', v);
+    
     const sig: Signature = {
-      r: signature.r ? fromBytes(signature.r.asUint8Array || signature.r, 'hex') : '0x0',
-      s: signature.s ? fromBytes(signature.s.asUint8Array || signature.s, 'hex') : '0x0', 
-      v: BigInt(signature.v || 0),
+      r: r as Hex,
+      s: s as Hex,
+      v: BigInt(v),
     };
     
     return args.serializer(transaction, sig);
