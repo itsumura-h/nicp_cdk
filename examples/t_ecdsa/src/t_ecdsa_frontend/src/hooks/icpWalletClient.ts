@@ -8,10 +8,10 @@ import {
   type SignableMessage,
   type Signature,
   type TransactionSerializable,
-  type Transport,
   type TypedData,
   type TypedDataDefinition,
   type WalletClient,
+  type HttpTransport,
   createWalletClient,
   fromBytes,
   getAddress,
@@ -188,10 +188,15 @@ const toIcpAccount = async (authClient: AuthClient): Promise<LocalAccount> => {
 export interface CreateIcpWalletOptions {
   authClient: AuthClient;
   chain: Chain;
-  transport?: Transport | undefined;
+  transport?: HttpTransport | undefined;
 }
 
-export async function createIcpWalletClient(options: CreateIcpWalletOptions): Promise<WalletClient> {
+// export type IcpWalletClient<TChain extends Chain = Chain> = WalletClient<HttpTransport, TChain, LocalAccount>;
+export type IcpWalletClient = WalletClient<HttpTransport, Chain, LocalAccount, RpcSchema>;
+
+export async function createIcpWalletClient(
+  options: CreateIcpWalletOptions,
+): Promise<IcpWalletClient> {
   if (!(await options.authClient.isAuthenticated())) {
     throw new Error('Auth client must be authenticated before creating wallet client.');
   }
@@ -205,5 +210,3 @@ export async function createIcpWalletClient(options: CreateIcpWalletOptions): Pr
 
   return walletClient;
 }
-
-export type IcpWalletClient = WalletClient;

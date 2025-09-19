@@ -1,17 +1,10 @@
 import { hydrate, prerender as ssr } from 'preact-iso';
 import { useState, useEffect } from 'preact/hooks';
-import {
-	type LocalAccount,
-	Address,
-	verifyMessage,
-	http,
-} from 'viem';
+import { Address, verifyMessage, http } from 'viem';
 import { anvil } from 'viem/chains';
 import { useIcpAuth } from './hooks/icpAuth';
 import { createIcpWalletClient, type IcpWalletClient } from './hooks/icpWalletClient';
 import { useCounterContract } from './hooks/useCounterContract';
-import { publicClient } from './hooks/client';
-import counterAbi from '../../../../../solidity/out/Counter.sol/Counter.json';
 
 export function App() {
 	const { authClient, isAuthenticated, isLoading, principal, login, logout } = useIcpAuth();
@@ -24,7 +17,7 @@ export function App() {
 	const [number, setNumber] = useState<bigint | null>(null);
 	
 	// カスタムフックでcounterContractを管理
-	const { counterContract, contractAddress } = useCounterContract();
+	const { contract: counterContract, contractAddress } = useCounterContract(walletClient);
 
 	useEffect(() => {
 		if (!authClient || !isAuthenticated) {
@@ -35,20 +28,23 @@ export function App() {
 
 		let cancelled = false;
 
-		(async () => {
-		try {
-			// ICPキャニスター経由で署名を行うLocalAccountを直接作成
-			const walletClient = await createIcpWalletClient({
-				authClient,
-				chain: anvil,
-				transport: http('http://localhost:8545'),
-			});
-			setWalletClient(walletClient);
-			if (cancelled) {
-				return;
-			}
-			setAccountAddress(walletClient.account.address);
-			console.log('ICP Account created successfully:', walletClient.account.address);
+		// 非同期関数を明示的に定義
+		const initializeWallet = async () => {
+			try {
+				// ICPキャニスター経由で署名を行うLocalAccountを直接作成
+				const walletClient = await createIcpWalletClient({
+					authClient,
+					chain: anvil,
+					transport: http('http://localhost:8545'),
+				});
+				
+				if (cancelled) {
+					return;
+				}
+				
+				setWalletClient(walletClient);
+				setAccountAddress(walletClient.account.address);
+				console.log('ICP Account created successfully:', walletClient.account.address);
 			} catch (error) {
 				if (!cancelled) {
 					console.error('Failed to create ICP account:', error);
@@ -56,7 +52,9 @@ export function App() {
 					setAccountAddress(null);
 				}
 			}
-		})();
+		};
+
+		initializeWallet();
 
 		return () => {
 			cancelled = true;
@@ -102,12 +100,11 @@ export function App() {
 	};
 
 	const readCounterValue = async () => {
+		if (!counterContract) {
+			return;
+		}
 		try {
-			const value = await publicClient.readContract({
-				address: contractAddress,
-				abi: counterAbi.abi,
-				functionName: 'number',
-			});
+			const value = await counterContract.read.number();
 			setCounterValue(value as bigint);
 		} catch (error) {
 			console.error('Failed to read counter value:', error);
@@ -116,17 +113,12 @@ export function App() {
 	};
 
 	const handleIncrement = async () => {
-		if (!walletClient || !contractAddress) {
+		if (!walletClient || !counterContract) {
 			return;
 		}
 		try {
-			await walletClient.writeContract({
-				address: contractAddress as Address,
-				chain: anvil,
-				account: walletClient.account,
-				abi: counterAbi.abi,
-				functionName: 'increment',
-			});
+			const hash = await counterContract.write.increment();
+			console.log('Transaction hash:', hash);
 			// インクリメント後にカウンター値を再読み込み
 			await readCounterValue();
 		} catch (error) {
@@ -135,22 +127,34 @@ export function App() {
 	};
 
 	const handleSetNumber = async () => {
-		if (!walletClient || !contractAddress) {
+		if (!walletClient || !counterContract || number === null) {
 			return;
 		}
 		try {
-			await walletClient.writeContract({
-				address: contractAddress as Address,
-				chain: anvil,
-				account: walletClient.account,
-				abi: counterAbi.abi,
-				functionName: 'setNumber',
-				args: [number],
-			});
-			// インクリメント後にカウンター値を再読み込み
+			const hash = await counterContract.write.setNumber([number]);
+			console.log('Transaction hash:', hash);
+			// 設定後にカウンター値を再読み込み
 			await readCounterValue();
 		} catch (error) {
 			console.error('Failed to set number:', error);
+		}
+	};
+
+	// BigInt変換のエラーハンドリングを追加
+	const handleNumberInput = (e: Event) => {
+		const target = e.target as HTMLInputElement;
+		const value = target.value.trim();
+		
+		if (value === '') {
+			setNumber(null);
+			return;
+		}
+		
+		try {
+			setNumber(BigInt(value));
+		} catch (error) {
+			console.error('Invalid number input:', error);
+			// 無効な入力の場合は現在の値を保持
 		}
 	};
 
@@ -183,20 +187,20 @@ export function App() {
 				<p>Signature: {signature}</p>
 				<p>isValid: {isValid !== null ? isValid.toString() : 'Not verified yet'}</p>
 				<hr />
-				<button onClick={readCounterValue} disabled={!contractAddress}>
+				<button onClick={readCounterValue}>
 					Read Counter
 				</button>
-				<button onClick={handleIncrement} disabled={!walletClient || !contractAddress}>
+				<button onClick={handleIncrement} disabled={!walletClient || !counterContract}>
 					+
 				</button>
-				<button onClick={handleSetNumber} disabled={!walletClient || !contractAddress}>
+				<button onClick={handleSetNumber} disabled={!walletClient || !counterContract || number === null}>
 					set
 				</button>
 				<input
 					type="number"
 					placeholder="Number"
-					onInput={(e) => setNumber(BigInt((e.target as HTMLInputElement).value))}
-					value={number?.toString()}
+					onInput={handleNumberInput}
+					value={number?.toString() ?? ''}
 				/>
 				<p>Counter: {counterValue !== null ? counterValue.toString() : 'Not read yet'}</p>
 			</article>

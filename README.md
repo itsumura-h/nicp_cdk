@@ -137,10 +137,10 @@ dfx deploy
 - [ ] No need to manually build ic-wasi-polyfill.  
 - [X] Support all IC types.  
 - [X] Access and call the management canister.  
-- [ ] HTTP outcall example.  
+- [X] HTTP outcall example.  
 - [X] t-ECDSA example.  
 - [ ] t-RSA example.  
 - [ ] Bitcoin example.  
-- [ ] Ethersum example.  
+- [X] Ethersum example.  
 - [ ] Solana example.  
 - [ ] VetKey example.
