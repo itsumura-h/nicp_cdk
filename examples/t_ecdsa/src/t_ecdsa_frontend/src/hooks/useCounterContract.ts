@@ -1,8 +1,6 @@
 import { useMemo } from 'preact/hooks';
 import {
-  getContract,
   type Address,
-  type GetContractReturnType
 } from 'viem';
 import { publicClient } from './client';
 import { type IcpWalletClient } from './icpWalletClient';
@@ -12,24 +10,36 @@ const COUNTER_CONTRACT_ADDRESS: Address = '0x5FbDB2315678afecb367f032d93F642f641
 
 export const useCounterContract = (walletClient: IcpWalletClient | null) => {
   const contract = useMemo(() => {
-    if (!walletClient) {
-      // walletClientがない場合は、読み取り専用のcontractを返す
-      return getContract({
-        address: COUNTER_CONTRACT_ADDRESS,
-        abi: counterAbi.abi,
-        client: publicClient,
-      });
-    }
-
-    // walletClientがある場合は、読み書き可能なcontractを返す
-    return getContract({
+    return {
+      read: {
+        number: async () => {
+          return await publicClient.readContract({
+            address: COUNTER_CONTRACT_ADDRESS,
+            abi: counterAbi.abi,
+            functionName: 'number',
+          } as any);
+        },
+      },
+      write: walletClient ? {
+        increment: async () => {
+          return await walletClient.writeContract({
+            address: COUNTER_CONTRACT_ADDRESS,
+            abi: counterAbi.abi,
+            functionName: 'increment',
+          } as any);
+        },
+        setNumber: async (args: [bigint]) => {
+          return await walletClient.writeContract({
+            address: COUNTER_CONTRACT_ADDRESS,
+            abi: counterAbi.abi,
+            functionName: 'setNumber',
+            args,
+          } as any);
+        },
+      } : {},
       address: COUNTER_CONTRACT_ADDRESS,
       abi: counterAbi.abi,
-      client: {
-        public: publicClient,
-        wallet: walletClient,
-      },
-    });
+    };
   }, [walletClient]);
 
   return {

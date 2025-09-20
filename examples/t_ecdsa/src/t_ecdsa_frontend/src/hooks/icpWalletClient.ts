@@ -51,12 +51,12 @@ const ensurePublicKey = async (actor: TEcdsaBackendService) => {
 const resolveAddress = async (actor: TEcdsaBackendService): Promise<Address> => {
   const evmAddress = await (async ():Promise<Address>=>{
     try{
-      return await actor.getEvmAddress();
+      return await actor.getEvmAddress() as Address;
     } catch (error) {
       console.warn('Failed to fetch Ethereum address, requesting a new one.', error);
       // 公開鍵を生成してから、EVMアドレスを再取得
       await actor.getNewPublicKey();
-      return await actor.getEvmAddress();
+      return await actor.getEvmAddress() as Address;
     }
   })()
 
