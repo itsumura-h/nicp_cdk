@@ -1,6 +1,7 @@
 *
 !*.*
 !*/
+!makefile
 
 testresults
 nimcache
