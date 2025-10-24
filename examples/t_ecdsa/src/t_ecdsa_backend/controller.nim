@@ -29,12 +29,11 @@ proc signWithEcdsa*() {.async.} =
   let request = Request.new()
   let message = request.getStr(0)
   let caller = Msg.caller()
-  let nonce = request.getStr(1)
 
   discard await usecase.getNewPublicKey(caller)
   
   try:
-    let signature = await usecase.signWithEcdsa(caller, nonce, message)
+    let signature = await usecase.signWithEcdsa(caller, message)
     reply(signature)
   except Exception as e:
     echo "Error in signWithEcdsa: ", e.msg

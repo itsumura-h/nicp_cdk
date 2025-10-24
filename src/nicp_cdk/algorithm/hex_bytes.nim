@@ -46,6 +46,3 @@ proc toHexString*(bytes: seq[uint8]): string =
   result = ""
   for b in bytes:
     result.add(b.toHex(2))
-
-
-## hexToBytes2 removed; use hexToBytes1 which supports optional 0x/0X prefix
