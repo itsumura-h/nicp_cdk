@@ -11,7 +11,13 @@ proc hexCharVal(c: char): int =
 
 
 proc hexToBytes*(hexStr: string): seq[uint8] =
-  ## 16進文字列 (`"deadbeef"` など) をバイト列に変換する
+  ## Convert a hexadecimal string (`"deadbeef"` etc.) to a byte sequence.
+  ##
+  ## Parameters:
+  ## - hexStr: The hexadecimal string to convert to a byte sequence.
+  ##
+  ## Returns:
+  ## - The byte sequence.
   var s = hexStr.strip()
   # allow optional 0x or 0X prefix
   if s.len >= 2 and s[0] == '0' and (s[1] == 'x' or s[1] == 'X'):
@@ -29,11 +35,14 @@ proc hexToBytes*(hexStr: string): seq[uint8] =
     idx += 2
 
 
-# バイト列を16進数文字列に変換するヘルパー関数
 proc toHexString*(bytes: seq[uint8]): string =
+  ## バイト列を16進数文字列に変換する
+  ##
+  ## Parameters:
+  ## - bytes: The byte sequence to convert to a hexadecimal string.
+  ##
+  ## Returns:
+  ## - The hexadecimal string.
   result = ""
   for b in bytes:
     result.add(b.toHex(2))
-
-
-## hexToBytes2 removed; use hexToBytes1 which supports optional 0x/0X prefix

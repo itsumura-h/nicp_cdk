@@ -242,9 +242,8 @@ proc toString*(data: seq[byte]): string =
   return hexValues.join("")
 
 proc stringToBytes*(s: string): seq[byte] =
-  # 2文字ずつバイト列に変換
-  for i in countup(0, s.len-1, 2):
-    result.add(byte(s[i..i+1].parseHexInt()))
+  for c in s:
+    result.add(byte(c))
 
 proc ptrToUint32*(p: pointer): uint32 =
   return cast[uint32](p)

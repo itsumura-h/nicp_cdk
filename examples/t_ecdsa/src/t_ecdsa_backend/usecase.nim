@@ -10,6 +10,7 @@ import ../../../../src/nicp_cdk/algorithm/ecdsa
 import ../../../../src/nicp_cdk/algorithm/hex_bytes
 import ./database
 
+const NONCE = "NONCE"
 
 proc getNewPublicKey*(caller: Principal): Future[string] {.async.} =
   ## Generates a new public key for the given caller Principal and caches it.
@@ -20,12 +21,20 @@ proc getNewPublicKey*(caller: Principal): Future[string] {.async.} =
   ##
   ## Returns:
   ## - The public key as a hexadecimal string.
+  echo "=== getNewPublicKey ==="
+
   if database.hasKey(caller):
     return hex_bytes.toHexString(database.getPublicKey(caller))
 
+  let derivationPath = $caller & "+" & NONCE
+  echo "derivationPath: ", derivationPath
+  let derivationPathBytes = derivationPath.stringToBytes()
+  echo "derivationPathBytes: ", derivationPathBytes
+
   let arg = EcdsaPublicKeyArgs(
     canister_id: none(Principal),
-    derivation_path: @[caller.bytes],
+    derivation_path: @[derivationPathBytes],
+    # derivation_path: @[caller.bytes],
     key_id: EcdsaKeyId(
       curve: EcdsaCurve.secp256k1,
       name: "dfx_test_key"
@@ -63,15 +72,19 @@ proc signWithEcdsa*(caller: Principal, message: string): Future[string] {.async.
   ##
   ## Parameters:
   ## - caller: The Principal ID of the caller.
+  ## - nonce: The nonce to be used for the signature.
   ## - message: The message to be signed.
   ##
   ## Returns:
   ## - The ECDSA signature as a hexadecimal string if valid, otherwise an empty string.
   let messageHash = ecdsa.keccak256Hash(message)
 
+  let derivationPath = $caller & "+" & NONCE
+  let derivationPathBytes = derivationPath.stringToBytes()
+
   let arg = EcdsaSignArgs(
     message_hash: messageHash,
-    derivation_path: @[caller.bytes],
+    derivation_path: @[derivationPathBytes],
     key_id: EcdsaKeyId(
       curve: EcdsaCurve.secp256k1,
       name: "dfx_test_key"
@@ -138,11 +151,18 @@ proc signWithEthereum*(caller: Principal, message: string): Future[string] {.asy
   ##   (65 bytes, 0x-prefixed 130 hex characters, r(32 bytes) + s(32 bytes) + v(1 byte) format).
   
   # Generate the Ethereum-formatted message hash (EIP-191 format)
+  echo "=== signWithEthereum ==="
   let messageHash = ethereum.keccak256Hash(message)
+
+  let derivationPath = $caller & "+" & NONCE
+  echo "derivationPath: ", derivationPath
+  let derivationPathBytes = derivationPath.stringToBytes()
+  echo "derivationPathBytes: ", derivationPathBytes
   
   let arg = EcdsaSignArgs(
     message_hash: messageHash,
-    derivation_path: @[caller.bytes],
+    derivation_path: @[derivationPathBytes],
+    # derivation_path: @[caller.bytes],
     key_id: EcdsaKeyId(
       curve: EcdsaCurve.secp256k1,
       name: "dfx_test_key"
@@ -165,7 +185,6 @@ proc signWithEthereum*(caller: Principal, message: string): Future[string] {.asy
   )
   
   return ethereumSignature
-
 
 
 proc verifyWithEthereum*(message: string, signature: string, ethereumAddress: string): bool =
@@ -199,9 +218,17 @@ proc signWithEvmWallet*(caller: Principal, message: seq[uint8]): Future[string] 
   ## 
   ## Returns:
   ## - Ethereum-formatted signature (65 bytes, 0x-prefixed) as a hexadecimal string.
+
+  echo "=== signWithEvmWallet ==="
+  let derivationPath = $caller & "+" & NONCE
+  echo "derivationPath: ", derivationPath
+  let derivationPathBytes = derivationPath.stringToBytes()
+  echo "derivationPathBytes: ", derivationPathBytes
+
   let arg = EcdsaSignArgs(
     message_hash: message,
-    derivation_path: @[caller.bytes],
+    derivation_path: @[derivationPathBytes],
+    # derivation_path: @[caller.bytes],
     key_id: EcdsaKeyId(
       curve: EcdsaCurve.secp256k1,
       name: "dfx_test_key"

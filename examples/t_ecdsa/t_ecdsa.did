@@ -10,7 +10,7 @@ service : {
     }
   ) -> (bool);
   "getEvmAddress": () -> (text) query;
-  "signWithEthereum": (text) -> (text);
+  "signWithEthereum": (mesage:text) -> (text);
   "verifyWithEthereum": (
     record{
       message:text;
