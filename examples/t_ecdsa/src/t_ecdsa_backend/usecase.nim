@@ -168,6 +168,7 @@ proc signWithEthereum*(caller: Principal, message: string): Future[string] {.asy
       name: "dfx_test_key"
     )
   )
+  echo "arg: ", arg
 
   # Generate the signature using the ICP Management Canister
   let signResult = await ManagementCanister.sign(arg)
