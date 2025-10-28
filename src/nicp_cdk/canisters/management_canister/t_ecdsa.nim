@@ -3,9 +3,7 @@ import std/asyncfutures
 import std/asyncdispatch
 import std/tables
 import std/strutils
-import std/sequtils
 import ../../ic0/ic0
-import ../../ic0/wasm
 import ../../ic_types/candid_types
 import ../../ic_types/ic_principal
 import ../../ic_types/ic_record
@@ -13,6 +11,28 @@ import ../../ic_types/candid_message/candid_encode
 import ../../ic_types/candid_message/candid_decode
 import ../../ic_types/candid_message/candid_message_types
 import ./management_canister_type
+
+
+# ================================================================================
+# Utilities
+# ================================================================================
+proc getRejectDetail(): string =
+  ## ic0 の reject 情報を code / message 付きで取得する
+  try:
+    let code = ic0_msg_reject_code()
+    let size = ic0_msg_reject_msg_size()
+    var text = ""
+    if size > 0:
+      var buf = newSeq[uint8](size)
+      ic0_msg_reject_msg_copy(ptrToInt(addr buf[0]), 0, size)
+      text = newString(size)
+      for i in 0..<size:
+        text[i] = char(buf[i])
+    else:
+      text = "<empty>"
+    return " (code=" & $code & ", message=" & text & ")"
+  except Exception as e:
+    return " (reject detail unavailable: " & e.msg & ")"
 
 
 # ================================================================================
@@ -43,6 +63,16 @@ type
 
   SignWithEcdsaResult* = object
     signature*: seq[uint8]
+
+
+# ================================================================================
+# Constants
+# ================================================================================
+const
+  ## sign_with_ecdsa / ecdsa_public_key が要求する最小サイクル数（ローカルレプリカ基準）
+  ## 注: ic0_cost_sign_with_ecdsa は見積もり用のAPIであり、実際の呼び出し時には使用できない
+  ## 実行コンテキスト内で呼び出すとCandidデコードエラーが発生する
+  EcdsaCallCycles = 26_153_846_153'u64
 
 
 # ================================================================================
@@ -118,7 +148,8 @@ proc onCallPublicKeyReject(env: uint32) {.exportc.} =
   if fut == nil or fut.finished:
     return
   # reject コールバック内では ic0_msg_arg_data_size は使用できない
-  let msg = "ECDSA public key call was rejected by the management canister"
+  let detail = getRejectDetail()
+  let msg = "ECDSA public key call was rejected by the management canister" & detail
   fail(fut, newException(ValueError, msg))
 
 
@@ -128,7 +159,8 @@ proc onCallSignReject(env: uint32) {.exportc.} =
   if fut == nil or fut.finished:
     return
   # reject コールバック内では ic0_msg_arg_data_size は使用できない
-  let msg = "ECDSA sign call was rejected by the management canister"
+  let detail = getRejectDetail()
+  let msg = "ECDSA sign call was rejected by the management canister" & detail
   fail(fut, newException(ValueError, msg))
 
 
@@ -160,6 +192,7 @@ proc publicKey*(_:type ManagementCanister, arg: EcdsaPublicKeyArgs): Future[Ecds
     let candidValue = newCandidRecord(arg)
     let encoded = encodeCandidMessage(@[candidValue])
     ic0_call_data_append(ptrToInt(addr encoded[0]), encoded.len)
+    ic0_call_cycles_add128(0, EcdsaCallCycles)
     let err = ic0_call_perform()
     if err != 0:
       let msg = "call_perform failed with error: " & $err
@@ -195,6 +228,7 @@ proc sign*(_:type ManagementCanister, arg: EcdsaSignArgs): Future[SignWithEcdsaR
     let candidValue = newCandidRecord(arg)
     let encoded = encodeCandidMessage(@[candidValue])
     ic0_call_data_append(ptrToInt(addr encoded[0]), encoded.len)
+    ic0_call_cycles_add128(0, EcdsaCallCycles)
     let err = ic0_call_perform()
     if err != 0:
       let msg = "call_perform failed with error: " & $err
