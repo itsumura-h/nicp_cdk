@@ -69,10 +69,33 @@ type
 # Constants
 # ================================================================================
 const
-  ## sign_with_ecdsa / ecdsa_public_key が要求する最小サイクル数（ローカルレプリカ基準）
-  ## 注: ic0_cost_sign_with_ecdsa は見積もり用のAPIであり、実際の呼び出し時には使用できない
-  ## 実行コンテキスト内で呼び出すとCandidデコードエラーが発生する
-  EcdsaCallCycles = 26_153_846_153'u64
+  ## sign_with_ecdsa / ecdsa_public_key のフォールバック用の最小サイクル数（ローカルレプリカ基準）
+  ## cycle計算APIが使用できない場合のフォールバック値
+  EcdsaCallCyclesFallback = 26_153_846_153'u64
+
+
+# ================================================================================
+# Cycle Estimation Functions
+# ================================================================================
+proc estimateEcdsaCost(keyId: EcdsaKeyId, payloadSize: int): uint64 =
+  ## ECDSAのサイクル使用量を計算
+  ## keyId: 使用する鍵の情報
+  ## payloadSize: Candidエンコードされた引数データのサイズ
+  ## 
+  ## 注: ic0_cost_sign_with_ecdsa APIは現在使用していません。
+  ## このAPIの正しい使用方法が不明確なため、ペイロードサイズに基づいた
+  ## 推定値を計算しています。
+  
+  # ベースコスト（フォールバック値）
+  var estimatedCost = EcdsaCallCyclesFallback
+  
+  # ペイロードサイズに応じた追加コスト（概算）
+  # 大きなペイロードの場合は追加で10%増やす
+  if payloadSize > 1000:
+    estimatedCost = estimatedCost + (estimatedCost div 10)
+  
+  echo "📊 Estimated ECDSA cost (payload size: ", payloadSize, "): ", estimatedCost
+  return estimatedCost
 
 
 # ================================================================================
@@ -187,12 +210,18 @@ proc publicKey*(_:type ManagementCanister, arg: EcdsaPublicKeyArgs): Future[Ecds
     reject_env = cast[int](result)
   )
 
-  ## 3. Attach argument data and execute
+  ## 2. Attach argument data and calculate cycles
   try:
     let candidValue = newCandidRecord(arg)
     let encoded = encodeCandidMessage(@[candidValue])
+    
+    # cycle量を計算して追加
+    let requiredCycles = estimateEcdsaCost(arg.key_id, encoded.len)
+    echo "Adding cycles for ECDSA public_key: ", requiredCycles
+    ic0_call_cycles_add128(0, requiredCycles)
+    
+    ## 3. Execute call
     ic0_call_data_append(ptrToInt(addr encoded[0]), encoded.len)
-    ic0_call_cycles_add128(0, EcdsaCallCycles)
     let err = ic0_call_perform()
     if err != 0:
       let msg = "call_perform failed with error: " & $err
@@ -223,12 +252,18 @@ proc sign*(_:type ManagementCanister, arg: EcdsaSignArgs): Future[SignWithEcdsaR
     reject_env = cast[int](result)
   )
 
-  ## 3. Attach argument data and execute
+  ## 2. Attach argument data and calculate cycles
   try:
     let candidValue = newCandidRecord(arg)
     let encoded = encodeCandidMessage(@[candidValue])
+    
+    # cycle量を計算して追加
+    let requiredCycles = estimateEcdsaCost(arg.key_id, encoded.len)
+    echo "Adding cycles for ECDSA sign: ", requiredCycles
+    ic0_call_cycles_add128(0, requiredCycles)
+    
+    ## 3. Execute call
     ic0_call_data_append(ptrToInt(addr encoded[0]), encoded.len)
-    ic0_call_cycles_add128(0, EcdsaCallCycles)
     let err = ic0_call_perform()
     if err != 0:
       let msg = "call_perform failed with error: " & $err
