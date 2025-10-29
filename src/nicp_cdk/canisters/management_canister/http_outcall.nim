@@ -304,40 +304,87 @@ proc onCallHttpRequestReject(env: uint32) {.exportc.} =
   fail(fut, newException(ValueError, msg))
 
 
+# HTTP Outcall用のフォールバック値（概算）
+const HttpOutcallCyclesFallback = 50_000_000_000'u64  # 50 billion cycles
+
+when defined(release):
+  # 動的cycle計算機能（メインネット/テストネット用）
+  # コンパイル時フラグ `-d:release` で有効化
+  
+  proc estimateHttpOutcallCostDynamic(request: HttpRequestArgs): uint64 =
+    ## ic0_cost_http_request APIを使用した動的なcycle計算
+    try:
+      # リクエストサイズを計算
+      var requestSize = request.url.len.uint64
+      
+      # ヘッダーサイズ
+      for header in request.headers:
+        requestSize += header.name.len.uint64 + header.value.len.uint64
+      
+      # ボディサイズ
+      if request.body.isSome:
+        requestSize += request.body.get.len.uint64
+      
+      # HTTPメソッド名のサイズ
+      requestSize += ($request.`method`).len.uint64
+      
+      # Transform関数サイズ（概算）
+      if request.transform.isSome:
+        requestSize += 100  # Transform関数の概算サイズ
+      
+      let maxResponseSize = request.max_response_bytes.get(2000000'u)
+      
+      # IC System APIを使用して正確なコスト計算
+      var costBuffer: array[16, uint8]  # 128bit for cycles
+      ic0_cost_http_request(requestSize, maxResponseSize, ptrToInt(addr costBuffer[0]))
+      
+      # 128bitのコスト値をuint64に変換（下位64bitを使用）
+      var exactCost: uint64 = 0
+      for i in 0..<8:
+        exactCost = exactCost or (uint64(costBuffer[i]) shl (i * 8))
+      
+      # 計算結果が0の場合はフォールバック値を使用
+      if exactCost == 0:
+        echo "⚠️ ic0_cost_http_request returned 0 cycles, using fallback"
+        return HttpOutcallCyclesFallback
+      
+      # 20%の安全マージンを追加
+      let finalCost = exactCost + (exactCost div 5)
+      echo "📊 Estimated HTTP Outcall cost (dynamic): ", exactCost, " cycles + 20% margin = ", finalCost, " cycles"
+      return finalCost
+      
+    except Exception as e:
+      echo "⚠️ Failed to estimate HTTP Outcall cost dynamically: ", e.msg, ", using fallback"
+      return HttpOutcallCyclesFallback
+
 proc estimateHttpOutcallCost(request: HttpRequestArgs): uint64 =
-  ## HTTP Outcallのサイクル使用量を正確に計算（IC System API使用）
+  ## HTTP Outcallのサイクル使用量を計算
+  ## 
+  ## コンパイル時フラグ `-d:release` を指定すると、
+  ## 動的計算を試行します。
+  ## デフォルトではフォールバック値を使用します（ローカルレプリカで安全）。
   
-  # リクエストサイズを計算
+  # 動的計算の有効化フラグ（デフォルト: 無効）
+  when defined(release):
+    # メインネット/テストネット用: 動的計算を試行
+    try:
+      echo "🔍 Attempting dynamic HTTP Outcall cost estimation..."
+      return estimateHttpOutcallCostDynamic(request)
+    except Exception as e:
+      echo "⚠️ Dynamic cost estimation failed: ", e.msg
+      # フォールバックへ続行
+  
+  # デフォルト: フォールバック値を使用（ローカルレプリカ対応）
+  # リクエストサイズに基づいた簡易推定
   var requestSize = request.url.len.uint64
-  
-  # ヘッダーサイズ
   for header in request.headers:
     requestSize += header.name.len.uint64 + header.value.len.uint64
-  
-  # ボディサイズ
   if request.body.isSome:
     requestSize += request.body.get.len.uint64
   
-  # HTTPメソッド名のサイズ
-  requestSize += ($request.`method`).len.uint64
-  
-  # Transform関数サイズ（概算）
-  if request.transform.isSome:
-    requestSize += 100  # Transform関数の概算サイズ
-  
-  let maxResponseSize = request.max_response_bytes.get(2000000'u)
-  
-  # IC System APIを使用して正確なコスト計算
-  var costBuffer: array[16, uint8]  # 128bit for cycles
-  ic0_cost_http_request(requestSize, maxResponseSize, ptrToInt(addr costBuffer[0]))
-  
-  # 128bitのコスト値をuint64に変換（下位64bitを使用）
-  var exactCost: uint64 = 0
-  for i in 0..<8:
-    exactCost = exactCost or (uint64(costBuffer[i]) shl (i * 8))
-  
-  # 20%の安全マージンを追加
-  return exactCost + (exactCost div 5)
+  let estimatedCost = HttpOutcallCyclesFallback
+  echo "📊 Estimated HTTP Outcall cost (fallback): ", estimatedCost, " cycles (request size: ", requestSize, " bytes)"
+  return estimatedCost
 
 
 proc httpRequest*(_:type ManagementCanister, request: HttpRequestArgs): Future[HttpResponse] =
@@ -364,8 +411,11 @@ proc httpRequest*(_:type ManagementCanister, request: HttpRequestArgs): Future[H
     reject_env = cast[int](result)
   )
 
-  # t_ecdsa.nimと同じパターン（サイクル追加なし）
-  # HTTP Outcallではサイクルが自動的に管理される
+  ## 2. Calculate and add required cycles
+  # HTTP Outcallに必要なcycle量を計算して追加
+  let requiredCycles = estimateHttpOutcallCost(request)
+  echo "Adding cycles for HTTP Outcall: ", requiredCycles
+  ic0_call_cycles_add128(0, requiredCycles)
 
   ## 3. Attach argument data and execute
   try:

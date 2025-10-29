@@ -74,8 +74,13 @@ proc buildContent(projectName: string):string = &"""
 rm -fr ./*.wasm
 rm -fr ./*.wat
 
-echo "nim c -d:release -o:wasi.wasm src/{projectName}_backend/main.nim"
-nim c -d:release -o:wasi.wasm src/{projectName}_backend/main.nim
+# for debug build
+echo "nim c -o:wasi.wasm src/{projectName}_backend/main.nim"
+nim c -o:wasi.wasm src/{projectName}_backend/main.nim
+
+# for release build
+# echo "nim c -d:release -o:wasi.wasm src/{projectName}_backend/main.nim"
+# nim c -d:release -o:wasi.wasm src/{projectName}_backend/main.nim
 
 echo "wasi2ic wasi.wasm main.wasm"
 wasi2ic wasi.wasm main.wasm
@@ -87,7 +92,7 @@ proc new*(args: seq[string]):int =
   # ───────────────────────────────────────────────────────────────────────────────
   # コマンドライン引数チェック
   if args.len < 1:
-    stderr.writeLine("Error: プロジェクト名を指定してください。")
+    stderr.writeLine("Error: Define a project name.")
     quit(1)
   let projectName = args[0].replace(" ", "_").replace("-", "_")
   let projectPath = getCurrentDir() / projectName
