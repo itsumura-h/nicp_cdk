@@ -77,24 +77,80 @@ const
 # ================================================================================
 # Cycle Estimation Functions
 # ================================================================================
-proc estimateEcdsaCost(keyId: EcdsaKeyId, payloadSize: int): uint64 =
+when defined(release):
+  # 動的cycle計算機能（メインネット/テストネット用）
+  # コンパイル時フラグ `-d:release` で有効化
+  
+  proc isReplicatedExecution(): bool =
+    ## レプリカ環境（メインネット/テストネット）で実行されているかチェック
+    ## ic0_in_replicated_execution() が 1 を返す場合はレプリカ環境
+    try:
+      return ic0_in_replicated_execution() == 1
+    except:
+      return false
+
+  proc estimateEcdsaCostDynamic(keyId: EcdsaKeyId, payload: seq[uint8]): uint64 =
+    ## ic0_cost_sign_with_ecdsa APIを使用した動的なcycle計算
+    ## 成功時は計算されたcycle量を返し、失敗時はフォールバック値を返す
+    try:
+      let curveValue = uint32(keyId.curve.ord)
+      var costBuffer: array[16, uint8]  # 128bit for cycles
+      
+      let apiResult = ic0_cost_sign_with_ecdsa(
+        ptrToInt(addr payload[0]),       # ペイロードの先頭アドレス
+        payload.len,                     # ペイロードのサイズ
+        curveValue,                      # ECDSA曲線タイプ
+        ptrToInt(addr costBuffer[0])     # 結果を格納するバッファ
+      )
+      
+      if apiResult != 0:
+        echo "⚠️ ic0_cost_sign_with_ecdsa returned error code: ", apiResult, ", using fallback"
+        return EcdsaCallCyclesFallback
+      
+      # 128bitのコスト値をuint64に変換（下位64bitを使用）
+      var exactCost: uint64 = 0
+      for i in 0..<8:
+        exactCost = exactCost or (uint64(costBuffer[i]) shl (i * 8))
+      
+      # 計算結果が0の場合もフォールバック値を使用
+      if exactCost == 0:
+        echo "⚠️ ic0_cost_sign_with_ecdsa returned 0 cycles, using fallback"
+        return EcdsaCallCyclesFallback
+      
+      # 20%の安全マージンを追加
+      let finalCost = exactCost + (exactCost div 5)
+      echo "📊 Estimated ECDSA cost (dynamic): ", exactCost, " cycles + 20% margin = ", finalCost, " cycles"
+      return finalCost
+      
+    except Exception as e:
+      echo "⚠️ Failed to estimate ECDSA cost dynamically: ", e.msg, ", using fallback"
+      return EcdsaCallCyclesFallback
+
+proc estimateEcdsaCost(keyId: EcdsaKeyId, payload: seq[uint8]): uint64 =
   ## ECDSAのサイクル使用量を計算
   ## keyId: 使用する鍵の情報
-  ## payloadSize: Candidエンコードされた引数データのサイズ
+  ## payload: Candidエンコードされた引数データ
   ## 
-  ## 注: ic0_cost_sign_with_ecdsa APIは現在使用していません。
-  ## このAPIの正しい使用方法が不明確なため、ペイロードサイズに基づいた
-  ## 推定値を計算しています。
+  ## コンパイル時フラグ `-d:enableEcdsaDynamicCost` を指定すると、
+  ## レプリカ環境で動的計算を試行します。
+  ## デフォルトではフォールバック値を使用します（ローカルレプリカで安全）。
   
-  # ベースコスト（フォールバック値）
-  var estimatedCost = EcdsaCallCyclesFallback
+  # 動的計算の有効化フラグ（デフォルト: 無効）
+  when defined(enableEcdsaDynamicCost):
+    # メインネット/テストネット用: 動的計算を試行
+    try:
+      if isReplicatedExecution():
+        echo "🔍 Attempting dynamic ECDSA cost estimation..."
+        let dynamicCost = estimateEcdsaCostDynamic(keyId, payload)
+        if dynamicCost != EcdsaCallCyclesFallback:
+          return dynamicCost
+    except Exception as e:
+      echo "⚠️ Dynamic cost estimation failed: ", e.msg
+      # フォールバックへ続行
   
-  # ペイロードサイズに応じた追加コスト（概算）
-  # 大きなペイロードの場合は追加で10%増やす
-  if payloadSize > 1000:
-    estimatedCost = estimatedCost + (estimatedCost div 10)
-  
-  echo "📊 Estimated ECDSA cost (payload size: ", payloadSize, "): ", estimatedCost
+  # デフォルト: フォールバック値を使用（ローカルレプリカ対応）
+  let estimatedCost = EcdsaCallCyclesFallback
+  echo "📊 Estimated ECDSA cost (fallback): ", estimatedCost, " cycles (payload size: ", payload.len, " bytes)"
   return estimatedCost
 
 
@@ -216,7 +272,7 @@ proc publicKey*(_:type ManagementCanister, arg: EcdsaPublicKeyArgs): Future[Ecds
     let encoded = encodeCandidMessage(@[candidValue])
     
     # cycle量を計算して追加
-    let requiredCycles = estimateEcdsaCost(arg.key_id, encoded.len)
+    let requiredCycles = estimateEcdsaCost(arg.key_id, encoded)
     echo "Adding cycles for ECDSA public_key: ", requiredCycles
     ic0_call_cycles_add128(0, requiredCycles)
     
@@ -258,7 +314,7 @@ proc sign*(_:type ManagementCanister, arg: EcdsaSignArgs): Future[SignWithEcdsaR
     let encoded = encodeCandidMessage(@[candidValue])
     
     # cycle量を計算して追加
-    let requiredCycles = estimateEcdsaCost(arg.key_id, encoded.len)
+    let requiredCycles = estimateEcdsaCost(arg.key_id, encoded)
     echo "Adding cycles for ECDSA sign: ", requiredCycles
     ic0_call_cycles_add128(0, requiredCycles)
     
