@@ -230,8 +230,8 @@ proc convertIcpSignatureToEthereum*(
   let r = icpSignature[0..<32]
   let s = icpSignature[32..<64]
   
-  # Try recovery IDs 0 and 1 to find the correct v
-  for recoveryId in [0'u8, 1]:
+  # Try recovery IDs 27 and 28 to find the correct v
+  for recoveryId in [27'u8, 28]:
     try:
       # Create Ethereum format signature for testing (r + s + v)
       var testSignature = newSeq[uint8](65)
