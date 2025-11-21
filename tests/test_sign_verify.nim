@@ -6,6 +6,8 @@ discard """
 import unittest
 import secp256k1
 import nimcrypto/keccak
+import ../src/nicp_cdk/canisters/management_canister
+import ../src/nicp_cdk/ic_types/ic_principal
 
 proc rng(data: var openArray[byte]):bool =
   data[0] += 1
