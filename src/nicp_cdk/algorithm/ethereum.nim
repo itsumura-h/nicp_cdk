@@ -230,22 +230,23 @@ proc convertIcpSignatureToEthereum*(
   let r = icpSignature[0..<32]
   let s = icpSignature[32..<64]
   
-  # Try recovery IDs 27 and 28 to find the correct v
-  for recoveryId in [27'u8, 28]:
+  # Try recovery IDs 0 and 1 (will be converted to v=27/28 for Ethereum)
+  for rawRecoveryId in [0'u8, 1]:
     try:
       # Create Ethereum format signature for testing (r + s + v)
+      let vValue = 27 + rawRecoveryId  # Ethereum v value (27 or 28)
       var testSignature = newSeq[uint8](65)
       for i in 0..<32:
         testSignature[i] = r[i]
       for i in 0..<32:
         testSignature[i+32] = s[i]
-      testSignature[64] = recoveryId
+      testSignature[64] = vValue
       
-      # Try to recover public key using this recovery ID
+      # Try to recover public key using this recovery ID (0 or 1, not 27/28)
       let recoveredPubKey = recoverPublicKeyFromSignature(
         messageHash, 
         toEvmHexString(testSignature[0..<64], false), # Only r+s for recovery
-        recoveryId
+        rawRecoveryId  # Use 0 or 1, not 27/28
       )
       
       # Check if recovered public key matches the expected one
@@ -259,10 +260,12 @@ proc convertIcpSignatureToEthereum*(
         # Both are uncompressed, compare directly
         if recoveredPubKey == publicKey:
           return toEvmHexString(testSignature, true)
-    except:
+    except Exception as e:
+      echo "Recovery attempt failed for recoveryId ", rawRecoveryId, ": ", e.msg
       continue
   
   # If no valid recovery ID found, return with default v=27 (recoveryId=0)
+  echo "Warning: Could not find valid recovery ID, using default v=27"
   var fallbackSignature = newSeq[uint8](65)
   for i in 0..<32:
     fallbackSignature[i] = r[i]

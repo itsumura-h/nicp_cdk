@@ -1,0 +1,76 @@
+---
+description: 59-test-sign-messageブランチでの開発時に読み込む
+alwaysApply: false
+---
+59-test-sign-message ブランチルール
+===
+
+このブランチで実装することは以下の通りです。
+- TypeScriptで単体テストを作成する
+- viemライブラリを使用してexample配下のバックエンドキャニスターに接続する
+- Ethereum形式のウォレットアドレスを作成する
+- 署名の実行を行う
+- viemのverifyMessage関数を使って署名を検証する
+
+## デバッグ用実行コマンド
+```bash
+# ICPローカル環境の起動
+cd /application/examples/t_ecdsa
+dfx start --clean --background
+
+# バックエンドのビルドとデプロイ
+./build.sh
+dfx deploy t_ecdsa_backend
+dfx generate
+
+# TypeScriptテストの実行
+cd /application/examples/t_ecdsa/src/t_ecdsa_frontend
+pnpm install
+pnpm test
+```
+
+## 進捗
+- [x] example配下のディレクトリ構造を確認
+- [x] TypeScript環境とviemの依存関係をセットアップ
+- [x] バックエンドキャニスターのAPIインターフェースを確認
+- [x] ウォレットアドレス作成のテストコードを作成
+- [x] 署名実行のテストコードを作成
+- [x] 署名検証のテストコードを作成
+- [x] 統合テストの実行と動作確認（環境セットアップ完了、型チェック通過）
+
+## 参考資料
+- viem公式ドキュメント: https://viem.sh/
+- viem署名関連API: https://viem.sh/docs/actions/wallet/signMessage
+- viem検証関連API: https://viem.sh/docs/utilities/verifyMessage
+
+## 調査結果・設計まとめ
+### テスト設計方針
+1. **テスト環境**: examples/t_ecdsa/src/t_ecdsa_frontendにvitest環境を構築
+2. **テスト対象**: t_ecdsa_backendキャニスターのEthereum互換署名機能
+3. **テストフロー**:
+   - キャニスターに対してウォレットアドレス生成をリクエスト (`getEvmAddress`)
+   - 生成されたアドレスとメッセージでキャニスターに署名をリクエスト (`signWithEthereum`)
+   - 返却された署名をviemのverifyMessage関数で検証
+   - キャニスター内の検証関数でも検証 (`verifyWithEthereum`)
+4. **使用ライブラリ**: 
+   - viem (Ethereum署名検証)
+   - @dfinity/agent (ICPキャニスター接続)
+   - vitest (テストフレームワーク)
+
+### 実装完了事項
+- `package.json`にvitest依存関係とテストスクリプトを追加
+- `vitest.config.ts`を作成し、タイムアウトを60秒に設定（ECDSA署名に時間がかかるため）
+- `src/test/testHelper.ts`を作成し、ICPキャニスター接続ヘルパーを実装
+- `src/test/ethereum-sign.test.ts`を作成し、6つのテストケースを実装:
+  1. Ethereumアドレスの取得テスト
+  2. 署名と検証の基本テスト
+  3. 複数メッセージでの署名・検証テスト
+  4. キャニスター側検証との比較テスト
+  5. 不正なアドレスでの検証失敗テスト
+  6. 改ざんメッセージでの検証失敗テスト
+- `src/test/README.md`を作成し、テスト実行手順を記載
+
+### 技術的な詳細
+- ICPキャニスターのEthereum署名は、threshold ECDSAを使用
+- viemの`verifyMessage`は標準的なEthereum署名検証を実行
+- 両者の互換性を確認することで、ICPキャニスターがEthereumエコシステムと互換性があることを検証
