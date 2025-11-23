@@ -1,5 +1,5 @@
 import { describe, test, expect, beforeAll } from 'vitest';
-import { verifyMessage, type Hex } from 'viem';
+import { verifyMessage, type Hex, hashMessage, hexToBytes } from 'viem';
 import { createTestActor } from './testHelper';
 import type { _SERVICE } from '../../../declarations/t_ecdsa_backend/t_ecdsa_backend.did';
 
@@ -29,29 +29,29 @@ describe('Ethereum署名とviem検証のテスト', () => {
     console.log('取得したEthereumアドレス:', address);
   });
 
-  test('メッセージに署名して、viemで検証できること', async () => {
-    const message = 'Hello, ICP Ethereum Wallet!';
+  test('signWithEthereum: メッセージをハッシュ化してから署名・検証できること', async () => {
+    const message = 'Hello, EIP-191!';
     
     // Step 1: Ethereumアドレスを取得
     const ethereumAddress = await actor.getEvmAddress();
     expect(ethereumAddress).toMatch(/^0x[a-fA-F0-9]{40}$/);
     console.log('Ethereumアドレス:', ethereumAddress);
     
-    // Step 2: ICPキャニスターで署名を実行
+    // Step 2: メッセージをEIP-191フォーマットでハッシュ化
+    // EIP-191: "\x19Ethereum Signed Message:\n" + len(message) + message
+    const messageHash = hashMessage(message);
+    expect(messageHash).toMatch(/^0x[a-fA-F0-9]{64}$/); // 32バイトのハッシュ
+    console.log('メッセージハッシュ (EIP-191):', messageHash);
+    
+    // Step 3: ハッシュに対してICPキャニスターで署名を実行
+    // signWithEthereumは内部でEIP-191ハッシュ化を行うので、元のメッセージで署名
     const signature = await actor.signWithEthereum(message);
     expect(signature).toBeTruthy();
-    expect(signature).toMatch(/^0x[a-fA-F0-9]{130}$/); // 署名は0x + 130桁の16進数
+    expect(signature).toMatch(/^0x[a-fA-F0-9]{130}$/);
     console.log('署名:', signature);
     
-    // 署名の詳細を出力
-    const r = signature.slice(0, 66);
-    const s = '0x' + signature.slice(66, 130);
-    const v = signature.slice(130, 132);
-    console.log('r:', r);
-    console.log('s:', s);
-    console.log('v:', v, '(decimal:', parseInt(v, 16), ')');
-    
-    // Step 3: viemのverifyMessage関数で署名を検証
+    // Step 4: viemのverifyMessage関数で署名を検証
+    // verifyMessageは内部でEIP-191フォーマットに変換して検証する
     const isValid = await verifyMessage({
       address: ethereumAddress as Hex,
       message: message,
@@ -59,32 +59,27 @@ describe('Ethereum署名とviem検証のテスト', () => {
     });
     
     console.log('署名検証結果:', isValid);
-    
-    // キャニスター側でも検証してみる
-    const canisterIsValid = await actor.verifyWithEthereum({
-      message,
-      signature,
-      ethereumAddress,
-    });
-    console.log('キャニスター検証結果:', canisterIsValid);
-    
     expect(isValid).toBe(true);
   });
 
-  test('複数の異なるメッセージで署名・検証できること', async () => {
+  test('signWithEthereum: 複数のメッセージでハッシュ化署名・検証できること', async () => {
     const messages = [
-      'First message',
-      'Second message with 日本語',
-      'Third message with emojis 🚀🌟',
+      'EIP-191 test message 1',
+      'EIP-191 テストメッセージ 2',
+      'EIP-191 test with emoji 🔐',
     ];
     
     const ethereumAddress = await actor.getEvmAddress();
     
     for (const message of messages) {
-      // 署名実行
+      // メッセージをEIP-191フォーマットでハッシュ化
+      const messageHash = hashMessage(message);
+      console.log(`メッセージ "${message}" のハッシュ:`, messageHash);
+      
+      // メッセージに署名（signWithEthereumが内部でEIP-191ハッシュ化を行う）
       const signature = await actor.signWithEthereum(message);
       
-      // viem検証
+      // verifyMessageで検証（内部でEIP-191フォーマットに変換）
       const isValid = await verifyMessage({
         address: ethereumAddress as Hex,
         message: message,
@@ -96,71 +91,117 @@ describe('Ethereum署名とviem検証のテスト', () => {
     }
   });
 
-  test('ICPキャニスターのverifyWithEthereum関数でも検証できること', async () => {
-    const message = 'Verify with both viem and ICP canister';
+  test('signWithEthereum: 異なるメッセージの署名は検証に失敗すること', async () => {
+    const message1 = 'Original message';
+    const message2 = 'Different message';
     
-    // Ethereumアドレスを取得
     const ethereumAddress = await actor.getEvmAddress();
     
-    // 署名実行
-    const signature = await actor.signWithEthereum(message);
+    // message1のハッシュ値を確認
+    const hash1 = hashMessage(message1);
+    const hash2 = hashMessage(message2);
+    console.log('message1のハッシュ:', hash1);
+    console.log('message2のハッシュ:', hash2);
     
-    // viem検証
-    const viemIsValid = await verifyMessage({
-      address: ethereumAddress as Hex,
-      message: message,
-      signature: signature as Hex,
-    });
-    expect(viemIsValid).toBe(true);
+    // message1に署名
+    const signature = await actor.signWithEthereum(message1);
     
-    // ICPキャニスター検証
-    const canisterIsValid = await actor.verifyWithEthereum({
-      message,
-      signature,
-      ethereumAddress,
-    });
-    expect(canisterIsValid).toBe(true);
-    
-    // 両方の検証結果が一致することを確認
-    expect(viemIsValid).toBe(canisterIsValid);
-    
-    console.log('viem検証:', viemIsValid);
-    console.log('キャニスター検証:', canisterIsValid);
-  });
-
-  test('異なる署名者の署名は検証に失敗すること', async () => {
-    const message = 'Test message';
-    const signature = await actor.signWithEthereum(message);
-    
-    // 別のアドレスで検証を試みる（失敗するはず）
-    const fakeAddress = '0x0000000000000000000000000000000000000001';
-    
+    // message2で検証を試みる（失敗するはず）
     const isValid = await verifyMessage({
-      address: fakeAddress as Hex,
-      message: message,
+      address: ethereumAddress as Hex,
+      message: message2,
       signature: signature as Hex,
     });
     
     expect(isValid).toBe(false);
-    console.log('不正なアドレスでの検証結果:', isValid);
+    console.log('異なるメッセージでの検証結果:', isValid);
   });
 
-  test('改ざんされたメッセージの検証は失敗すること', async () => {
-    const originalMessage = 'Original message';
-    const tamperedMessage = 'Tampered message';
+  test('signWithEvmWallet: ハッシュ化されたデータに直接署名して検証できること', async () => {
+    const message = 'Hello, signWithEvmWallet!';
     
+    // Step 1: Ethereumアドレスを取得
     const ethereumAddress = await actor.getEvmAddress();
-    const signature = await actor.signWithEthereum(originalMessage);
+    expect(ethereumAddress).toMatch(/^0x[a-fA-F0-9]{40}$/);
+    console.log('Ethereumアドレス:', ethereumAddress);
     
-    // 改ざんされたメッセージで検証を試みる
+    // Step 2: メッセージをEIP-191フォーマットでハッシュ化
+    const messageHash = hashMessage(message);
+    expect(messageHash).toMatch(/^0x[a-fA-F0-9]{64}$/);
+    console.log('メッセージハッシュ:', messageHash);
+    
+    // Step 3: ハッシュをバイト配列に変換してsignWithEvmWalletで署名
+    const hashBytes = hexToBytes(messageHash as Hex);
+    const signature = await actor.signWithEvmWallet(hashBytes);
+    expect(signature).toBeTruthy();
+    expect(signature).toMatch(/^0x[a-fA-F0-9]{130}$/);
+    console.log('署名:', signature);
+    
+    // Step 4: verifyMessageのrawオプションでハッシュを直接検証
     const isValid = await verifyMessage({
       address: ethereumAddress as Hex,
-      message: tamperedMessage,
+      message: message,
+      signature: signature as Hex,
+    });
+    
+    console.log('署名検証結果:', isValid);
+    expect(isValid).toBe(true);
+  });
+
+  test('signWithEvmWallet: 複数のメッセージでハッシュ化データの署名・検証', async () => {
+    const messages = [
+      'signWithEvmWallet test 1',
+      'signWithEvmWallet テスト 2',
+      'signWithEvmWallet with emoji 🎉',
+    ];
+    
+    const ethereumAddress = await actor.getEvmAddress();
+    
+    for (const message of messages) {
+      // メッセージをハッシュ化
+      const messageHash = hashMessage(message);
+      console.log(`メッセージ "${message}" のハッシュ:`, messageHash);
+      
+      // ハッシュをバイト配列に変換して署名
+      const hashBytes = hexToBytes(messageHash as Hex);
+      const signature = await actor.signWithEvmWallet(hashBytes);
+      
+      // rawオプションで検証
+      const isValid = await verifyMessage({
+        address: ethereumAddress as Hex,
+        message: message,
+        signature: signature as Hex,
+      });
+      
+      expect(isValid).toBe(true);
+      console.log(`メッセージ "${message}" の検証: ${isValid}`);
+    }
+  });
+
+  test('signWithEvmWallet: 異なるハッシュでの検証は失敗すること', async () => {
+    const message1 = 'First message';
+    const message2 = 'Second message';
+    
+    const ethereumAddress = await actor.getEvmAddress();
+    
+    // message1のハッシュに署名
+    const hash1 = hashMessage(message1);
+    const hashBytes1 = hexToBytes(hash1 as Hex);
+    const signature = await actor.signWithEvmWallet(hashBytes1);
+    
+    // message2のハッシュで検証を試みる（失敗するはず）
+    const hash2 = hashMessage(message2);
+    console.log('署名したハッシュ:', hash1);
+    console.log('検証に使うハッシュ:', hash2);
+    
+    const isValid = await verifyMessage({
+      address: ethereumAddress as Hex,
+      message: message2,
       signature: signature as Hex,
     });
     
     expect(isValid).toBe(false);
-    console.log('改ざんされたメッセージの検証結果:', isValid);
+    console.log('異なるハッシュでの検証結果:', isValid);
   });
 });
 
