@@ -1,0 +1,136 @@
+discard """
+  cmd : "nim c --skipUserCfg $file"
+"""
+# nim c -r tests/storage/test_serialization.nim
+
+import unittest
+import ../../src/nicp_cdk/storage/serialization
+import ../../src/nicp_cdk/ic_types/ic_principal
+
+
+suite "storage serialization tests":
+  test "uint8 round-trip":
+    let value = 0xAB'u8
+    let data = serialize(value)
+    check data.len == 1
+    check data[0] == value
+    var offset = 0
+    let decoded = deserialize[uint8](data, offset)
+    check decoded == value
+    check offset == data.len
+
+  test "int8 round-trip":
+    let value = -0x12'i8
+    let data = serialize(value)
+    check data.len == 1
+    check data[0] == byte(value)
+    var offset = 0
+    let decoded = deserialize[int8](data, offset)
+    check decoded == value
+    check offset == data.len
+
+  test "uint16 little-endian layout":
+    let value = 0x3412'u16
+    let data = serialize(value)
+    check data.len == 2
+    check data[0] == 0x12'u8
+    check data[1] == 0x34'u8
+    var offset = 0
+    let decoded = deserialize[uint16](data, offset)
+    check decoded == value
+
+  test "int16 round-trip":
+    let value = -0x1234'i16
+    let data = serialize(value)
+    check data.len == 2
+    var offset = 0
+    let decoded = deserialize[int16](data, offset)
+    check decoded == value
+
+  test "uint32 little-endian bytes":
+    let value = 0xAABBCCDD'u32
+    let data = serialize(value)
+    check data.len == 4
+    check data[0] == 0xDD'u8
+    check data[3] == 0xAA'u8
+    var offset = 0
+    let decoded = deserialize[uint32](data, offset)
+    check decoded == value
+
+  test "int32 round-trip":
+    let value = -0x112233'i32
+    let data = serialize(value)
+    check data.len == 4
+    var offset = 0
+    let decoded = deserialize[int32](data, offset)
+    check decoded == value
+
+  test "uint64 layout and round-trip":
+    let value = 0x1122334455667788'u64
+    let data = serialize(value)
+    check data.len == 8
+    check data[0] == 0x88'u8
+    check data[7] == 0x11'u8
+    var offset = 0
+    let decoded = deserialize[uint64](data, offset)
+    check decoded == value
+
+  test "int64 round-trip":
+    let value = -0x1122334455'i64
+    let data = serialize(value)
+    check data.len == 8
+    var offset = 0
+    let decoded = deserialize[int64](data, offset)
+    check decoded == value
+
+  test "bool serialization":
+    for value in [false, true]:
+      let data = serialize(value)
+      check data.len == 1
+      check data[0] == byte(if value: 1 else: 0)
+      var offset = 0
+      let decoded = deserialize[bool](data, offset)
+      check decoded == value
+
+  test "principal round-trip":
+    let original = Principal.fromText("aaaaa-aa")
+    let data = serialize(original)
+    var offset = 0
+    let decoded = deserialize[Principal](data, offset)
+    check decoded.bytes == original.bytes
+    check decoded.text == original.text
+    check offset == data.len
+
+  test "string round-trip":
+    let text = "IcStable"
+    let data = serialize(text)
+    check data.len == 4 + text.len
+    var offset = 0
+    let decoded = deserialize[string](data, offset)
+    check decoded == text
+    check offset == data.len
+
+  test "empty string serialization":
+    let data = serialize("")
+    check data.len == 4
+    var offset = 0
+    let decoded = deserialize[string](data, offset)
+    check decoded == ""
+
+  test "native int round-trip":
+    let value = if sizeof(int) == 8: int(0x11223344) else: int(0x3344)
+    let data = serialize(value)
+    check data.len == sizeof(int)
+    var offset = 0
+    let decoded = deserialize[int](data, offset)
+    check decoded == value
+    check offset == data.len
+
+  test "native uint round-trip":
+    let value = if sizeof(uint) == 8: uint(0xAABBCCDD) else: uint(0xCCDD)
+    let data = serialize(value)
+    check data.len == sizeof(uint)
+    var offset = 0
+    let decoded = deserialize[uint](data, offset)
+    check decoded == value
+    check offset == data.len
