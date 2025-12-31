@@ -91,6 +91,13 @@ proc initIcStableSeq*[T](baseOffset: uint64 = 0): IcStableSeq[T] =
 proc len*[T](s: IcStableSeq[T]): int =
   int(s.length)
 
+proc clear*[T](s: var IcStableSeq[T]) =
+  s.length = 0
+  s.dataEnd = dataStart(s)
+  s.offsets.setLen(0)
+  s.lengths.setLen(0)
+  writeHeader(s)
+
 proc `[]`*[T](s: IcStableSeq[T], idx: int): T =
   if idx < 0 or idx >= int(s.length):
     raise newException(IndexDefect, "index out of bounds")
@@ -165,3 +172,10 @@ proc delete*[T](s: var IcStableSeq[T], idx: int) =
 iterator items*[T](s: IcStableSeq[T]): T =
   for idx in 0 ..< int(s.length):
     yield s[idx]
+
+proc toSeq*[T](s: IcStableSeq[T]): seq[T] =
+  ## Collect all elements into a standard Nim seq
+  result = newSeq[T](int(s.length))
+  for idx in 0 ..< int(s.length):
+    result[idx] = s[idx]
+  # `s[idx]` reads each entry, so this is O(n) with repeated stable reads

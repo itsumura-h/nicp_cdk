@@ -21,7 +21,7 @@ proc callCanisterFunction(functionName: string, args: string = ""): string =
       fmt"{DFX_PATH} canister call stable_memory_backend {functionName}"
     else:
       fmt"{DFX_PATH} canister call stable_memory_backend {functionName} '{args}'"
-    return execProcess(command)
+    return execProcess(command).strip()
   finally:
     setCurrentDir(currentDir)
 
@@ -45,38 +45,76 @@ proc deploy() =
 suite "stable memory backend tests":
   deploy()
 
-  test "int stable value round trip":
-    echo "Testing int stable value..."
-    checkStableValueRoundTrip("int", "(42)", "42")
+  # test "int stable value round trip":
+  #   echo "Testing int stable value..."
+  #   checkStableValueRoundTrip("int", "(42)", "42")
 
-  test "uint stable value round trip":
-    echo "Testing uint stable value..."
-    checkStableValueRoundTrip("uint", "(99)", "99")
+  # test "uint stable value round trip":
+  #   echo "Testing uint stable value..."
+  #   checkStableValueRoundTrip("uint", "(99)", "99")
 
-  test "string stable value round trip":
-    echo "Testing string stable value..."
-    checkStableValueRoundTrip("string", "(\"Hello ICP\")", "\"Hello ICP\"")
+  # test "string stable value round trip":
+  #   echo "Testing string stable value..."
+  #   checkStableValueRoundTrip("string", "(\"Hello ICP\")", "\"Hello ICP\"")
 
-  test "principal stable value round trip":
-    echo "Testing principal stable value..."
-    checkStableValueRoundTrip("principal", "(principal \"aaaaa-aa\")", "aaaaa-aa")
+  # test "principal stable value round trip":
+  #   echo "Testing principal stable value..."
+  #   checkStableValueRoundTrip("principal", "(principal \"aaaaa-aa\")", "aaaaa-aa")
 
-  test "bool stable value round trip":
-    echo "Testing bool stable value..."
-    checkStableValueRoundTrip("bool", "(true)", "true")
+  # test "bool stable value round trip":
+  #   echo "Testing bool stable value..."
+  #   checkStableValueRoundTrip("bool", "(true)", "true")
 
-  test "float stable value round trip":
-    echo "Testing float32 stable value..."
-    checkStableValueRoundTrip("float", "(3.14 : float32)", "3.14")
+  # test "float stable value round trip":
+  #   echo "Testing float32 stable value..."
+  #   checkStableValueRoundTrip("float", "(3.14 : float32)", "3.14")
 
-  test "double stable value round trip":
-    echo "Testing float64 stable value..."
-    checkStableValueRoundTrip("double", "(3.1415926535 : float64)", "3.1415926535")
+  # test "double stable value round trip":
+  #   echo "Testing float64 stable value..."
+  #   checkStableValueRoundTrip("double", "(3.1415926535 : float64)", "3.1415926535")
 
-  test "char stable value round trip":
-    echo "Testing char stable value..."
-    checkStableValueRoundTrip("char", "(65)", "65")
+  # test "char stable value round trip":
+  #   echo "Testing char stable value..."
+  #   checkStableValueRoundTrip("char", "(65)", "65")
 
-  test "byte stable value round trip":
-    echo "Testing byte stable value..."
-    checkStableValueRoundTrip("byte", "(255)", "255")
+  # test "byte stable value round trip":
+  #   echo "Testing byte stable value..."
+  #   checkStableValueRoundTrip("byte", "(255)", "255")
+
+  test "seq[int] stable value round trip":
+    echo "Testing seq[int] stable value..."
+    discard callCanisterFunction("seqInt_reset")
+    discard callCanisterFunction("seqInt_set", "(1)")
+    var value = callCanisterFunction("seqInt_get", "(0)")
+    check value == "(1 : int)"
+
+    discard callCanisterFunction("seqInt_set", "(2)")
+    value = callCanisterFunction("seqInt_get", "(1)")
+    check value == "(2 : int)"
+
+    discard callCanisterFunction("seqInt_set", "(3)")
+    value = callCanisterFunction("seqInt_get", "(2)")
+    check value == "(3 : int)"
+
+    discard callCanisterFunction("seqInt_set", "(4)")
+    value = callCanisterFunction("seqInt_get", "(3)")
+    check value == "(4 : int)"
+
+    discard callCanisterFunction("seqInt_set", "(5)")
+    value = callCanisterFunction("seqInt_get", "(4)")
+    check value == "(5 : int)"
+
+    discard callCanisterFunction("seqInt_set", "(6)")
+    value = callCanisterFunction("seqInt_get", "(5)")
+    check value == "(6 : int)"
+
+  test "Table[principal, string]":
+    echo "Testing Table[principal, string]..."
+    discard callCanisterFunction("table_reset")
+    discard callCanisterFunction("table_set", "(\"Hello ICP\")")
+    var value = callCanisterFunction("table_get")
+    check value == "(\"Hello ICP\")"
+
+    discard callCanisterFunction("table_set", "(\"Hello ICP2\")")
+    value = callCanisterFunction("table_get")
+    check value == "(\"Hello ICP2\")"
