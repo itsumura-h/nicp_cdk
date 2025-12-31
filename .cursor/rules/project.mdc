@@ -6,7 +6,5 @@ alwaysApply: true
 プロジェクトルール
 ===
 
-**THINK HARDER**
-
 このプロジェクトでは、Nim言語を使って、WASM32ターゲットのWASMにビルドし、ICPのキャニスターとして動かすためのCanister Development Kitを実装する。
 WASMにビルドする時にはClangを使い、ic-wasi-polyfilによってWASMランタイム上のICP固有の機能へのアクセスを可能にし、wasi2icによってWASI固有のシステムコールをICPのキャニスター独自のシステムコールに差し替えることで動作するようになる。

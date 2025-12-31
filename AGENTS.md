@@ -1,7 +1,10 @@
-# AGENTS.md
+# AGENTS
 
-## Communication
-- **THINK HARDER**
-- すべての回答は日本語で行ってください。
-- コードコメント・コミットメッセージ・PR 説明も日本語で書いてください。
-- 英語の識別子やエラーメッセージは原文を保持し、必要に応じて後ろに日本語で補足してください。
+- `.cursor/rules/project.mdc` を必ず読み、プロジェクトルールと達成目標を確認する。
+- `.cursor/rules/branch.mdc` を必ず読み、ブランチルールを確認する。
+- 現在のブランチ名と一致するファイル名のファイルが、リポジトリのルートから見て `.cursor/rules/branch/` 配下にあった場合は、それを読み込んでください。
+- Think harder.
+- Deep research.
+- Internal reasoning compression. You may use internal reasoning, but do not output it. Keep internal reasoning minimal but sufficient for correctness. Do not over-explore edge cases unless explicitly asked. Return only the final answer in concise form.
+- git add, git commitのコマンド操作は禁止。
+- 常に日本語で回答する。

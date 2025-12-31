@@ -11,3 +11,4 @@ nimcache
 .env
 node_modules
 .pnpm-store
+.nimcache
