@@ -1,4 +1,6 @@
 import std/endians
+import std/tables
+import std/typetraits
 import ../ic_types/ic_principal
 
 proc serialize*(value: uint8): seq[byte] =
@@ -37,8 +39,21 @@ proc serialize*(value: int64): seq[byte] =
   var le = value
   littleEndian64(addr result[0], addr le)
 
+proc serialize*(value: float32): seq[byte] =
+  result = newSeq[byte](4)
+  var le = value
+  littleEndian32(addr result[0], addr le)
+
+proc serialize*(value: float64): seq[byte] =
+  result = newSeq[byte](8)
+  var le = value
+  littleEndian64(addr result[0], addr le)
+
 proc serialize*(value: bool): seq[byte] =
   result = @[byte(if value: 1 else: 0)]
+
+proc serialize*(value: char): seq[byte] =
+  result = @[byte(value)]
 
 proc serialize*(value: string): seq[byte] =
   let len = uint32(value.len)
@@ -56,6 +71,37 @@ proc serialize*(value: Principal): seq[byte] =
   littleEndian32(addr result[0], addr lenLe)
   if blob.len > 0:
     copyMem(addr result[4], unsafeAddr blob[0], blob.len)
+
+proc serialize*[T](value: seq[T]): seq[byte] =
+  let seqLen = uint32(value.len)
+  result = newSeq[byte](4)
+  var lenLe = seqLen
+  littleEndian32(addr result[0], addr lenLe)
+  for item in value:
+    result.add(serialize(item))
+
+proc serialize*[K, V](value: Table[K, V]): seq[byte] =
+  let tableLen = uint32(value.len)
+  result = newSeq[byte](4)
+  var lenLe = tableLen
+  littleEndian32(addr result[0], addr lenLe)
+  for key, item in value.pairs:
+    result.add(serialize(key))
+    result.add(serialize(item))
+
+proc serialize*[K, V](value: TableRef[K, V]): seq[byte] =
+  if value.isNil:
+    result = newSeq[byte](4)
+    var lenLe = 0'u32
+    littleEndian32(addr result[0], addr lenLe)
+    return
+  let tableLen = uint32(value.len)
+  result = newSeq[byte](4)
+  var lenLe = tableLen
+  littleEndian32(addr result[0], addr lenLe)
+  for key, item in value.pairs:
+    result.add(serialize(key))
+    result.add(serialize(item))
 
 proc serialize*(value: int): seq[byte] =
   when sizeof(int) == 8:
@@ -106,8 +152,22 @@ proc deserialize*[T](data: openArray[byte], offset: var int): T =
     littleEndian64(addr le, unsafeAddr data[offset])
     offset += 8
     result = le
+  elif T is SomeFloat:
+    when sizeof(T) == 4:
+      var le: float32
+      littleEndian32(addr le, unsafeAddr data[offset])
+      offset += 4
+      result = T(le)
+    else:
+      var le: float64
+      littleEndian64(addr le, unsafeAddr data[offset])
+      offset += 8
+      result = T(le)
   elif T is bool:
     result = data[offset] != 0
+    offset += 1
+  elif T is char:
+    result = char(data[offset])
     offset += 1
   elif T is string:
     var len: uint32
@@ -153,5 +213,31 @@ proc deserialize*[T](data: openArray[byte], offset: var int): T =
       blob = @[]
     offset += blobLen
     result = Principal.fromBlob(blob)
+  elif T is seq:
+    type Elem = elementType(default(T))
+    let seqLen = deserialize[uint32](data, offset)
+    result = newSeq[Elem](int(seqLen))
+    for i in 0 ..< int(seqLen):
+      result[i] = deserialize[Elem](data, offset)
+  elif T is Table:
+    type Pair = elementType(pairs(default(T)))
+    type K = typeof(default(Pair)[0])
+    type V = typeof(default(Pair)[1])
+    let tableLen = deserialize[uint32](data, offset)
+    result = initTable[K, V]()
+    for _ in 0 ..< int(tableLen):
+      let key = deserialize[K](data, offset)
+      let item = deserialize[V](data, offset)
+      result[key] = item
+  elif T is TableRef:
+    type Pair = elementType(pairs(default(T)))
+    type K = typeof(default(Pair)[0])
+    type V = typeof(default(Pair)[1])
+    let tableLen = deserialize[uint32](data, offset)
+    result = newTable[K, V]()
+    for _ in 0 ..< int(tableLen):
+      let key = deserialize[K](data, offset)
+      let item = deserialize[V](data, offset)
+      result[key] = item
   else:
     {.fatal: "Unsupported type for deserialize".}
