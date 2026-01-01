@@ -132,12 +132,166 @@ dfx stop && dfx start --clean --background --host 0.0.0.0:4943
 dfx deploy
 ```
 
+## Stable memory
+
+Stable memory allows you to persist data across canister upgrades. The NICP CDK provides three main types for managing persistent storage:
+
+### IcStableValue - Single Value Storage
+
+Store a single value of a primitive type or Principal that persists across canister upgrades.
+
+```nim
+import nicp_cdk/storage/stable_value
+
+# Create a stable storage for an integer
+var intDb = initIcStableValue(int)
+
+# Store a value
+intDb.set(42)
+
+# Retrieve the value
+let value = intDb.get()
+```
+
+Supported types: `int`, `uint`, `int8`, `int16`, `int32`, `int64`, `uint8`, `uint16`, `uint32`, `uint64`, `float32`, `float64`, `bool`, `char`, `string`, `Principal`
+
+### IcStableSeq - Persistent Sequence
+
+Store a sequence (array) of elements that persists across canister upgrades.
+
+```nim
+import nicp_cdk/storage/stable_seq
+
+# Create a stable sequence of integers
+var seqIntDb = initIcStableSeq[int]()
+
+# Add elements
+seqIntDb.add(1)
+seqIntDb.add(2)
+seqIntDb.add(3)
+
+# Access elements
+let firstElement = seqIntDb[0]
+
+# Get sequence length
+let length = seqIntDb.len()
+
+# Delete an element
+seqIntDb.delete(1)
+
+# Clear all elements
+seqIntDb.clear()
+```
+
+Supported element types: primitive types and Principal
+
+### IcStableTable - Persistent Key-Value Store
+
+Store key-value pairs that persist across canister upgrades.
+
+```nim
+import nicp_cdk/storage/stable_table
+
+# Create a stable table mapping strings to integers
+var scoreTable = initIcStableTable[string, uint]()
+
+# Store a key-value pair
+scoreTable["alice"] = 100
+scoreTable["bob"] = 95
+
+# Retrieve a value
+let aliceScore = scoreTable["alice"]
+
+# Check if a key exists
+if scoreTable.hasKey("alice"):
+  echo "Alice has a score"
+
+# Get table size
+let numPlayers = scoreTable.len()
+
+# Iterate over all pairs
+for key, value in scoreTable.pairs():
+  echo key, ": ", value
+
+# Clear all entries
+scoreTable.clear()
+```
+
+Supported key types: `string`, `Principal`, and other primitive types
+Supported value types: primitive types, Principal, and Nim objects
+
+### Example: Storing Custom Objects
+
+You can also store custom Nim objects in a stable table:
+
+```nim
+import nicp_cdk
+import nicp_cdk/storage/stable_table
+
+type UserProfile = object
+  id: uint
+  name: string
+  active: bool
+
+# Create a stable table mapping principals to user profiles
+var userTable = initIcStableTable[Principal, UserProfile]()
+
+# Store a user profile
+let caller = Msg.caller()
+userTable[caller] = UserProfile(id: 1, name: "Alice", active: true)
+
+# Retrieve the user profile
+let profile = userTable[caller]
+echo profile.name  # Output: Alice
+```
+
+### Integration with Canister Methods
+
+Here's a practical example of using stable storage in canister update and query methods:
+
+```nim
+import nicp_cdk
+import nicp_cdk/storage/stable_value
+
+var counterDb = initIcStableValue(uint64)
+
+proc increment() {.update.} =
+  let currentValue = counterDb.get()
+  counterDb.set(currentValue + 1)
+  reply(currentValue + 1)
+
+proc getCounter() {.query.} =
+  let value = counterDb.get()
+  reply(value)
+```
+
+### Memory Layout
+
+Stable memory is organized as follows:
+- **Header area**: Magic bytes, version, and metadata
+- **Data area**: Serialized key-value pairs or sequence elements
+
+When data needs to grow beyond available stable memory pages, the CDK automatically extends the memory using the IC's stable memory API.
+
+### Serialization
+
+The NICP CDK uses a custom, efficient serialization format optimized for stable memory:
+- **Fixed-size types** (integers, floats, bools): Stored directly as little-endian bytes
+- **Variable-size types** (strings, Principal): Prefixed with a 4-byte length field, followed by the data
+
+This approach is more efficient than Candid encoding, which includes type information in the serialized data.
+
+### See Also
+
+For a complete working example, see [examples/stable_memory](examples/stable_memory).
+
 ## Roadmap
 
 - [ ] No need to manually build ic-wasi-polyfill.  
 - [X] Support all IC types.  
 - [X] Access and call the management canister.  
 - [X] HTTP outcall example.  
+- [X] Stable memory.  
 - [X] t-ECDSA example.  
 - [ ] t-RSA example.  
 - [ ] Bitcoin example.  
