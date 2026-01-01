@@ -26,8 +26,8 @@ jobs:
     steps:
     - uses: actions/checkout@v2
     - name: Build docker image
-      run: docker compose -f compose.test.yaml build
+      run: docker compose -f compose.yaml build
     - name: Test
       run: |
-        docker compose -f compose.test.yaml up -d
-        docker compose -f compose.test.yaml run app-test bash runTest.sh
+        docker compose -f compose.yaml up -d
+        docker compose -f compose.yaml run app bash runTest.sh
