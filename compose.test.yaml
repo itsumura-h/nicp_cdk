@@ -6,4 +6,3 @@ services:
     tty: true
     volumes:
       - .:/application
-    command: bash -lc "nimble test -y"
