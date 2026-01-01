@@ -727,10 +727,9 @@ proc asBlobValue*(data: seq[uint8]): CandidValue =
   for byteVal in data:
     vecElements.add(CandidValue(kind: ctNat8, nat8Val: byteVal))
   
-  var result = CandidValue(kind: ctVec, vecVal: vecElements)
   # Blob意図の記録用にメタ情報を設定（将来の拡張用）
   # 注意: 現在はkind=ctVecで統一、実際の型判定はAPI使用時
-  return result
+  return CandidValue(kind: ctVec, vecVal: vecElements)
 
 proc asSeqValue*[T](data: seq[T]): CandidValue =
   ## seq[T]を明示的にVector用CandidValueとして作成（Record挿入用）

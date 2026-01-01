@@ -1,9 +1,4 @@
-import std/options
 import std/tables
-import std/macros
-import std/sequtils
-import std/strutils
-import std/algorithm
 import ../candid_types
 
 

@@ -24,7 +24,6 @@ proc callMotokoCanisterFunction(functionName: string, args: string = ""): string
       DFX_PATH & " canister call motoko_backend " & functionName & " --output raw"
     else:
       DFX_PATH & " canister call motoko_backend " & functionName & " '" & args & "'" & " --output raw"
-    echo "Motoko command: ", command
     return execProcess(command)
   finally:
     setCurrentDir(originalDir)
@@ -37,7 +36,6 @@ proc callNimCanisterFunction(functionName: string, args: string = ""): string =
       DFX_PATH & " canister call nim_backend " & functionName & " --output raw"
     else:
       DFX_PATH & " canister call nim_backend " & functionName & " '" & args & "'" & " --output raw"
-    echo "Nim command: ", command
     return execProcess(command)
   finally:
     setCurrentDir(originalDir)
@@ -45,9 +43,7 @@ proc callNimCanisterFunction(functionName: string, args: string = ""): string =
 
 proc rowTest(fucName:string):bool =
   let motokoResult = callMotokoCanisterFunction(fucName)
-  echo "Motoko result: ", motokoResult
   let nimResult = callNimCanisterFunction(fucName)
-  echo "Nim result:    ", nimResult
   return motokoResult == nimResult
 
 
@@ -58,21 +54,16 @@ proc deploy() =
   try:
     # Motokoキャニスターのデプロイ
     setCurrentDir(MOTOKO_DIR)
-    echo "Changed to directory: ", getCurrentDir()
     var deployResult = execProcess(DFX_PATH & " deploy -y")
-    echo "Motoko deploy output: ", deployResult
     check deployResult.contains("Deployed") or deployResult.contains("Creating") or deployResult.contains("Installing") or deployResult.contains("backend")
     
     # Nimキャニスターのデプロイ
     setCurrentDir("../" & NIM_DIR.split('/')[^1])  # nimディレクトリに移動
-    echo "Changed to directory: ", getCurrentDir()
     deployResult = execProcess(DFX_PATH & " deploy -y")
-    echo "Nim deploy output: ", deployResult
     check deployResult.contains("Deployed") or deployResult.contains("Creating") or deployResult.contains("Installing") or deployResult.contains("backend")
     
   finally:
     setCurrentDir(originalDir)
-    echo "Changed back to directory: ", getCurrentDir()
 
 
 suite "Candid compare with Motoko tests":
