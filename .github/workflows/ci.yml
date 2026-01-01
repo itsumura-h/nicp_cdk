@@ -1,0 +1,23 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build test image
+        run: docker compose -f compose.test.yaml build
+
+      - name: Run tests via compose
+        run: |
+          docker compose -f compose.test.yaml up --abort-on-container-exit --exit-code-from app-test
+
+      - name: Tear down compose
+        if: always()
+        run: docker compose -f compose.test.yaml down

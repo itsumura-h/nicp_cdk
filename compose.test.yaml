@@ -1,0 +1,9 @@
+services:
+  app-test:
+    build:
+      context: .
+      dockerfile: docker/app/develop.Dockerfile
+    tty: true
+    volumes:
+      - .:/application
+    command: bash -lc "nimble test -y"

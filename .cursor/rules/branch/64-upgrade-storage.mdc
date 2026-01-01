@@ -50,6 +50,9 @@ stable memoryを使用することで、キャニスターのアップグレー�
   - [x] 使用方法のドキュメント
   - [x] メモリレイアウトのドキュメント
   - [x] サンプルコードの作成
+- [x] GitHub Actionsで `docker/app/develop.Dockerfile` から環境構築し `nimble test` を実行
+- [x] Docker Composeでテスト用の環境定義を追加
+- [x] GitHub Actionsで `compose.test.yaml` を使ったテスト環境実行を追加
 
 ## 参考資料
 
