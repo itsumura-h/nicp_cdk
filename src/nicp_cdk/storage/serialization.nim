@@ -103,6 +103,14 @@ proc serialize*[K, V](value: TableRef[K, V]): seq[byte] =
     result.add(serialize(key))
     result.add(serialize(item))
 
+proc serialize*[T: object](value: T): seq[byte] =
+  when T is Principal:
+    result = serialize(Principal(value))
+  else:
+    result = @[]
+    for _, field in fieldPairs(value):
+      result.add(serialize(field))
+
 proc serialize*(value: int): seq[byte] =
   when sizeof(int) == 8:
     result = serialize(int64(value))
@@ -239,5 +247,13 @@ proc deserialize*[T](data: openArray[byte], offset: var int): T =
       let key = deserialize[K](data, offset)
       let item = deserialize[V](data, offset)
       result[key] = item
+  elif T is object:
+    when T is Principal:
+      result = deserialize[Principal](data, offset)
+    else:
+      var obj = default(T)
+      for _, field in fieldPairs(obj):
+        field = deserialize[typeof(field)](data, offset)
+      result = obj
   else:
     {.fatal: "Unsupported type for deserialize".}

@@ -50,8 +50,8 @@ proc readHeader[T](db: var IcStableValue[T]): bool =
   result = true
 
 proc initIcStableValue*[T](typ: typedesc[T], baseOffset: uint64 = 0): IcStableValue[T] =
-  when not (T is SomeInteger or T is SomeFloat or T is bool or T is char or T is string or T is Principal):
-    {.fatal: "IcStableValue supports only basic types and Principal".}
+  when not (T is SomeInteger or T is SomeFloat or T is bool or T is char or T is string or T is Principal or T is object):
+    {.fatal: "IcStableValue supports only basic types, Principal, or objects".}
   result.baseOffset = baseOffset
   if not readHeader(result):
     result.dataLen = 0

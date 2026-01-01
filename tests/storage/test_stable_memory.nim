@@ -18,14 +18,15 @@ proc callCanisterFunction(functionName: string, args: string = ""): string =
   try:
     setCurrentDir(EXAMPLE_DIR)
     let command = if args == "":
-      fmt"{DFX_PATH} canister call stable_memory_backend {functionName}"
+      fmt"{DFX_PATH} canister call --identity default stable_memory_backend {functionName}"
     else:
-      fmt"{DFX_PATH} canister call stable_memory_backend {functionName} '{args}'"
+      fmt"{DFX_PATH} canister call --identity default stable_memory_backend {functionName} '{args}'"
     return execProcess(command).strip()
   finally:
     setCurrentDir(currentDir)
 
-proc checkStableValueRoundTrip(prefix, args: string, expected: string) =
+
+proc checkStableValueRoundTrip(prefix, args, expected: string) =
   discard callCanisterFunction(prefix & "_set", args)
   check callCanisterFunction(prefix & "_get").contains(expected)
 
@@ -34,7 +35,7 @@ proc deploy() =
   let currentDir = getCurrentDir()
   try:
     setCurrentDir(EXAMPLE_DIR)
-    let result = execProcess(DFX_PATH & " deploy -y")
+    let result = execProcess(fmt"{DFX_PATH} deploy -y")
     echo "Deploy output: ", result
     check result.contains("Deployed") or result.contains("Installing") or result.contains("Creating")
   finally:
@@ -45,44 +46,34 @@ proc deploy() =
 suite "stable memory backend tests":
   deploy()
 
-  # test "int stable value round trip":
-  #   echo "Testing int stable value..."
-  #   checkStableValueRoundTrip("int", "(42)", "42")
+  test "int stable value round trip":
+    checkStableValueRoundTrip("int", "(42)", "42")
 
-  # test "uint stable value round trip":
-  #   echo "Testing uint stable value..."
-  #   checkStableValueRoundTrip("uint", "(99)", "99")
+  test "uint stable value round trip":
+    checkStableValueRoundTrip("uint", "(99)", "99")
 
-  # test "string stable value round trip":
-  #   echo "Testing string stable value..."
-  #   checkStableValueRoundTrip("string", "(\"Hello ICP\")", "\"Hello ICP\"")
+  test "string stable value round trip":
+    checkStableValueRoundTrip("string", "(\"Hello ICP\")", "\"Hello ICP\"")
 
-  # test "principal stable value round trip":
-  #   echo "Testing principal stable value..."
-  #   checkStableValueRoundTrip("principal", "(principal \"aaaaa-aa\")", "aaaaa-aa")
+  test "principal stable value round trip":
+    checkStableValueRoundTrip("principal", "(principal \"aaaaa-aa\")", "aaaaa-aa")
 
-  # test "bool stable value round trip":
-  #   echo "Testing bool stable value..."
-  #   checkStableValueRoundTrip("bool", "(true)", "true")
+  test "bool stable value round trip":
+    checkStableValueRoundTrip("bool", "(true)", "true")
 
-  # test "float stable value round trip":
-  #   echo "Testing float32 stable value..."
-  #   checkStableValueRoundTrip("float", "(3.14 : float32)", "3.14")
+  test "float stable value round trip":
+    checkStableValueRoundTrip("float", "(3.14 : float32)", "3.14")
 
-  # test "double stable value round trip":
-  #   echo "Testing float64 stable value..."
-  #   checkStableValueRoundTrip("double", "(3.1415926535 : float64)", "3.1415926535")
+  test "double stable value round trip":
+    checkStableValueRoundTrip("double", "(3.1415926535 : float64)", "3.1415926535")
 
-  # test "char stable value round trip":
-  #   echo "Testing char stable value..."
-  #   checkStableValueRoundTrip("char", "(65)", "65")
+  test "char stable value round trip":
+    checkStableValueRoundTrip("char", "(65)", "65")
 
-  # test "byte stable value round trip":
-  #   echo "Testing byte stable value..."
-  #   checkStableValueRoundTrip("byte", "(255)", "255")
+  test "byte stable value round trip":
+    checkStableValueRoundTrip("byte", "(255)", "255")
 
   test "seq[int] stable value round trip":
-    echo "Testing seq[int] stable value..."
     discard callCanisterFunction("seqInt_reset")
     discard callCanisterFunction("seqInt_set", "(1)")
     var value = callCanisterFunction("seqInt_get", "(0)")
@@ -109,7 +100,6 @@ suite "stable memory backend tests":
     check value == "(6 : int)"
 
   test "Table[principal, string]":
-    echo "Testing Table[principal, string]..."
     discard callCanisterFunction("table_reset")
     discard callCanisterFunction("table_set", "(\"Hello ICP\")")
     var value = callCanisterFunction("table_get")
@@ -118,3 +108,16 @@ suite "stable memory backend tests":
     discard callCanisterFunction("table_set", "(\"Hello ICP2\")")
     value = callCanisterFunction("table_get")
     check value == "(\"Hello ICP2\")"
+
+  test "object stable value round trip":
+    discard callCanisterFunction("object_set", "(1, \"Alice\", true)")
+    var value = callCanisterFunction("object_get")
+    check value.contains("id = 1")
+    check value.contains("name = \"Alice\"")
+    check value.contains("active = true")
+
+    discard callCanisterFunction("object_set", "(2, \"Bob\", false)")
+    value = callCanisterFunction("object_get")
+    check value.contains("id = 2")
+    check value.contains("name = \"Bob\"")
+    check value.contains("active = false")

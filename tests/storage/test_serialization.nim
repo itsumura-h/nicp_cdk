@@ -3,10 +3,15 @@ discard """
 """
 # nim c -r tests/storage/test_serialization.nim
 
-import std/tables
 import unittest
+import std/tables
 import ../../src/nicp_cdk/storage/serialization
 import ../../src/nicp_cdk/ic_types/ic_principal
+
+type UserProfile = object
+  id: uint32
+  name: string
+  active: bool
 
 
 suite "storage serialization primitives":
@@ -138,6 +143,16 @@ suite "storage serialization primitives":
 
 
 suite "storage serialization composites":
+  test "object":
+    let original = UserProfile(id: 7'u32, name: "Alice", active: true)
+    let data = serialize(original)
+    var offset = 0
+    let decoded = deserialize[UserProfile](data, offset)
+    check decoded.id == original.id
+    check decoded.name == original.name
+    check decoded.active == original.active
+    check offset == data.len
+
   test "seq with uint32":
     let original:seq[uint32] = @[1, 42, 999]
     let data = serialize(original)

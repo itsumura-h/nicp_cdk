@@ -38,6 +38,7 @@ stable memoryを使用することで、キャニスターのアップグレー�
 - [x] シリアライゼーション機能の実装
   - [x] 基本型（int, uint, string, bool）のシリアライズ/デシリアライズ
   - [x] 複合型（seq, Table, TableRef）のサポート
+  - [x] Nim object のフィールド順シリアライズ
 - [x] `IcStableValue` の実装
   - [x] `initIcStableValue` / `set` / `get` / `hasValue`
 - [ ] テストコードの作成
@@ -249,6 +250,7 @@ Phase 1（最小限）:
 Phase 2（拡張）:
 - `seq[T]` (長さ + 要素の連続)
 - `Table[K, V]` / `TableRef[K, V]` (要素数 + key/value の連続)
+- Nim object (フィールド順に連結)
 - `Option[T]` (フラグ1バイト + データ)
 - タプル型
 
