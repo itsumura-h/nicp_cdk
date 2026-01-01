@@ -284,6 +284,7 @@ This approach is more efficient than Candid encoding, which includes type inform
 ### See Also
 
 For a complete working example, see [examples/stable_memory](examples/stable_memory).
+For detailed storage and layout notes, see [docs/en/stable_memory.md](docs/en/stable_memory.md).
 
 ## Roadmap
 
