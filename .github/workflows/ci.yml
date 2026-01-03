@@ -20,7 +20,7 @@ jobs:
 
       - name: Build test image (cached)
         run: |
-          docker buildx bake -f compose.yaml app anvil \
+          docker buildx bake -f compose.yaml \
             --set *.cache-from=type=gha \
             --set *.cache-to=type=gha,mode=max \
             --set *.output=type=docker
