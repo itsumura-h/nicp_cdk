@@ -11,6 +11,8 @@ services:
     build:
       context: .
       dockerfile: docker/app/develop.Dockerfile
+    depends_on:
+      - anvil
     tty: true
     volumes:
       - .:/application
