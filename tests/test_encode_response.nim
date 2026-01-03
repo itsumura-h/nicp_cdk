@@ -12,8 +12,8 @@ import ../src/nicp_cdk/ic_types/candid_types
 import ../src/nicp_cdk/ic_types/type_transfer
 import ../src/nicp_cdk/request
 const DFX_PATH = "dfx"
-const MOTOKO_DIR = "examples/type_test/motoko"
-const NIM_DIR = "examples/type_test/nim"
+const MOTOKO_DIR = "/application/examples/type_test/motoko"
+const NIM_DIR = "/application/examples/type_test/nim"
 
 # 共通のヘルパープロシージャ
 proc callMotokoCanisterFunction(functionName: string, args: string = ""): string =
