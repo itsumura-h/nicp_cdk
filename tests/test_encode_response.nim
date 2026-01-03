@@ -54,16 +54,21 @@ proc deploy() =
   try:
     # Motokoキャニスターのデプロイ
     setCurrentDir(MOTOKO_DIR)
+    echo "Changed to directory: ", getCurrentDir()
     var deployResult = execProcess(DFX_PATH & " deploy -y")
+    echo "Motoko deploy output: ", deployResult
     check deployResult.contains("Deployed") or deployResult.contains("Creating") or deployResult.contains("Installing") or deployResult.contains("backend")
     
     # Nimキャニスターのデプロイ
     setCurrentDir("../" & NIM_DIR.split('/')[^1])  # nimディレクトリに移動
+    echo "Changed to directory: ", getCurrentDir()
     deployResult = execProcess(DFX_PATH & " deploy -y")
+    echo "Nim deploy output: ", deployResult
     check deployResult.contains("Deployed") or deployResult.contains("Creating") or deployResult.contains("Installing") or deployResult.contains("backend")
     
   finally:
     setCurrentDir(originalDir)
+    echo "Changed back to directory: ", getCurrentDir()
 
 
 suite "Candid compare with Motoko tests":
