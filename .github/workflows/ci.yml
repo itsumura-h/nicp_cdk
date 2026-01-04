@@ -19,8 +19,4 @@ jobs:
       - name: Run tests
         run: |
           docker compose up -d
-          docker compose run app bash -lc "bash runTest.sh"
-
-      - name: Shutdown
-        if: always()
-        run: docker compose down --volumes
+          docker compose run --rm app bash runTest.sh

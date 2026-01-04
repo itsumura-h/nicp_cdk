@@ -61,6 +61,8 @@ RUN chmod +x install.sh
 RUN DFXVM_INIT_YES=yes ./install.sh
 RUN rm -f install.sh
 ENV PATH $PATH:/root/.local/share/dfx/bin
+RUN ls -la /root/.local/share/dfx/bin
+RUN dfx --version
 
 # wasi
 # reference: https://github.com/ICPorts-labs/chico/blob/main/examples/HelloWorld/Dockerfile#L48-L59
