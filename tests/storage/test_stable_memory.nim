@@ -11,7 +11,7 @@ import std/strutils
 
 const
   DFX_PATH = "/root/.local/share/dfx/bin/dfx"
-  EXAMPLE_DIR = "examples/stable_memory"
+  EXAMPLE_DIR = "/application/examples/stable_memory"
 
 proc callCanisterFunction(functionName: string, args: string = ""): string =
   let currentDir = getCurrentDir()
