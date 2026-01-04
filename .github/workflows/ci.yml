@@ -16,12 +16,11 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Start anvil
-        run: docker compose -f compose.yaml up -d --build anvil
-
       - name: Run tests
-        run: docker compose -f compose.yaml run --rm app /application/runTest.sh
+        run: |
+          docker compose up -d
+          docker compose run app bash -lc "bash runTest.sh"
 
       - name: Shutdown
         if: always()
-        run: docker compose -f compose.yaml down --volumes
+        run: docker compose down --volumes
