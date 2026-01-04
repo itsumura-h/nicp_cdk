@@ -1,0 +1,355 @@
+---
+description: 64-upgrade-storageブランチでの開発時に読み込む
+alwaysApply: false
+---
+Stable Memory を使ったデータベース実装
+===
+
+このブランチで実装することは以下の通りです。
+- stable memoryを使って永続化可能なデータストレージを実装する
+- `IcStableTable` 型（key-value store）を実装する
+- `IcStableSeq` 型（配列）を実装する
+- Nimの標準の `Table` 型および `seq` 型と互換性のあるAPIを提供する
+
+## 背景
+
+現在の実装では、グローバル変数として置いた値が永続化されず、キャニスターをアップデートするとデータが消えてしまう。
+stable memoryを使用することで、キャニスターのアップグレード時にもデータを保持できるようにする。
+
+## 進捗
+
+- [x] stable memory関連の基本機能を調査
+- [x] `IcStableTable` 型の設計
+  - [x] 基本的なデータ構造の設計
+  - [x] メモリレイアウトの設計（ヘッダー、データ領域）
+  - [x] `[]` 演算子（参照・代入）の実装
+  - [x] `hasKey` 関数の実装
+  - [x] `len` 関数の実装
+  - [x] `clear` 関数の実装
+  - [x] イテレータの実装（`pairs`, `keys`, `values`）
+- [x] `IcStableSeq` 型の設計
+  - [x] 基本的なデータ構造の設計
+  - [x] メモリレイアウトの設計（長さ情報、データ領域）
+  - [x] `[]` 演算子（参照・代入）の実装
+  - [x] `len` 関数の実装
+  - [x] `add` 関数の実装
+  - [x] `delete` 関数の実装
+  - [x] イテレータの実装
+- [x] シリアライゼーション機能の実装
+  - [x] 基本型（int, uint, string, bool）のシリアライズ/デシリアライズ
+  - [x] 複合型（seq, Table, TableRef）のサポート
+  - [x] Nim object のフィールド順シリアライズ
+- [x] `IcStableValue` の実装
+  - [x] `initIcStableValue` / `set` / `get` / `hasValue`
+- [x] テストコードの作成
+  - [x] シリアライズ/デシリアライズのテスト
+  - [x] `IcStableTable` の単体テスト
+  - [x] `IcStableSeq` の単体テスト
+  - [x] アップグレードテスト（データ永続性の確認）
+- [x] ドキュメントの作成
+  - [x] 使用方法のドキュメント
+  - [x] メモリレイアウトのドキュメント
+  - [x] サンプルコードの作成
+- [x] GitHub Actionsで `docker/app/develop.Dockerfile` から環境構築し `nimble test` を実行
+- [x] Docker Composeでテスト用の環境定義を追加
+- [x] GitHub Actionsで `compose.yaml` を使ったテスト環境実行を追加
+
+## 参考資料
+
+- [公式ドキュメント - Stable Memory](https://docs.internetcomputer.org/tutorials/developer-liftoff-rust/level-2/2.4-stable-memory)
+- [stable-structures (Rust実装)](https://github.com/dfinity/stable-structures)
+- [ic-nosql (TypeScript実装)](https://github.com/mycel-labs/atp/tree/main/packages/ic-nosql)
+- [ic0.nim の stable memory 関数](/application/src/nicp_cdk/ic0/ic0.nim)
+  - `ic0_stable64_size()`: stable memoryのページ数を取得
+  - `ic0_stable64_grow(new_pages)`: stable memoryを拡張
+  - `ic0_stable64_write(offset, src, size)`: stable memoryへ書き込み
+  - `ic0_stable64_read(dst, offset, size)`: stable memoryから読み込み
+
+## 調査結果・設計まとめ
+
+### Stable Memory の基礎知識
+
+- stable memoryはページ単位で管理される（1ページ = 64KB = 65536バイト）
+- キャニスターのアップグレード時にもデータが保持される
+- 通常のWASMメモリ（heap）とは別の領域
+
+### IcStableValue の設計方針（基本型・Principal型の値をハンドル）
+
+1. **目的**
+   - 基本型やPrincipal型の単一値をstable memoryに永続化
+   - 値の読み書きは常に上書き（最新値を保持）
+   - `IcStableTable`, `IcStableSeq` の内部でも使用される統一インターフェース
+
+2. **API設計**
+   ```nim
+   type IcStableValue*[T] = object
+     # 内部: stable memoryオフセット、型情報など
+   
+   # 基本型・Principal型の初期化
+   proc initIcStableValue*[T](typ: typedesc[T]): IcStableValue[T]
+   
+   # 値の永続化（上書き）
+   proc set*[T](db: var IcStableValue[T], value: T): void
+   
+   # 値の読み込み
+   proc get*[T](db: IcStableValue[T]): T
+   
+   # 値が存在するかチェック
+   proc hasValue*[T](db: IcStableValue[T]): bool
+   
+   # 内部用: シリアライズ/デシリアライズ
+   proc serialize*[T](db: IcStableValue[T], value: T): seq[byte]
+   proc deserialize*[T](db: IcStableValue[T], data: seq[byte]): T
+   ```
+
+3. **使用例**
+   ```nim
+   # 単一の Principal 値を永続化
+   var db = initIcStableValue(Principal)
+   let principal = Principal.fromText("aaaaa-aa")
+   db.set(principal)  # 値の永続化
+   assert db.get() == principal  # 値の読み込み
+   
+   # 単一の string 値を永続化
+   var userNameDb = initIcStableValue(string)
+   userNameDb.set("Alice")
+   assert userNameDb.get() == "Alice"
+   
+   # 単一の uint64 値を永続化
+   var counterDb = initIcStableValue(uint64)
+   counterDb.set(42)
+   assert counterDb.get() == 42
+   ```
+
+### IcStableTable の設計方針
+
+1. **メモリレイアウト**
+   - ヘッダー領域: マジック、バージョン、要素数、データ末尾オフセット
+   - データ領域: `[keyLen][valueLen][keyBytes][valueBytes]` の連続ログ
+   - インデックスはメモリ上に再構築（初期化時にログを走査）
+
+2. **初期化方法**
+   - **Key-Value ペアの場合のみ**: `initIcStableTable[K, V](keyType: typedesc[K], valueType: typedesc[V])`
+     - 型情報を明示的に渡すことで、内部で `initIcStableValue` を使用してシリアライゼーションを処理
+     - 例: `initIcStableTable(string, uint64)`, `initIcStableTable(Principal, string)`
+     - 基本型・Principal型の組み合わせのみサポート
+
+3. **API設計**（Nimの `Table[K, V]` 型と互換）
+   ```nim
+   type IcStableTable*[K, V] = object
+   
+   # Key-Value ペア用の初期化
+   proc initIcStableTable*[K, V](keyType: typedesc[K], valueType: typedesc[V]): IcStableTable[K, V]
+   
+   proc `[]`*[K, V](t: var IcStableTable[K, V], key: K): V
+   proc `[]=`*[K, V](t: var IcStableTable[K, V], key: K, value: V)
+   proc hasKey*[K, V](t: IcStableTable[K, V], key: K): bool
+   proc len*[K, V](t: IcStableTable[K, V]): int
+   proc clear*[K, V](t: var IcStableTable[K, V])
+   iterator pairs*[K, V](t: IcStableTable[K, V]): (K, V)
+   iterator keys*[K, V](t: IcStableTable[K, V]): K
+   iterator values*[K, V](t: IcStableTable[K, V]): V
+   ```
+
+### IcStableSeq の設計方針
+
+1. **メモリレイアウト**
+   - ヘッダー領域: マジック、バージョン、長さ、データ末尾オフセット
+   - データ領域: `[elemLen][elemBytes]` の連続領域
+   - 要素オフセットはメモリ上で再構築し、更新・削除時は末尾データをシフト
+
+2. **初期化方法**
+   - **要素型が基本型・Principal型の場合**: `initIcStableSeq[T](elemType: typedesc[T])`
+     - 型情報を明示的に渡すことで、内部で `initIcStableValue` を使用してシリアライゼーションを処理
+     - 例: `initIcStableSeq(string)`, `initIcStableSeq(Principal)`, `initIcStableSeq(uint64)`
+     - 基本型・Principal型のみサポート
+
+3. **API設計**（Nimの `seq[T]` 型と互換）
+   ```nim
+   type IcStableSeq*[T] = object
+   
+   # 基本型・Principal型の要素用の初期化
+   proc initIcStableSeq*[T](elemType: typedesc[T]): IcStableSeq[T]
+   
+   proc `[]`*[T](s: IcStableSeq[T], idx: int): T
+   proc `[]=`*[T](s: var IcStableSeq[T], idx: int, value: T)
+   proc len*[T](s: IcStableSeq[T]): int
+   proc add*[T](s: var IcStableSeq[T], value: T)
+   proc delete*[T](s: var IcStableSeq[T], idx: int)
+   iterator items*[T](s: IcStableSeq[T]): T
+   ```
+
+### シリアライゼーション方針
+
+**重要な決定: Candidエンコード/デコードは使用しない**
+
+既存の `candid_encode.nim` / `candid_decode.nim` は使わず、独自のシンプルなシリアライゼーションを実装する。
+
+#### Candidを使わない理由
+
+1. **オーバーヘッドが大きい**
+   - マジックバイト `DIDL` + 型テーブルが毎回必要
+   - 小さなデータでも冗長な型情報が付与される
+   - stable memory内部では型が既知なので不要
+
+2. **用途の違い**
+   - Candid: キャニスター間通信のためのインターフェース定義言語
+   - Stable Memory: 内部ストレージ（型は実装時に確定）
+
+3. **パフォーマンス**
+   - 直接バイト変換の方が高速
+   - メモリ使用量が最小限
+
+#### 独自シリアライゼーションの設計
+
+**基本方針**
+- 固定長型: そのままバイト列として読み書き（エンディアン考慮）
+- 可変長型: 長さ情報（4バイト）+ データ本体
+- 複合型: 再帰的にシリアライズ
+
+**実装例**
+
+```nim
+# 固定長型（例: uint64）
+proc serialize(value: uint64): array[8, byte] =
+  var le: uint64
+  littleEndian64(addr le, unsafeAddr value)
+  copyMem(addr result[0], addr le, 8)
+
+proc deserialize(data: array[8, byte]): uint64 =
+  var le: uint64
+  copyMem(addr le, unsafeAddr data[0], 8)
+  littleEndian64(addr result, addr le)
+
+# 可変長型（例: string）
+proc serialize(value: string): seq[byte] =
+  let len = uint32(value.len)
+  result = newSeq[byte](4 + value.len)
+  copyMem(addr result[0], unsafeAddr len, 4)
+  if value.len > 0:
+    copyMem(addr result[4], unsafeAddr value[0], value.len)
+
+proc deserialize(data: openArray[byte], offset: var int): string =
+  var len: uint32
+  copyMem(addr len, unsafeAddr data[offset], 4)
+  offset += 4
+  result = newString(int(len))
+  if len > 0:
+    copyMem(addr result[0], unsafeAddr data[offset], int(len))
+    offset += int(len)
+```
+
+**サポートする型の優先順位**
+
+Phase 1（最小限）:
+- `uint8`, `uint16`, `uint32`, `uint64`
+- `int8`, `int16`, `int32`, `int64`
+- `float32`, `float64`
+- `bool` (1バイト)
+- `char` (1バイト)
+- `string` (長さ + データ)
+- `Principal` (長さ + バイト列、最大29バイト)
+
+Phase 2（拡張）:
+- `seq[T]` (長さ + 要素の連続)
+- `Table[K, V]` / `TableRef[K, V]` (要素数 + key/value の連続)
+- Nim object (フィールド順に連結)
+- `Option[T]` (フラグ1バイト + データ)
+- タプル型
+
+Phase 3（高度）:
+- カスタム型のサポート（マクロによる自動生成）
+
+### 技術的な課題と対策
+
+1. **エンディアン**
+   - Little-endianで統一（WASMの標準）
+   - `std/endians` モジュールを使用
+
+2. **メモリ管理**
+   - 必要に応じて `ic0_stable64_grow` で自動拡張
+   - 削除時の断片化対策（コンパクション機能の検討）
+   - フリーリストによる空き領域の再利用
+
+3. **パフォーマンス**
+   - 頻繁なアクセスのためにキャッシュ機構の検討
+   - バッチ書き込みの最適化
+   - 読み込みバッファリング
+
+4. **データ整合性**
+   - チェックサム（CRC32）の追加検討
+   - バージョン情報の埋め込み（将来の互換性）
+
+### 初期化方法の詳細設計
+
+**三段階のAPI階層**
+
+1. **IcStableValue層（値のストレージ）**
+   - 基本型・Principal型の単一値を永続化
+   - インスタンスメソッド: `set()`, `get()`, `hasValue()`
+   - 複合型（Table, Seq）の内部実装でも使用
+   - 例: `var db = initIcStableValue(Principal)`
+
+2. **IcStableTable層（複合型1: K-V ストア）**
+   - Key-Value ペアの複数エントリを永続化
+   - `initIcStableTable` で初期化
+   - 内部で複数の `IcStableValue` インスタンスを管理
+   - 例: `var table = initIcStableTable(string, uint64)`
+
+3. **IcStableSeq層（複合型2: 配列）**
+   - 要素の複数エントリを永続化
+   - `initIcStableSeq` で初期化
+   - 内部で複数の `IcStableValue` インスタンスを管理
+   - 例: `var seq = initIcStableSeq(uint64)`
+
+**初期化パターン**
+
+```nim
+# IcStableValue の初期化と使用例（単一値）
+var principalDb = initIcStableValue(Principal)
+let principal = Principal.fromText("aaaaa-aa")
+principalDb.set(principal)  # 値の永続化
+assert principalDb.get() == principal  # 値の読み込み
+
+var stringDb = initIcStableValue(string)
+stringDb.set("Alice")
+assert stringDb.get() == "Alice"
+
+var counterDb = initIcStableValue(uint64)
+counterDb.set(42)
+assert counterDb.get() == 42
+
+# IcStableTable の初期化例（複数K-V）
+var userScores = initIcStableTable(string, uint64)  # string -> uint64 のマッピング
+var principalNames = initIcStableTable(Principal, string)  # Principal -> string のマッピング
+var idMapping = initIcStableTable(uint64, Principal)  # uint64 -> Principal のマッピング
+
+# IcStableSeq の初期化例（複数要素）
+var userList = initIcStableSeq(string)  # string の配列
+var principalList = initIcStableSeq(Principal)  # Principal の配列
+var numberList = initIcStableSeq(uint64)  # uint64 の配列
+```
+
+**typedesc パラメータの利点**
+- コンパイル時に型チェックが可能
+- 内部で適切なシリアライザ/デシリアライザを自動選択
+- ユーザーはシリアライゼーションの詳細を意識不要
+- 型安全性を保持
+
+**実装上のポイント**
+- `when` 文で型に応じた処理を分岐
+- 基本型・Principal型以外が渡された場合はコンパイルエラー
+- `IcStableValue` はmutable（`var` で宣言）
+- `set()` で上書き保存、常に最新値を保持
+
+### ファイル構成
+
+```
+/application/src/nicp_cdk/
+  storage/
+    stable_memory.nim     # stable memory の低レベルAPI（ic0_stable64_*）
+    stable_value.nim      # IcStableValue の実装（基本型・Principal型）
+    stable_table.nim      # IcStableTable の実装（K-V ストア）
+    stable_seq.nim        # IcStableSeq の実装（配列）
+    serialization.nim     # シリアライゼーション機能（内部ユーティリティ）
+```

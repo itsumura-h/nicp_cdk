@@ -11,7 +11,7 @@ import std/os
 
 const 
   DFX_PATH = "/root/.local/share/dfx/bin/dfx"
-  T_ECDSA_DIR = "examples/t_ecdsa"
+  T_ECDSA_DIR = "/application/examples/t_ecdsa"
 
 # 共通のヘルパープロシージャ
 proc callCanisterFunction(functionName: string, args: string = ""): string =

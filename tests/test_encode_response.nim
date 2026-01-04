@@ -12,8 +12,8 @@ import ../src/nicp_cdk/ic_types/candid_types
 import ../src/nicp_cdk/ic_types/type_transfer
 import ../src/nicp_cdk/request
 const DFX_PATH = "dfx"
-const MOTOKO_DIR = "examples/type_test/motoko"
-const NIM_DIR = "examples/type_test/nim"
+const MOTOKO_DIR = "/application/examples/type_test/motoko"
+const NIM_DIR = "/application/examples/type_test/nim"
 
 # 共通のヘルパープロシージャ
 proc callMotokoCanisterFunction(functionName: string, args: string = ""): string =
@@ -24,7 +24,6 @@ proc callMotokoCanisterFunction(functionName: string, args: string = ""): string
       DFX_PATH & " canister call motoko_backend " & functionName & " --output raw"
     else:
       DFX_PATH & " canister call motoko_backend " & functionName & " '" & args & "'" & " --output raw"
-    echo "Motoko command: ", command
     return execProcess(command)
   finally:
     setCurrentDir(originalDir)
@@ -37,7 +36,6 @@ proc callNimCanisterFunction(functionName: string, args: string = ""): string =
       DFX_PATH & " canister call nim_backend " & functionName & " --output raw"
     else:
       DFX_PATH & " canister call nim_backend " & functionName & " '" & args & "'" & " --output raw"
-    echo "Nim command: ", command
     return execProcess(command)
   finally:
     setCurrentDir(originalDir)
@@ -45,9 +43,7 @@ proc callNimCanisterFunction(functionName: string, args: string = ""): string =
 
 proc rowTest(fucName:string):bool =
   let motokoResult = callMotokoCanisterFunction(fucName)
-  echo "Motoko result: ", motokoResult
   let nimResult = callNimCanisterFunction(fucName)
-  echo "Nim result:    ", nimResult
   return motokoResult == nimResult
 
 

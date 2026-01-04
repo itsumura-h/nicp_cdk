@@ -338,14 +338,14 @@ proc decodeValue(data: seq[byte], offset: var int, typeRef: int, typeTable: seq[
       # Vec/Blob unified processing: ctBlob case also processed uniformly as vec nat8
       let elementCount = decodeULEB128(data, offset)
       # Blob also stored uniformly in vecVal (converted appropriately by getBlob() later)
-      result.kind = ctVec  # Internally processed as vec
-      result.vecVal = newSeq[CandidValue](int(elementCount))
+      var blobVec = newSeq[CandidValue](int(elementCount))
       for i in 0..<int(elementCount):
         if offset >= data.len:
           raise newException(CandidDecodeError, "Unexpected end of data in blob")
         # Store nat8 value as CandidValue
-        result.vecVal[i] = CandidValue(kind: ctNat8, nat8Val: uint8(data[offset]))
+        blobVec[i] = CandidValue(kind: ctNat8, nat8Val: uint8(data[offset]))
         offset += 1
+      result = CandidValue(kind: ctVec, vecVal: blobVec)  # Internally processed as vec
     of ctFunc:
       # Function reference: principal + method name
       # Extract function signature from type table
@@ -358,8 +358,7 @@ proc decodeValue(data: seq[byte], offset: var int, typeRef: int, typeTable: seq[
         if argTypeRef < 0:
           funcArgs.add(typeCodeToCandidType(argTypeRef))
         else:
-          # For composite types, we would need to resolve them, but for now assume primitive
-          funcArgs.add(ctEmpty)  # placeholder
+          funcArgs.add(ctEmpty)
       
       # Handle single return type
       if typeEntry.funcReturns.len > 0:
@@ -367,8 +366,7 @@ proc decodeValue(data: seq[byte], offset: var int, typeRef: int, typeTable: seq[
         if retTypeRef < 0:
           funcReturns = some(typeCodeToCandidType(retTypeRef))
         else:
-          # For composite types, we would need to resolve them, but for now assume primitive
-          funcReturns = some(ctEmpty)  # placeholder
+          funcReturns = some(ctEmpty)
       
       # Convert annotation bytes to strings
       for annByte in typeEntry.funcAnnotations:
@@ -378,83 +376,101 @@ proc decodeValue(data: seq[byte], offset: var int, typeRef: int, typeTable: seq[
         of 0x03: funcAnnotations.add("composite_query")
         else: discard
       
-      # Function value can have two formats:
-      # 1. Nim format: [ULEB principal_len][principal bytes][ULEB method_len][method name bytes]
-      # 2. Motoko format: [ID form 0x01][ULEB principal_len][principal bytes][...metadata...][ULEB method_len][method name bytes]
-      
       var principal: Principal
       var methodName: string
       
-      # Try to detect format by checking first byte
-      if offset < data.len and data[offset] == 1.byte:
-        # Motoko format with ID form
-        inc offset  # Skip ID form
+      # Function format: ID form principal format
+      # [ID form byte 0x01] [principal_bytes] [metadata or method]
+      
+      # Check for ID form marker
+      if offset >= data.len or data[offset] != 1.byte:
+        raise newException(CandidDecodeError, "Expected ID form byte in function value")
+      inc offset
+      
+      # Decode principal
+      let principalLength = decodeULEB128(data, offset)
+      if principalLength < 0 or principalLength > 100:
+        raise newException(CandidDecodeError, "Principal length out of range")
+      if offset + int(principalLength) > data.len:
+        raise newException(CandidDecodeError, "Insufficient data for principal")
+      let principalBytes = data[offset ..< offset + int(principalLength)]
+      principal = Principal.fromBlob(principalBytes)
+      offset += int(principalLength)
+      
+      # Function value can be in two formats:
+      # 1. Nim format: [ID=0x01][principal_len][principal][method_len][method]
+      # 2. Motoko format: [ID=0x01][principal_len][principal][metadata...][method_len][method]
+      #
+      # The key difference is metadata after principal in Motoko format
+      # Strategy: Try Nim format first (simpler), fall back to Motoko if needed
+      
+      var found = false
+      
+      # Try Nim format first - immediate method length after principal
+      var testOffset = offset
+      let immediateLen = decodeULEB128(data, testOffset)
+      
+      if immediateLen >= 0 and immediateLen <= 1000 and
+         testOffset + int(immediateLen) <= data.len:
+        # Verify it's likely valid text
+        var isValidText = true
+        if immediateLen > 0:
+          for i in 0..<int(immediateLen):
+            let b = data[testOffset + i]
+            if b == 0:
+              isValidText = false
+              break
         
-        # Decode principal
-        let principalLength = decodeULEB128(data, offset)
-        if offset + int(principalLength) > data.len:
-          raise newException(CandidDecodeError, "Principal length out of range")
-        let principalBytes = data[offset ..< offset + int(principalLength)]
-        principal = Principal.fromBlob(principalBytes)
-        offset += int(principalLength)
-        
-        # Skip unknown middle section and find method name
-        # Based on analysis, we need to skip to offset where we find the method name
-        # The pattern is: skip until we find a reasonable method name length followed by valid ASCII
-        var found = false
-        while offset < data.len - 1:
-          let potentialLength = data[offset]
-          # Check if this could be a method name length (reasonable range)
-          if potentialLength > 0 and potentialLength <= 50 and offset + int(potentialLength) < data.len:
-            # Check if the following bytes look like a valid method name
-            var validName = true
-            for i in 1..int(potentialLength):
-              let c = data[offset + i]
-              if c < 32 or c > 126:  # Not printable ASCII
-                validName = false
-                break
-            if validName:
-              # Double-check by looking for common method name patterns
-              var methodBytes = newSeq[byte](int(potentialLength))
-              for i in 0..<int(potentialLength):
-                methodBytes[i] = data[offset + 1 + i]
-              let testName = cast[string](methodBytes)
-              # If it looks like a reasonable method name, use it
-              if testName.len > 0 and testName[0] >= 'a' and testName[0] <= 'z':
+        if isValidText or immediateLen == 0:
+          # Nim format succeeded
+          if immediateLen == 0:
+            methodName = ""
+          else:
+            methodName = newString(int(immediateLen))
+            for i in 0..<int(immediateLen):
+              methodName[i] = char(data[testOffset + i])
+          offset = testOffset + int(immediateLen)
+          found = true
+      
+      # If Nim format didn't work, try Motoko format (search backward from end)
+      if not found:
+        # Search backward from end of message
+        for textLen in countdown(min(1000, data.len - offset), 1, 1):
+          let textEnd = data.len - textLen
+          if textEnd < offset:
+            break
+          
+          # Try to find length byte(s) before this text
+          for lenOffset in countdown(textEnd - 1, offset, 1):
+            var peekOffset = lenOffset
+            let potentialLen = decodeULEB128(data, peekOffset)
+            
+            if int(potentialLen) == textLen and
+               peekOffset + textLen == data.len:
+              # Found matching length that ends at end of data
+              var isValidText = true
+              for i in 0..<textLen:
+                let b = data[peekOffset + i]
+                if b == 0:
+                  isValidText = false
+                  break
+              
+              if isValidText or textLen == 0:
+                if textLen == 0:
+                  methodName = ""
+                else:
+                  methodName = newString(textLen)
+                  for i in 0..<textLen:
+                    methodName[i] = char(data[peekOffset + i])
+                offset = peekOffset + textLen
                 found = true
                 break
-          inc offset
-        
-        if not found:
-          raise newException(CandidDecodeError, "Could not find method name section in Motoko format")
-        
-        # Decode method name
-        let methodNameLength = decodeULEB128(data, offset)
-        if offset + int(methodNameLength) > data.len:
-          raise newException(CandidDecodeError, "Method name length out of range")
-        methodName = newString(int(methodNameLength))
-        for i in 0..<int(methodNameLength):
-          methodName[i] = char(data[offset + i])
-        offset += int(methodNameLength)
-        
-      else:
-        # Nim format without ID form
-        # Decode principal
-        let principalLength = decodeULEB128(data, offset)
-        if offset + int(principalLength) > data.len:
-          raise newException(CandidDecodeError, "Principal length out of range")
-        let principalBytes = data[offset ..< offset + int(principalLength)]
-        principal = Principal.fromBlob(principalBytes)
-        offset += int(principalLength)
-        
-        # Decode method name
-        let methodNameLength = decodeULEB128(data, offset)
-        if offset + int(methodNameLength) > data.len:
-          raise newException(CandidDecodeError, "Method name length out of range")
-        methodName = newString(int(methodNameLength))
-        for i in 0..<int(methodNameLength):
-          methodName[i] = char(data[offset + i])
-        offset += int(methodNameLength)
+          
+          if found:
+            break
+      
+      if not found:
+        raise newException(CandidDecodeError, "Could not find valid method name in function value")
       
       result.funcVal = IcFunc(
         principal: principal,
