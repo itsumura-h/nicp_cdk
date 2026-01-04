@@ -8,7 +8,6 @@ import std/osproc
 import std/strutils
 import std/strformat
 import std/os
-import std/times
 
 const 
   DFX_PATH = "/root/.local/share/dfx/bin/dfx"
@@ -65,7 +64,7 @@ suite "ECDSA Management Canister Tests":
   test "Test getPublicKey after getNewPublicKey":
     
     # まず新しいキーを生成
-    let newKeyResult = callCanisterFunction("getNewPublicKey")
+    discard callCanisterFunction("getNewPublicKey")
     
     # 少し待ってからクエリ
     let queryResult = callCanisterFunction("getPublicKey")
@@ -82,7 +81,7 @@ suite "ECDSA Signature and Verification Tests":
   test "Test signWithEcdsa basic functionality":
     sleep(1000)  # キャニスターの完全な準備を待つ
     # まず公開鍵を生成して準備
-    let keyResult = callCanisterFunction("getNewPublicKey")
+    discard callCanisterFunction("getNewPublicKey")
     
     # メッセージに署名
     let testMessage = "Hello, ICP ECDSA!"
@@ -176,7 +175,7 @@ suite "EVM Address Tests":
   test "Test getEvmAddress after generating public key":
     
     # まず公開鍵を生成
-    let keyResult = callCanisterFunction("getNewPublicKey")
+    discard callCanisterFunction("getNewPublicKey")
     
     # EVMアドレスを取得
     let evmResult = callCanisterFunction("getEvmAddress")

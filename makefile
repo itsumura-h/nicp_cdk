@@ -13,9 +13,10 @@ reinstall:
 	nimble install -y
 
 run:
-	-nimble uninstall nicp_cdk -iy
+	export TERM=xterm-256color
+	nimble uninstall nicp_cdk -iy || true
 	nimble install -y
 	ndfx cHeaders
-	-dfx stop
+	dfx stop || true
 	rm -rf /application/examples/*/.dfx
 	dfx start --clean --background --host 0.0.0.0:4943 --domain localhost --domain 0.0.0.0
