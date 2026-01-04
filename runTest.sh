@@ -1,6 +1,7 @@
 make run
-cd solidity
+cd /application/solidity
 forge install
-forge build
+cd /application/solidity/script/Counter
+./deployCounter.sh
 cd /application
-nimble test -y
+nimble test
