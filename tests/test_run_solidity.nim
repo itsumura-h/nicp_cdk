@@ -11,7 +11,7 @@ import std/httpclient
 
 const
   anvilRpc = "http://anvil:8545"
-  broadcastPath = "solidity/broadcast/deployCounter.s.sol/31337/run-latest.json"
+  broadcastPath = "/application/solidity/broadcast/deployCounter.s.sol/31337/run-latest.json"
 
 proc rpcCall(methodName: string, params: JsonNode): JsonNode =
   var client = newHttpClient()
@@ -63,7 +63,7 @@ suite "solidity deploy":
     else:
       # Contract not found, need to deploy
       echo "Counter not found at known address, deploying..."
-      let rc = execShellCmd("cd solidity/script/Counter && ./deployCounter.sh")
+      let rc = execShellCmd("cd /application/solidity/script/Counter && ./deployCounter.sh")
       check rc == 0
       
       # 3) Read latest deployed address from broadcast artifact

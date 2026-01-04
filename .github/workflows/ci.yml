@@ -27,5 +27,5 @@ jobs:
 
       - name: Run tests via compose
         run: |
-          docker compose up -d anvil
-          docker compose run --rm app bash -lc "bash runTest.sh"
+          docker compose up -d
+          docker compose run app bash -lc "bash runTest.sh"
