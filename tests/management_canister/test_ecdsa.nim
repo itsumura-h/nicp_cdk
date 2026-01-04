@@ -8,6 +8,7 @@ import std/osproc
 import std/strutils
 import std/strformat
 import std/os
+import std/times
 
 const 
   DFX_PATH = "/root/.local/share/dfx/bin/dfx"
@@ -35,11 +36,14 @@ suite "Deploy Tests":
       # deployが成功した場合を確認
       check deployResult.contains("Deployed") or deployResult.contains("Creating") or 
             deployResult.contains("Installing") or deployResult.contains("t_ecdsa_backend")
+      # デプロイ後にキャニスターが完全に起動するまで待機
+      sleep(3000)
     finally:
       setCurrentDir(originalDir)
 
 suite "ECDSA Management Canister Tests":
   test "Test getPublicKey query function":
+    sleep(1000)  # キャニスターの完全な準備を待つ
     let callResult = callCanisterFunction("getPublicKey")
     # クエリ関数が正常に実行されることを確認
     # キーが存在する場合は16進文字列、存在しない場合は適切なエラーメッセージが返される
@@ -76,7 +80,7 @@ suite "ECDSA Management Canister Tests":
 
 suite "ECDSA Signature and Verification Tests":
   test "Test signWithEcdsa basic functionality":
-    
+    sleep(1000)  # キャニスターの完全な準備を待つ
     # まず公開鍵を生成して準備
     let keyResult = callCanisterFunction("getNewPublicKey")
     
@@ -164,6 +168,7 @@ suite "ECDSA Signature and Verification Tests":
 
 suite "EVM Address Tests":
   test "Test getEvmAddress without public key":
+    sleep(1000)  # キャニスターの完全な準備を待つ
     let evmResult = callCanisterFunction("getEvmAddress")
     # データベースにキーが既に存在する場合はアドレスが返され、存在しない場合は空文字列
     check evmResult.contains("0x") or evmResult.contains("\"\"") or evmResult.contains("reject")
@@ -181,6 +186,7 @@ suite "EVM Address Tests":
 
 suite "ECDSA Integration Tests":
   test "Test full ECDSA workflow":
+    sleep(1000)  # キャニスターの完全な準備を待つ
     
     # Step 1: 新しい公開鍵を生成
     let newKeyResult = callCanisterFunction("getNewPublicKey")

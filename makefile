@@ -16,6 +16,6 @@ run:
 	-nimble uninstall nicp_cdk -iy
 	nimble install -y
 	ndfx cHeaders
-	dfx stop
+	-dfx stop
 	rm -rf /application/examples/*/.dfx
 	dfx start --clean --background --host 0.0.0.0:4943 --domain localhost --domain 0.0.0.0
