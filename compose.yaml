@@ -2,7 +2,7 @@ services:
   anvil:
     build:
       context: .
-      dockerfile: ./docker/anvil/Dockerfile
+      dockerfile: docker/anvil/develop.Dockerfile
     tty: true
     ports:
       - 8545:8545
