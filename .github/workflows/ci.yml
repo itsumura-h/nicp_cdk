@@ -19,4 +19,4 @@ jobs:
       - name: Run tests
         run: |
           docker compose up -d
-          docker compose run --rm app bash runTest.sh
+          docker compose run --rm app ./runTest.sh
