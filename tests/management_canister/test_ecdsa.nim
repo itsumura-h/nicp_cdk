@@ -13,7 +13,6 @@ const
   DFX_PATH = "/root/.local/share/dfx/bin/dfx"
   T_ECDSA_DIR = "/application/examples/t_ecdsa"
   FRONTEND_FILTER = "./src/t_ecdsa_frontend"
-  DFX_GENERATE_TARGET = "t_ecdsa_backend"
 
 proc logDebug(msg: string) =
   stdout.write("[DEBUG] " & msg & "\n")
@@ -49,7 +48,7 @@ proc ensureFrontendBuilt() =
   try:
     setCurrentDir(T_ECDSA_DIR)
     logDebug("Generating backend declarations with dfx")
-    let (generateOutput, generateCode) = execCmdEx(DFX_PATH & " generate " & DFX_GENERATE_TARGET)
+    let (generateOutput, generateCode) = execCmdEx(DFX_PATH & " generate ")
     if generateCode != 0:
       logDebug("dfx generate failed output: " & generateOutput)
     check generateCode == 0
