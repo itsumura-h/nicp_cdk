@@ -12,6 +12,8 @@ import std/os
 const 
   DFX_PATH = "/root/.local/share/dfx/bin/dfx"
   T_ECDSA_DIR = "/application/examples/t_ecdsa"
+let
+  FRONTEND_DIR = joinPath(T_ECDSA_DIR, "src", "t_ecdsa_frontend")
 
 proc logDebug(msg: string) =
   stdout.write("[DEBUG] " & msg & "\n")
@@ -34,11 +36,23 @@ proc callCanisterFunction(functionName: string, args: string = ""): string =
       DFX_PATH & " canister call t_ecdsa_backend " & functionName
     else:
       DFX_PATH & " canister call t_ecdsa_backend " & functionName & " '(" & args & ")' "
-    echo command
+    logDebug("Calling canister function: " & command.replace("\n", " "))
     let execResult = execProcess(command)
     logDebug(fmt"callCanisterFunction result for {functionName} len={execResult.len} preview={previewString(execResult)}")
     logResponse(functionName, execResult)
     return execResult
+  finally:
+    setCurrentDir(originalDir)
+
+proc ensureFrontendBuilt() =
+  let originalDir = getCurrentDir()
+  try:
+    setCurrentDir(FRONTEND_DIR)
+    logDebug("Installing frontend dependencies with pnpm")
+    discard execProcess("pnpm install --frozen-lockfile")
+    logDebug("Building frontend assets")
+    discard execProcess("pnpm run build")
+    discard execProcess("dfx generate")
   finally:
     setCurrentDir(originalDir)
 
@@ -49,6 +63,7 @@ suite "Deploy Tests":
     let originalDir = getCurrentDir()
     try:
       setCurrentDir(T_ECDSA_DIR)
+      ensureFrontendBuilt()
       let deployResult = execProcess(DFX_PATH & " deploy -y")
       logDebug(fmt"deploy result len={deployResult.len}")
       # deployが成功した場合を確認
