@@ -5,11 +5,11 @@
   },
   "name": "t_ecdsa",
   "scripts": {
-    "build": "dfx generate && pnpm --filter t_ecdsa_frontend build",
-    "prebuild": "dfx generate && pnpm --filter t_ecdsa_frontend prebuild",
-    "pretest": "dfx generate && pnpm --filter t_ecdsa_frontend prebuild",
-    "start": "dfx generate && pnpm --filter t_ecdsa_frontend start",
-    "test": "dfx generate && pnpm --filter t_ecdsa_frontend test"
+    "build": "npm run build --workspaces --if-present",
+    "prebuild": "npm run prebuild --workspaces --if-present",
+    "pretest": "npm run prebuild --workspaces --if-present",
+    "start": "npm start --workspaces --if-present",
+    "test": "npm test --workspaces --if-present"
   },
   "type": "module",
   "workspaces": [
