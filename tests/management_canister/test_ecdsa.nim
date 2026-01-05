@@ -48,19 +48,22 @@ proc ensureFrontendBuilt() =
   try:
     setCurrentDir(T_ECDSA_DIR)
     logDebug("Installing frontend dependencies with pnpm at workspace root")
+    
     let (installOutput, installCode) = execCmdEx("pnpm install --frozen-lockfile")
     if installCode != 0:
       logDebug("pnpm install failed output: " & installOutput)
     check installCode == 0
+    
+    let (generateOutput, generateCode) = execCmdEx("dfx generate")
+    if generateCode != 0:
+      logDebug("dfx generate failed output: " & generateOutput)
+    check generateCode == 0
+    
     logDebug("Building frontend assets via workspace filter")
     let (buildOutput, buildCode) = execCmdEx("pnpm --filter " & FRONTEND_FILTER & " run build")
     if buildCode != 0:
       logDebug("pnpm build failed output: " & buildOutput)
     check buildCode == 0
-    let (generateOutput, generateCode) = execCmdEx("dfx generate")
-    if generateCode != 0:
-      logDebug("dfx generate failed output: " & generateOutput)
-    check generateCode == 0
   finally:
     setCurrentDir(originalDir)
 
