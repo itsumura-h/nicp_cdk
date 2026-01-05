@@ -110,6 +110,7 @@ ENV PATH $PATH:/root/.node/bin
 
 # pnpm
 RUN curl -fsSL https://get.pnpm.io/install.sh | bash -s -- -y
+ENV PATH $PATH:/root/.local/share/pnpm
 
 # foundry
 RUN curl -L https://foundry.paradigm.xyz | bash
