@@ -16,7 +16,27 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
+      - name: Build anvil image (cached)
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: docker/anvil/develop.Dockerfile
+          tags: local/anvil:ci
+          load: true
+          cache-from: type=gha,scope=anvil
+          cache-to: type=gha,scope=anvil,mode=max
+
+      - name: Build app image (cached)
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: docker/app/develop.Dockerfile
+          tags: local/app:ci
+          load: true
+          cache-from: type=gha,scope=app
+          cache-to: type=gha,scope=app,mode=max
+
       - name: Run tests
         run: |
-          docker compose up -d
+          docker compose up -d --no-build
           docker compose run --rm app ./runTest.sh

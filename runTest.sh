@@ -13,5 +13,6 @@ dfx start --clean --background --host 0.0.0.0:4943 --domain localhost --domain 0
 dfx ping
 cd /application/solidity
 forge install
+forge build
 cd /application
 nimble test

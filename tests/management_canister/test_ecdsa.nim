@@ -13,6 +13,7 @@ const
   DFX_PATH = "/root/.local/share/dfx/bin/dfx"
   T_ECDSA_DIR = "/application/examples/t_ecdsa"
   FRONTEND_FILTER = "./src/t_ecdsa_frontend"
+  DFX_GENERATE_TARGET = "t_ecdsa_backend"
 
 proc logDebug(msg: string) =
   stdout.write("[DEBUG] " & msg & "\n")
@@ -47,17 +48,17 @@ proc ensureFrontendBuilt() =
   let originalDir = getCurrentDir()
   try:
     setCurrentDir(T_ECDSA_DIR)
+    logDebug("Generating backend declarations with dfx")
+    let (generateOutput, generateCode) = execCmdEx(DFX_PATH & " generate " & DFX_GENERATE_TARGET)
+    if generateCode != 0:
+      logDebug("dfx generate failed output: " & generateOutput)
+    check generateCode == 0
+
     logDebug("Installing frontend dependencies with pnpm at workspace root")
-    
     let (installOutput, installCode) = execCmdEx("pnpm install --frozen-lockfile")
     if installCode != 0:
       logDebug("pnpm install failed output: " & installOutput)
     check installCode == 0
-    
-    let (generateOutput, generateCode) = execCmdEx("dfx generate")
-    if generateCode != 0:
-      logDebug("dfx generate failed output: " & generateOutput)
-    check generateCode == 0
     
     logDebug("Building frontend assets via workspace filter")
     let (buildOutput, buildCode) = execCmdEx("pnpm --filter " & FRONTEND_FILTER & " run build")

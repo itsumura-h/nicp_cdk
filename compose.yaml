@@ -1,5 +1,6 @@
 services:
   anvil:
+    image: local/anvil:ci
     build:
       context: .
       dockerfile: docker/anvil/develop.Dockerfile
@@ -8,6 +9,7 @@ services:
       - 8545:8545
 
   app:
+    image: local/app:ci
     build:
       context: .
       dockerfile: docker/app/develop.Dockerfile
