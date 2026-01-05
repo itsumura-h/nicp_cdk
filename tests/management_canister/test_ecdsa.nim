@@ -33,13 +33,15 @@ proc callCanisterFunction(functionName: string, args: string = ""): string =
     let command = if args == "":
       DFX_PATH & " canister call t_ecdsa_backend " & functionName
     else:
-      DFX_PATH & " canister call t_ecdsa_backend " & functionName & " '" & args & "'"
+      DFX_PATH & " canister call t_ecdsa_backend " & functionName & " '(" & args & ")' "
+    echo command
     let execResult = execProcess(command)
     logDebug(fmt"callCanisterFunction result for {functionName} len={execResult.len} preview={previewString(execResult)}")
     logResponse(functionName, execResult)
     return execResult
   finally:
     setCurrentDir(originalDir)
+
 
 suite "Deploy Tests":
   test "Deploy ECDSA canister":
@@ -56,6 +58,7 @@ suite "Deploy Tests":
       sleep(3000)
     finally:
       setCurrentDir(originalDir)
+
 
 suite "ECDSA Management Canister Tests":
   test "Test getPublicKey query function":
@@ -100,6 +103,7 @@ suite "ECDSA Management Canister Tests":
     # EVMアドレスも生成されるべき
     check evmResult.contains("0x") and evmResult.len > 10
 
+
 suite "ECDSA Signature and Verification Tests":
   test "Test signWithEcdsa basic functionality":
     logDebug("Test signWithEcdsa basic functionality: start")
@@ -108,7 +112,7 @@ suite "ECDSA Signature and Verification Tests":
     discard callCanisterFunction("getNewPublicKey")
     
     # メッセージに署名
-    let testMessage = "Hello, ICP ECDSA!"
+    let testMessage = "\"Hello, ICP ECDSA!\""
     let signResult = callCanisterFunction("signWithEcdsa", testMessage)
     logDebug(fmt"signWithEcdsa result len={signResult.len} preview={previewString(signResult)}")
     
@@ -124,7 +128,7 @@ suite "ECDSA Signature and Verification Tests":
     let publicKeyResult = callCanisterFunction("getNewPublicKey")
     
     # Step 2: メッセージに署名
-    let testMessage = "Test message for verification"
+    let testMessage = "\"Test message for verification\""
     let signatureResult = callCanisterFunction("signWithEcdsa", testMessage)
     logDebug(fmt"signature result len={signatureResult.len} preview={previewString(signatureResult)}")
     
@@ -140,7 +144,7 @@ suite "ECDSA Signature and Verification Tests":
     cleanSignature = cleanSignature.replace(",", "").strip()
     
     # 検証用のレコード引数を構築
-    let verifyArgs = fmt"""(record {{ message = "{testMessage}"; signature = "{cleanSignature}"; publicKey = "{publicKey}"; }})"""
+    let verifyArgs = fmt"""record {{ message = {testMessage}; signature = "{cleanSignature}"; publicKey = "{publicKey}"; }}"""
     
     let verifyResult = callCanisterFunction("verifyWithEcdsa", verifyArgs)
     logDebug(fmt"verifyResult len={verifyResult.len} preview={previewString(verifyResult)}")
@@ -159,7 +163,7 @@ suite "ECDSA Signature and Verification Tests":
     let testMessage = "Test message"
     let invalidSignature = "0123456789abcdef" # 明らかに不正な署名
     
-    let verifyArgs = fmt"""(record {{ message = "{testMessage}"; signature = "{invalidSignature}"; publicKey = "{publicKey}"; }})"""
+    let verifyArgs = fmt"""record {{ message = "{testMessage}"; signature = "{invalidSignature}"; publicKey = "{publicKey}"; }}"""
     
     let verifyResult = callCanisterFunction("verifyWithEcdsa", verifyArgs)
     logDebug(fmt"invalid verify result len={verifyResult.len} preview={previewString(verifyResult)}")
@@ -173,9 +177,9 @@ suite "ECDSA Signature and Verification Tests":
     
     # 複数の異なるメッセージで署名をテスト
     let messages = @[
-      "Short",
-      "Medium length message for testing",
-      "Very long message that contains multiple words and should test the signing functionality with longer input text"
+      "\"Short\"",
+      "\"Medium length message for testing\"",
+      "\"Very long message that contains multiple words and should test the signing functionality with longer input text\""
     ]
     
     for i, message in messages:
@@ -201,6 +205,7 @@ suite "ECDSA Signature and Verification Tests":
     check firstResult.len > 0
     check secondResult.len > 0
 
+
 suite "EVM Address Tests":
   test "Test getEvmAddress without public key":
     logDebug("Test getEvmAddress without public key: start")
@@ -222,6 +227,7 @@ suite "EVM Address Tests":
     
     # 公開鍵が正常に生成された場合、EVMアドレスも取得できるべき
     check evmResult.contains("0x") and evmResult.len > 10
+
 
 suite "ECDSA Integration Tests":
   test "Test full ECDSA workflow":
