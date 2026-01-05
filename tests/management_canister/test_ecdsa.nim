@@ -12,8 +12,7 @@ import std/os
 const 
   DFX_PATH = "/root/.local/share/dfx/bin/dfx"
   T_ECDSA_DIR = "/application/examples/t_ecdsa"
-let
-  FRONTEND_DIR = joinPath(T_ECDSA_DIR, "src", "t_ecdsa_frontend")
+  FRONTEND_FILTER = "./src/t_ecdsa_frontend"
 
 proc logDebug(msg: string) =
   stdout.write("[DEBUG] " & msg & "\n")
@@ -47,12 +46,21 @@ proc callCanisterFunction(functionName: string, args: string = ""): string =
 proc ensureFrontendBuilt() =
   let originalDir = getCurrentDir()
   try:
-    setCurrentDir(FRONTEND_DIR)
-    logDebug("Installing frontend dependencies with pnpm")
-    discard execProcess("pnpm install --frozen-lockfile")
-    logDebug("Building frontend assets")
-    discard execProcess("pnpm run build")
-    discard execProcess("dfx generate")
+    setCurrentDir(T_ECDSA_DIR)
+    logDebug("Installing frontend dependencies with pnpm at workspace root")
+    let (installOutput, installCode) = execCmdEx("pnpm install --frozen-lockfile")
+    if installCode != 0:
+      logDebug("pnpm install failed output: " & installOutput)
+    check installCode == 0
+    logDebug("Building frontend assets via workspace filter")
+    let (buildOutput, buildCode) = execCmdEx("pnpm --filter " & FRONTEND_FILTER & " run build")
+    if buildCode != 0:
+      logDebug("pnpm build failed output: " & buildOutput)
+    check buildCode == 0
+    let (generateOutput, generateCode) = execCmdEx("dfx generate")
+    if generateCode != 0:
+      logDebug("dfx generate failed output: " & generateOutput)
+    check generateCode == 0
   finally:
     setCurrentDir(originalDir)
 
