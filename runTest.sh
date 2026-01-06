@@ -17,5 +17,4 @@ forge install
 cd /application/solidity/script/Counter
 ./deployCounter.sh
 cd /application
-# nimble test
-testament p tests/management_canister/test_ecdsa.nim
+nimble test
