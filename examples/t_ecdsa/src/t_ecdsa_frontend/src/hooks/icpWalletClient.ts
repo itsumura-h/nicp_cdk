@@ -13,8 +13,6 @@ import {
   type WalletClient,
   type HttpTransport,
   createWalletClient,
-  fromBytes,
-  getAddress,
   http,
   keccak256,
   serializeTransaction,
@@ -23,7 +21,7 @@ import {
   hexToBytes,
 } from 'viem';
 import { toAccount } from 'viem/accounts';
-import { AuthClient } from '@dfinity/auth-client';
+import { AuthClient } from '@icp-sdk/auth/client';
 import {
   canisterId as tEcdsaBackendCanisterId,
   createActor as createTEcdsaBackendActor,

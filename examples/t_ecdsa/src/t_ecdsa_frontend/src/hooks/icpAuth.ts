@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'preact/hooks';
-import { AuthClient } from '@dfinity/auth-client';
+import { AuthClient } from '@icp-sdk/auth/client';
 import {
   canisterId as INTERNET_IDENTITY_CANISTER_ID,
 } from '../../../declarations/internet_identity';
