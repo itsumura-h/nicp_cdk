@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'preact/hooks';
-import { AuthClient } from '@dfinity/auth-client';
+import { AuthClient } from '@icp-sdk/auth/client';
 import {
   canisterId as INTERNET_IDENTITY_CANISTER_ID,
 } from '../../../declarations/internet_identity';
 
-const network = process.env.DFX_NETWORK;
+const network = import.meta.env.VITE_DFX_NETWORK || 'local';
 export const identityProvider =
   network === 'ic'
     ? 'https://identity.ic0.app'
