@@ -39,4 +39,13 @@ jobs:
       - name: Run tests
         run: |
           docker compose up -d --no-build
+          anvil_id="$(docker compose ps -q anvil)"
+          for i in $(seq 1 60); do
+            status="$(docker inspect -f '{{.State.Health.Status}}' "$anvil_id" 2>/dev/null || true)"
+            if [ "$status" = "healthy" ]; then
+              break
+            fi
+            sleep 1
+          done
+          test "$(docker inspect -f '{{.State.Health.Status}}' "$anvil_id")" = "healthy"
           docker compose run --rm app ./runTest.sh
