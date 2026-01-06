@@ -14,12 +14,12 @@ importers:
 
   src/t_ecdsa_frontend:
     dependencies:
-      '@dfinity/agent':
-        specifier: ^3.4.3
-        version: 3.4.3(@dfinity/candid@3.4.3(@dfinity/principal@3.4.3))(@dfinity/principal@3.4.3)(@noble/hashes@1.8.0)
       '@icp-sdk/auth':
         specifier: ^5.0.0
         version: 5.0.0(@icp-sdk/core@5.0.0)
+      '@icp-sdk/core':
+        specifier: ^5.0.0
+        version: 5.0.0
       preact:
         specifier: ^10.26.9
         version: 10.28.1

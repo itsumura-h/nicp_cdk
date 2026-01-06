@@ -22,19 +22,27 @@ import {
 } from 'viem';
 import { toAccount } from 'viem/accounts';
 import { AuthClient } from '@icp-sdk/auth/client';
-import {
-  canisterId as tEcdsaBackendCanisterId,
-  createActor as createTEcdsaBackendActor,
-} from '../../../declarations/t_ecdsa_backend';
+import { HttpAgent } from '@icp-sdk/core/agent';
 import type { _SERVICE as TEcdsaBackendService } from '../../../declarations/t_ecdsa_backend/t_ecdsa_backend.did';
+import { canisterId as tEcdsaBackendCanisterId, createActor } from '../../../declarations/t_ecdsa_backend';
 
-const createBackendActor = (authClient: AuthClient): TEcdsaBackendService => {
+const createBackendActor = async (authClient: AuthClient): Promise<TEcdsaBackendService> => {
   const identity = authClient.getIdentity();
-  return createTEcdsaBackendActor(tEcdsaBackendCanisterId, {
-    agentOptions: {
-      identity,
-    },
-  });
+  const agent = await HttpAgent.create({ identity });
+
+  const isDev = import.meta.env.DEV || import.meta.env.MODE !== 'production';
+  if (isDev) {
+    await agent.fetchRootKey();
+  }
+  
+  // The declarations were generated with @dfinity/agent, but we're using @icp-sdk/core/agent
+  // Both HttpAgent implementations are compatible at runtime despite type differences
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const actor = createActor(tEcdsaBackendCanisterId, {
+    agent: agent as any,
+  }) as TEcdsaBackendService;
+  
+  return actor;
 };
 
 const ensurePublicKey = async (actor: TEcdsaBackendService) => {
@@ -47,7 +55,7 @@ const ensurePublicKey = async (actor: TEcdsaBackendService) => {
 };
 
 const resolveAddress = async (actor: TEcdsaBackendService): Promise<Address> => {
-  const evmAddress = await (async ():Promise<Address>=>{
+  const evmAddress = await (async ():Promise<string>=>{
     try{
       return await actor.getEvmAddress();
     } catch (error) {
@@ -61,7 +69,7 @@ const resolveAddress = async (actor: TEcdsaBackendService): Promise<Address> => 
   if (!evmAddress) {
     throw new Error('Failed to resolve Ethereum address from canister.');
   }
-  return evmAddress;
+  return evmAddress as Address;
 };
 
 const normaliseSignableMessage = (message: SignableMessage): string => {
@@ -77,7 +85,7 @@ const normaliseSignableMessage = (message: SignableMessage): string => {
 };
 
 const toIcpAccount = async (authClient: AuthClient): Promise<LocalAccount> => {
-  const actor = createBackendActor(authClient);
+  const actor = await createBackendActor(authClient);
   await ensurePublicKey(actor);
   const address = await resolveAddress(actor);
 
@@ -133,7 +141,7 @@ const toIcpAccount = async (authClient: AuthClient): Promise<LocalAccount> => {
       });
     }
     const serialized = args.serializer(transaction);
-    const hash = keccak256(serialized);
+    const hash = keccak256(serialized as `0x${string}`);
     const hashBytes = hexToBytes(hash);
     const signature = await actor.signWithEvmWallet(hashBytes);
 
