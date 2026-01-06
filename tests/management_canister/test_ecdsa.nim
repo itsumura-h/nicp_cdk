@@ -12,10 +12,6 @@ import std/os
 const 
   DFX_PATH = "/root/.local/share/dfx/bin/dfx"
   T_ECDSA_DIR = "/application/examples/t_ecdsa"
-  DECLARATIONS_DIR = "/application/examples/t_ecdsa/src/declarations/t_ecdsa_backend"
-  DECLARATIONS_ENTRY = "/application/examples/t_ecdsa/src/declarations/t_ecdsa_backend/index.js"
-  DFX_GENERATE_TARGET = "t_ecdsa_backend"
-  FRONTEND_FILTER = "./src/t_ecdsa_frontend"
 
 proc logDebug(msg: string) =
   stdout.write("[DEBUG] " & msg & "\n")
