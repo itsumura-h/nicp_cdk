@@ -12,29 +12,29 @@ jobs:
         uses: actions/checkout@v4
         with:
           submodules: recursive
+          fetch-depth: 0
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Build anvil image (cached)
-        uses: docker/build-push-action@v5
+      - name: Detect docker changes
+        id: docker-changes
+        uses: dorny/paths-filter@v3
         with:
-          context: .
-          file: docker/anvil/develop.Dockerfile
-          tags: local/anvil:ci
-          load: true
-          cache-from: type=gha,scope=anvil
-          cache-to: type=gha,scope=anvil,mode=max
+          filters: |
+            docker:
+              - 'compose.yaml'
+              - 'docker/**/*.Dockerfile'
 
-      - name: Build app image (cached)
-        uses: docker/build-push-action@v5
-        with:
-          context: .
-          file: docker/app/develop.Dockerfile
-          tags: local/app:ci
-          load: true
-          cache-from: type=gha,scope=app
-          cache-to: type=gha,scope=app,mode=max
+      - name: Build images (compose)
+        run: |
+          set -euo pipefail
+          need_build="${{ steps.docker-changes.outputs.docker }}"
+          if [ "$need_build" != "true" ]; then
+            if ! docker image inspect local/anvil:ci local/app:ci >/dev/null 2>&1; then
+              need_build="true"
+            fi
+          fi
+          if [ "$need_build" = "true" ]; then
+            docker compose build
+          fi
 
       - name: Run tests
         run: |
