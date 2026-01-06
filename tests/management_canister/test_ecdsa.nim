@@ -12,6 +12,9 @@ import std/os
 const 
   DFX_PATH = "/root/.local/share/dfx/bin/dfx"
   T_ECDSA_DIR = "/application/examples/t_ecdsa"
+  DECLARATIONS_DIR = "/application/examples/t_ecdsa/src/declarations/t_ecdsa_backend"
+  DECLARATIONS_ENTRY = "/application/examples/t_ecdsa/src/declarations/t_ecdsa_backend/index.js"
+  DFX_GENERATE_TARGET = "t_ecdsa_backend"
   FRONTEND_FILTER = "./src/t_ecdsa_frontend"
 
 proc logDebug(msg: string) =
@@ -43,27 +46,28 @@ proc callCanisterFunction(functionName: string, args: string = ""): string =
   finally:
     setCurrentDir(originalDir)
 
+proc runCommand(command: string) =
+  let (output, code) = execCmdEx(command)
+  if code != 0:
+    logDebug("command failed output: " & output)
+  check code == 0
+
 proc ensureFrontendBuilt() =
   let originalDir = getCurrentDir()
   try:
     setCurrentDir(T_ECDSA_DIR)
-    logDebug("Generating backend declarations with dfx")
-    let (generateOutput, generateCode) = execCmdEx(DFX_PATH & " generate ")
-    if generateCode != 0:
-      logDebug("dfx generate failed output: " & generateOutput)
-    check generateCode == 0
 
     logDebug("Installing frontend dependencies with pnpm at workspace root")
-    let (installOutput, installCode) = execCmdEx("pnpm install --frozen-lockfile")
-    if installCode != 0:
-      logDebug("pnpm install failed output: " & installOutput)
-    check installCode == 0
-    
-    logDebug("Building frontend assets via workspace filter")
-    let (buildOutput, buildCode) = execCmdEx("pnpm --filter " & FRONTEND_FILTER & " run build")
-    if buildCode != 0:
-      logDebug("pnpm build failed output: " & buildOutput)
-    check buildCode == 0
+    runCommand("pnpm install --frozen-lockfile")
+
+    logDebug("Generating backend declarations with dfx")
+    runCommand(DFX_PATH & " canister create --all")
+    runCommand(DFX_PATH & " deploy t_ecdsa_backend")
+    runCommand(DFX_PATH & " generate t_ecdsa_backend")
+    runCommand(DFX_PATH & " deploy internet_identity")
+    runCommand(DFX_PATH & " generate internet_identity")
+    runCommand(DFX_PATH & " deploy t_ecdsa_frontend")
+    runCommand(DFX_PATH & " generate t_ecdsa_frontend")
   finally:
     setCurrentDir(originalDir)
 
