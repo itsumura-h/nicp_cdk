@@ -38,5 +38,5 @@ jobs:
 
       - name: Run tests
         run: |
-          docker compose up -d
+          docker compose up -d --wait --wait-timeout 60
           docker compose run --rm app ./runTest.sh

@@ -7,6 +7,12 @@ services:
     tty: true
     ports:
       - 8545:8545
+    healthcheck:
+      test: ["CMD", "cast", "chain-id", "--rpc-url", "http://127.0.0.1:8545"]
+      interval: 2s
+      timeout: 2s
+      retries: 30
+      start_period: 5s
 
   app:
     image: local/app:ci
