@@ -2,9 +2,11 @@
 rm -fr ./*.wasm
 rm -fr ./*.wat
 
+# for debug build
 echo "nim c -o:wasi.wasm src/t_ecdsa_backend/main.nim"
 nim c -o:wasi.wasm src/t_ecdsa_backend/main.nim
 
+# for release build
 # echo "nim c -d:release -o:wasi.wasm src/t_ecdsa_backend/main.nim"
 # nim c -d:release -o:wasi.wasm src/t_ecdsa_backend/main.nim
 

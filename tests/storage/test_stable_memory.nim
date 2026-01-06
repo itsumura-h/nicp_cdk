@@ -10,8 +10,26 @@ import std/strformat
 import std/strutils
 
 const
-  DFX_PATH = "/root/.local/share/dfx/bin/dfx"
-  EXAMPLE_DIR = "examples/stable_memory"
+  DEFAULT_DFX_PATH = "/root/.local/share/dfx/bin/dfx"
+  DEFAULT_EXAMPLE_DIR = "/application/examples/stable_memory"
+
+proc resolveExampleDir(): string =
+  if dirExists(DEFAULT_EXAMPLE_DIR):
+    return DEFAULT_EXAMPLE_DIR
+  var dir = getCurrentDir()
+  while true:
+    let candidate = dir / "examples" / "stable_memory"
+    if dirExists(candidate):
+      return candidate
+    let parent = parentDir(dir)
+    if parent == dir:
+      break
+    dir = parent
+  return DEFAULT_EXAMPLE_DIR
+
+let
+  DFX_PATH = if fileExists(DEFAULT_DFX_PATH): DEFAULT_DFX_PATH else: "dfx"
+  EXAMPLE_DIR = resolveExampleDir()
 
 proc callCanisterFunction(functionName: string, args: string = ""): string =
   let currentDir = getCurrentDir()

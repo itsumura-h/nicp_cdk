@@ -36,7 +36,6 @@ proc signWithEcdsa*() {.async.} =
     let signature = await usecase.signWithEcdsa(caller, message)
     reply(signature)
   except Exception as e:
-    echo "Error in signWithEcdsa: ", e.msg
     reject("Failed to sign with ECDSA: " & e.msg)
 
 
@@ -51,7 +50,6 @@ proc verifyWithEcdsa*() =
     let isValid = usecase.verifyWithEcdsa(message, signature, publicKey)
     reply(isValid)
   except Exception as e:
-    echo "Error in verifyWithEcdsa: ", e.msg
     reject("Failed to verify with ECDSA: " & e.msg)
 
 
@@ -61,7 +59,6 @@ proc getEvmAddress*() =
     let evmAddress = usecase.getEvmAddress(caller)
     reply(evmAddress)
   except Exception as e:
-    echo "Error in getEvmAddress: ", e.msg
     reject("Failed to get EVM address: " & e.msg)
 
 
@@ -76,7 +73,6 @@ proc signWithEthereum*() {.async.} =
     let signature = await usecase.signWithEthereum(caller, message)
     reply(signature)
   except Exception as e:
-    echo "Error in signWithEthereum: ", e.msg
     reject("Failed to sign with Ethereum: " & e.msg)
 
 
@@ -91,7 +87,6 @@ proc verifyWithEthereum*() =
     let isValid = usecase.verifyWithEthereum(message, signature, ethereumAddress)
     reply(isValid)
   except Exception as e:
-    echo "Error in verifyWithEthereum: ", e.msg
     reject("Failed to verify with Ethereum: " & e.msg)
 
 
@@ -106,5 +101,4 @@ proc signWithEvmWallet*() {.async.} =
     let signature = await usecase.signWithEvmWallet(caller, message)
     reply(signature)
   except Exception as e:
-    echo "Error in signWithEvmWallet: ", e.msg
     reject("Failed to sign with EVM wallet: " & e.msg)

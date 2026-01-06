@@ -1,8 +1,6 @@
 # `t_ecdsa`
 
-ICPのthreshold ECDSA機能を使用したEthereum互換ウォレット実装のデモプロジェクトです。
-
-このプロジェクトは、NimでバックエンドキャニスターをWASMにコンパイルし、ICPのthreshold ECDSA署名機能を使ってEthereum形式の署名を生成・検証する機能を提供します。フロントエンドはTypeScript + Preactで実装されており、viemライブラリを使用した署名検証のテストも含まれています。
+Welcome to your new `t_ecdsa` project and to the Internet Computer development community. By default, creating a new project adds this README and some template files to your project directory. You can edit these template files to customize your project and to include your own code to speed up the development cycle.
 
 To get started, you might want to explore the project directory structure and the default configuration file. Working with this project in your development environment will not affect any production deployment or identity tokens.
 
@@ -50,44 +48,6 @@ npm start
 ```
 
 Which will start a server at `http://localhost:8080`, proxying API requests to the replica at port 4943.
-
-## テストの実行
-
-このプロジェクトには、ICPキャニスターのEthereum署名機能をviemライブラリで検証するTypeScriptテストが含まれています。
-
-### テストの実行手順
-
-1. **ICPローカル環境の起動**
-```bash
-dfx start --clean --background
-```
-
-2. **バックエンドのビルドとデプロイ**
-```bash
-./build.sh
-dfx deploy t_ecdsa_backend
-dfx generate
-```
-
-3. **フロントエンドの依存関係インストールとテスト実行**
-```bash
-cd src/t_ecdsa_frontend
-pnpm install
-pnpm test
-```
-
-### テストの内容
-
-テストは以下の機能を検証します:
-
-- ✅ Ethereumウォレットアドレスの取得 (`getEvmAddress`)
-- ✅ メッセージへの署名 (`signWithEthereum`)
-- ✅ viemライブラリでの署名検証 (`verifyMessage`)
-- ✅ ICPキャニスター内での署名検証 (`verifyWithEthereum`)
-- ✅ 複数メッセージでの署名・検証
-- ✅ 不正なアドレス・改ざんメッセージでの検証失敗の確認
-
-詳細は [`src/t_ecdsa_frontend/src/test/README.md`](./src/t_ecdsa_frontend/src/test/README.md) を参照してください。
 
 ### Note on frontend environment variables
 

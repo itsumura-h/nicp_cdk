@@ -1,0 +1,54 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: Detect docker changes
+        id: docker-changes
+        uses: dorny/paths-filter@v3
+        with:
+          filters: |
+            docker:
+              - 'compose.yaml'
+              - 'docker/**/*.Dockerfile'
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Decide whether to build images
+        id: need-build
+        run: |
+          set -euo pipefail
+          need_build="${{ steps.docker-changes.outputs.docker }}"
+          if [ "$need_build" != "true" ]; then
+            if ! docker image inspect local/anvil:ci local/app:ci >/dev/null 2>&1; then
+              need_build="true"
+            fi
+          fi
+          echo "need_build=$need_build" >> "$GITHUB_OUTPUT"
+
+      - name: Build images (compose)
+        if: steps.need-build.outputs.need_build == 'true'
+        uses: docker/bake-action@v5
+        with:
+          files: compose.yaml
+          load: true
+          set: |
+            *.cache-from=type=gha
+            *.cache-to=type=gha,mode=max
+
+      - name: Run tests
+        run: |
+          docker compose up -d --wait --wait-timeout 60
+          docker compose run --rm app ./runTest.sh

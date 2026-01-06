@@ -11,11 +11,11 @@
       "type": "custom",
       "wasm": "https://github.com/dfinity/internet-identity/releases/latest/download/internet_identity_dev.wasm.gz"
     },
-    "t_ecdsa_backend": {
-      "candid": "t_ecdsa.did",
-      "package": "t_ecdsa_backend",
+    "stable_memory_backend": {
+      "candid": "stable_memory.did",
+      "package": "stable_memory_backend",
       "build": "build.sh",
-      "main": "src/t_ecdsa_backend/main.nim",
+      "main": "src/stable_memory_backend/main.nim",
       "wasm": "main.wasm",
       "type": "custom",
       "metadata": [
@@ -23,16 +23,6 @@
           "name": "candid:service"
         }
       ]
-    },
-    "t_ecdsa_frontend": {
-      "dependencies": [
-        "t_ecdsa_backend"
-      ],
-      "source": [
-        "src/t_ecdsa_frontend/dist"
-      ],
-      "type": "assets",
-      "workspace": "t_ecdsa_frontend"
     }
   },
   "defaults": {

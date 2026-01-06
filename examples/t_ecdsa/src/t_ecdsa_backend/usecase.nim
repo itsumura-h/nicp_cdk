@@ -21,15 +21,12 @@ proc getNewPublicKey*(caller: Principal): Future[string] {.async.} =
   ##
   ## Returns:
   ## - The public key as a hexadecimal string.
-  echo "=== getNewPublicKey ==="
 
   if database.hasKey(caller):
     return hex_bytes.toHexString(database.getPublicKey(caller))
 
   let derivationPath = $caller & "+" & NONCE
-  echo "derivationPath: ", derivationPath
   let derivationPathBytes = derivationPath.stringToBytes()
-  echo "derivationPathBytes: ", derivationPathBytes
 
   let arg = EcdsaPublicKeyArgs(
     canister_id: none(Principal),
@@ -151,13 +148,10 @@ proc signWithEthereum*(caller: Principal, message: string): Future[string] {.asy
   ##   (65 bytes, 0x-prefixed 130 hex characters, r(32 bytes) + s(32 bytes) + v(1 byte) format).
   
   # Generate the Ethereum-formatted message hash (EIP-191 format)
-  echo "=== signWithEthereum ==="
   let messageHash = ethereum.keccak256Hash(message)
 
   let derivationPath = $caller & "+" & NONCE
-  echo "derivationPath: ", derivationPath
   let derivationPathBytes = derivationPath.stringToBytes()
-  echo "derivationPathBytes: ", derivationPathBytes
   
   let arg = EcdsaSignArgs(
     message_hash: messageHash,
@@ -168,7 +162,6 @@ proc signWithEthereum*(caller: Principal, message: string): Future[string] {.asy
       name: "dfx_test_key"
     )
   )
-  echo "arg: ", arg
 
   # Generate the signature using the ICP Management Canister
   let signResult = await ManagementCanister.sign(arg)
@@ -219,12 +212,8 @@ proc signWithEvmWallet*(caller: Principal, message: seq[uint8]): Future[string] 
   ## 
   ## Returns:
   ## - Ethereum-formatted signature (65 bytes, 0x-prefixed) as a hexadecimal string.
-
-  echo "=== signWithEvmWallet ==="
   let derivationPath = $caller & "+" & NONCE
-  echo "derivationPath: ", derivationPath
   let derivationPathBytes = derivationPath.stringToBytes()
-  echo "derivationPathBytes: ", derivationPathBytes
 
   let arg = EcdsaSignArgs(
     message_hash: message,
