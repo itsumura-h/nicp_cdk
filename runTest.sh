@@ -3,7 +3,7 @@ set -euo pipefail
 set -x
 
 # Set TERM to prevent dfx color output errors in CI/test environments
-# export TERM=xterm-256color
+export TERM=xterm-256color
 
 # Run make to start dfx in background
 nimble install -y

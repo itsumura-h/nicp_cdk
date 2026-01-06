@@ -7,6 +7,12 @@ services:
     tty: true
     ports:
       - 8545:8545
+    healthcheck:
+      test: ["CMD", "cast", "block-number", "--rpc-url", "http://127.0.0.1:8545"]
+      interval: 2s
+      timeout: 2s
+      retries: 30
+      start_period: 2s
 
   app:
     image: local/app:ci
@@ -14,7 +20,8 @@ services:
       context: .
       dockerfile: docker/app/develop.Dockerfile
     depends_on:
-      - anvil
+      anvil:
+        condition: service_healthy
     tty: true
     volumes:
       - .:/application
