@@ -10,6 +10,7 @@ import ../../ic_types/ic_record
 import ../../ic_types/candid_message/candid_encode
 import ../../ic_types/candid_message/candid_decode
 import ../../ic_types/candid_message/candid_message_types
+import ./estimateGas
 import ./management_canister_type
 
 
@@ -69,9 +70,19 @@ type
 # Constants
 # ================================================================================
 const
-  ## sign_with_ecdsa / ecdsa_public_key のフォールバック用の最小サイクル数（ローカルレプリカ基準）
-  ## cycle計算APIが使用できない場合のフォールバック値
-  EcdsaCallCyclesFallback = 26_153_846_153'u64
+  # ECDSA: フォールバック推定（サイズベース）の係数
+  # - 動的推定（ic0_cost_sign_with_ecdsa）が使えない環境向けの保守的な概算
+  EcdsaFallbackBaseCycles = 18_000_000_000'u64
+  EcdsaFallbackPerPayloadByteCycles = 30_000_000'u64
+
+proc estimateEcdsaCostFallback(payload: seq[uint8]): uint64 =
+  let payloadSize = payload.len.uint64
+  var cost = EcdsaFallbackBaseCycles
+  cost = addCap(cost, mulCap(payloadSize, EcdsaFallbackPerPayloadByteCycles))
+  let finalCost = addMargin20(cost)
+  echo "📊 Estimated ECDSA cost (fallback): ", cost, " cycles + 20% margin = ", finalCost,
+       " (payload size: ", payloadSize, " bytes)"
+  finalCost
 
 
 # ================================================================================
@@ -89,9 +100,9 @@ when defined(release):
     except:
       return false
 
-  proc estimateEcdsaCostDynamic(keyId: EcdsaKeyId, payload: seq[uint8]): uint64 =
+  proc estimateEcdsaCostDynamic(keyId: EcdsaKeyId, payload: seq[uint8]): Option[uint64] =
     ## ic0_cost_sign_with_ecdsa APIを使用した動的なcycle計算
-    ## 成功時は計算されたcycle量を返し、失敗時はフォールバック値を返す
+    ## 成功時は計算されたcycle量を返し、失敗時はnoneを返す
     try:
       let curveValue = uint32(keyId.curve.ord)
       var costBuffer: array[16, uint8]  # 128bit for cycles
@@ -104,27 +115,25 @@ when defined(release):
       )
       
       if apiResult != 0:
-        echo "⚠️ ic0_cost_sign_with_ecdsa returned error code: ", apiResult, ", using fallback"
-        return EcdsaCallCyclesFallback
+        echo "⚠️ ic0_cost_sign_with_ecdsa returned error code: ", apiResult
+        return none(uint64)
       
       # 128bitのコスト値をuint64に変換（下位64bitを使用）
-      var exactCost: uint64 = 0
-      for i in 0..<8:
-        exactCost = exactCost or (uint64(costBuffer[i]) shl (i * 8))
+      let exactCost = costBufferToUint64(costBuffer)
       
       # 計算結果が0の場合もフォールバック値を使用
       if exactCost == 0:
-        echo "⚠️ ic0_cost_sign_with_ecdsa returned 0 cycles, using fallback"
-        return EcdsaCallCyclesFallback
+        echo "⚠️ ic0_cost_sign_with_ecdsa returned 0 cycles"
+        return none(uint64)
       
       # 20%の安全マージンを追加
-      let finalCost = exactCost + (exactCost div 5)
+      let finalCost = addMargin20(exactCost)
       echo "📊 Estimated ECDSA cost (dynamic): ", exactCost, " cycles + 20% margin = ", finalCost, " cycles"
-      return finalCost
+      return some(finalCost)
       
     except Exception as e:
-      echo "⚠️ Failed to estimate ECDSA cost dynamically: ", e.msg, ", using fallback"
-      return EcdsaCallCyclesFallback
+      echo "⚠️ Failed to estimate ECDSA cost dynamically: ", e.msg
+      return none(uint64)
 
 proc estimateEcdsaCost(keyId: EcdsaKeyId, payload: seq[uint8]): uint64 =
   ## ECDSAのサイクル使用量を計算
@@ -136,22 +145,20 @@ proc estimateEcdsaCost(keyId: EcdsaKeyId, payload: seq[uint8]): uint64 =
   ## デフォルトではフォールバック値を使用します（ローカルレプリカで安全）。
   
   # 動的計算の有効化フラグ（デフォルト: 無効）
-  when defined(enableEcdsaDynamicCost):
+  when defined(enableEcdsaDynamicCost) and defined(release):
     # メインネット/テストネット用: 動的計算を試行
     try:
       if isReplicatedExecution():
         echo "🔍 Attempting dynamic ECDSA cost estimation..."
         let dynamicCost = estimateEcdsaCostDynamic(keyId, payload)
-        if dynamicCost != EcdsaCallCyclesFallback:
-          return dynamicCost
+        if dynamicCost.isSome:
+          return dynamicCost.get
     except Exception as e:
       echo "⚠️ Dynamic cost estimation failed: ", e.msg
       # フォールバックへ続行
   
-  # デフォルト: フォールバック値を使用（ローカルレプリカ対応）
-  let estimatedCost = EcdsaCallCyclesFallback
-  echo "📊 Estimated ECDSA cost (fallback): ", estimatedCost, " cycles (payload size: ", payload.len, " bytes)"
-  return estimatedCost
+  # デフォルト: サイズベースのフォールバック推定（ローカルレプリカ対応）
+  return estimateEcdsaCostFallback(payload)
 
 
 # ================================================================================
