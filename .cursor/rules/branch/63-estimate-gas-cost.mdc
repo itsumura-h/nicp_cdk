@@ -1,0 +1,61 @@
+---
+description: 63-estimate-gas-costブランチでの開発時に読み込む
+alwaysApply: false
+---
+63-estimate-gas-cost ブランチルール
+===
+
+このブランチで実装することは以下の通りです。
+- management canister 呼び出し時に付与するcycles（ガス相当）を、固定値1発ではなく「送信データ長（+必要なら最大応答サイズ）」から見積もる
+- 動的コストAPI（`ic0_cost_http_request` / `ic0_cost_sign_with_ecdsa`）が使える場合はそれを優先し、使えない場合のみサイズベース推定にフォールバックする
+
+対象ファイル:
+- `src/nicp_cdk/canisters/management_canister/http_outcall.nim`
+- `src/nicp_cdk/canisters/management_canister/t_ecdsa.nim`
+
+## 進捗
+- [x] 既存の固定値フォールバックの把握
+- [x] サイズベース推定（HTTP outcall）
+- [x] サイズベース推定（ECDSA）
+- [x] ローカルでビルド/テスト（`nim check`）
+- [x] 調査結果・設計まとめの更新
+
+## 参考資料
+- IC System API: `ic0_cost_http_request`, `ic0_cost_sign_with_ecdsa`
+- `docs/ja/refarence/httpoutcall.md`
+
+## 調査結果・設計まとめ
+
+### 現状
+- `http_outcall.nim` は `ic0_cost_http_request` による動的推定を実装済みだが、失敗時のフォールバックが固定値（`HttpOutcallCyclesFallback`）になっている
+- `t_ecdsa.nim` は `ic0_cost_sign_with_ecdsa` による動的推定を実装済みだが、失敗時のフォールバックが固定値（`EcdsaCallCyclesFallback`）になっている
+
+### 目標
+- フォールバック時でも「送信データ長（Candidエンコード済みpayload / request size）」からcyclesを見積もる
+- 実装は保守可能な形（推定式を関数化、係数は定数としてまとめる、ログに内訳/入力サイズを出す）
+
+### 実装方針（案）
+- HTTP outcall:
+  - `request_size`（URL/headers/body/method/transformの合計）と `max_response_bytes` を入力にして推定する
+  - `ic0_cost_http_request` が使用できない場合のみ、`base + reqBytes*reqPerByte + maxResBytes*resPerByte` の線形推定 + 安全マージン（例: +20%）を用いる
+- ECDSA:
+  - `payload.len`（Candidエンコード済み）を入力にして推定する
+  - `ic0_cost_sign_with_ecdsa` が使用できない場合のみ、`base + payloadBytes*perByte` の線形推定 + 安全マージン（例: +20%）を用いる
+
+### 実装内容（反映済み）
+- `src/nicp_cdk/canisters/management_canister/http_outcall.nim`
+  - `ic0_cost_http_request` の戻りが 0 / 例外時は `none` とし、フォールバック推定へ
+  - フォールバックは `request_size` と `max_response_bytes` から推定:
+    - `base=5_000_000_000`
+    - `reqPerByte=200_000`
+    - `resPerByte=20_000`
+    - いずれも +20% マージンを付与
+- `src/nicp_cdk/canisters/management_canister/t_ecdsa.nim`
+  - `ic0_cost_sign_with_ecdsa` が失敗/0/例外時は `none` とし、フォールバック推定へ
+  - フォールバックは `payload.len` から推定:
+    - `base=18_000_000_000`
+    - `perByte=30_000_000`
+    - +20% マージンを付与
+
+### 今後の改善余地
+- 係数は「動的推定APIが使えない環境」で過不足が出やすいので、実測ログ（payload/request size と成功時の必要cycles）を元に調整できるようにする

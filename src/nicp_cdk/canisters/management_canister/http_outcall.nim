@@ -13,6 +13,7 @@ import ../../ic_types/ic_record
 import ../../ic_types/candid_message/candid_encode
 import ../../ic_types/candid_message/candid_decode
 import ../../ic_types/candid_message/candid_message_types
+import ./estimateGas
 import ./management_canister_type
 
 
@@ -304,58 +305,68 @@ proc onCallHttpRequestReject(env: uint32) {.exportc.} =
   fail(fut, newException(ValueError, msg))
 
 
-# HTTP Outcall用のフォールバック値（概算）
-const HttpOutcallCyclesFallback = 50_000_000_000'u64  # 50 billion cycles
+const
+  # HTTP Outcall: フォールバック推定（サイズベース）の係数
+  # - 動的推定（ic0_cost_http_request）が使えない環境向けの保守的な概算
+  HttpOutcallFallbackBaseCycles = 5_000_000_000'u64
+  HttpOutcallFallbackPerRequestByteCycles = 200_000'u64
+  HttpOutcallFallbackPerResponseByteCycles = 20_000'u64
+
+proc calcHttpRequestSize(request: HttpRequestArgs): uint64 =
+  var requestSize = request.url.len.uint64
+  for header in request.headers:
+    requestSize = addCap(requestSize, header.name.len.uint64)
+    requestSize = addCap(requestSize, header.value.len.uint64)
+  if request.body.isSome:
+    requestSize = addCap(requestSize, request.body.get.len.uint64)
+  requestSize = addCap(requestSize, ($request.`method`).len.uint64)
+  if request.transform.isSome:
+    requestSize = addCap(requestSize, 100'u64)
+  requestSize
+
+proc estimateHttpOutcallCostFallback(request: HttpRequestArgs): uint64 =
+  let requestSize = calcHttpRequestSize(request)
+  let maxResponseSize = request.max_response_bytes.get(2_000_000'u).uint64
+
+  var cost = HttpOutcallFallbackBaseCycles
+  cost = addCap(cost, mulCap(requestSize, HttpOutcallFallbackPerRequestByteCycles))
+  cost = addCap(cost, mulCap(maxResponseSize, HttpOutcallFallbackPerResponseByteCycles))
+
+  let finalCost = addMargin20(cost)
+  echo "📊 Estimated HTTP Outcall cost (fallback): ", cost, " cycles + 20% margin = ", finalCost,
+       " (request_size: ", requestSize, " bytes, max_response_bytes: ", maxResponseSize, " bytes)"
+  finalCost
 
 when defined(release):
   # 動的cycle計算機能（メインネット/テストネット用）
   # コンパイル時フラグ `-d:release` で有効化
   
-  proc estimateHttpOutcallCostDynamic(request: HttpRequestArgs): uint64 =
+  proc estimateHttpOutcallCostDynamic(request: HttpRequestArgs): Option[uint64] =
     ## ic0_cost_http_request APIを使用した動的なcycle計算
     try:
-      # リクエストサイズを計算
-      var requestSize = request.url.len.uint64
-      
-      # ヘッダーサイズ
-      for header in request.headers:
-        requestSize += header.name.len.uint64 + header.value.len.uint64
-      
-      # ボディサイズ
-      if request.body.isSome:
-        requestSize += request.body.get.len.uint64
-      
-      # HTTPメソッド名のサイズ
-      requestSize += ($request.`method`).len.uint64
-      
-      # Transform関数サイズ（概算）
-      if request.transform.isSome:
-        requestSize += 100  # Transform関数の概算サイズ
-      
-      let maxResponseSize = request.max_response_bytes.get(2000000'u)
+      let requestSize = calcHttpRequestSize(request)
+      let maxResponseSize = request.max_response_bytes.get(2_000_000'u)
       
       # IC System APIを使用して正確なコスト計算
       var costBuffer: array[16, uint8]  # 128bit for cycles
       ic0_cost_http_request(requestSize, maxResponseSize, ptrToInt(addr costBuffer[0]))
       
       # 128bitのコスト値をuint64に変換（下位64bitを使用）
-      var exactCost: uint64 = 0
-      for i in 0..<8:
-        exactCost = exactCost or (uint64(costBuffer[i]) shl (i * 8))
+      let exactCost = costBufferToUint64(costBuffer)
       
       # 計算結果が0の場合はフォールバック値を使用
       if exactCost == 0:
-        echo "⚠️ ic0_cost_http_request returned 0 cycles, using fallback"
-        return HttpOutcallCyclesFallback
+        echo "⚠️ ic0_cost_http_request returned 0 cycles"
+        return none(uint64)
       
       # 20%の安全マージンを追加
-      let finalCost = exactCost + (exactCost div 5)
+      let finalCost = addMargin20(exactCost)
       echo "📊 Estimated HTTP Outcall cost (dynamic): ", exactCost, " cycles + 20% margin = ", finalCost, " cycles"
-      return finalCost
+      return some(finalCost)
       
     except Exception as e:
-      echo "⚠️ Failed to estimate HTTP Outcall cost dynamically: ", e.msg, ", using fallback"
-      return HttpOutcallCyclesFallback
+      echo "⚠️ Failed to estimate HTTP Outcall cost dynamically: ", e.msg
+      return none(uint64)
 
 proc estimateHttpOutcallCost(request: HttpRequestArgs): uint64 =
   ## HTTP Outcallのサイクル使用量を計算
@@ -369,22 +380,15 @@ proc estimateHttpOutcallCost(request: HttpRequestArgs): uint64 =
     # メインネット/テストネット用: 動的計算を試行
     try:
       echo "🔍 Attempting dynamic HTTP Outcall cost estimation..."
-      return estimateHttpOutcallCostDynamic(request)
+      let dynamicCost = estimateHttpOutcallCostDynamic(request)
+      if dynamicCost.isSome:
+        return dynamicCost.get
     except Exception as e:
       echo "⚠️ Dynamic cost estimation failed: ", e.msg
       # フォールバックへ続行
   
-  # デフォルト: フォールバック値を使用（ローカルレプリカ対応）
-  # リクエストサイズに基づいた簡易推定
-  var requestSize = request.url.len.uint64
-  for header in request.headers:
-    requestSize += header.name.len.uint64 + header.value.len.uint64
-  if request.body.isSome:
-    requestSize += request.body.get.len.uint64
-  
-  let estimatedCost = HttpOutcallCyclesFallback
-  echo "📊 Estimated HTTP Outcall cost (fallback): ", estimatedCost, " cycles (request size: ", requestSize, " bytes)"
-  return estimatedCost
+  # デフォルト: サイズベースのフォールバック推定（ローカルレプリカ対応）
+  return estimateHttpOutcallCostFallback(request)
 
 
 proc httpRequest*(_:type ManagementCanister, request: HttpRequestArgs): Future[HttpResponse] =
