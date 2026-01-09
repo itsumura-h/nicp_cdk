@@ -1,0 +1,57 @@
+---
+description: 72-update-httpoutcallブランチでの開発時に読み込む
+alwaysApply: false
+---
+72-update-httpoutcall
+===
+
+このブランチで実装することは以下の通りです。
+- `/application/examples/http_outcall/nim` と `/application/src/nicp_cdk/canisters/management_canister/http_outcall.nim` のHTTP Outcall処理を改善する
+- ICP CanisterのHTTP OutcallにおけるTransform関数の仕様を調査し、正しいCandid型・呼び出し形態に合わせて実装方針を確定する
+- 現状GETしか実行できない実装制約を解消し、`POST`/`PUT`/`PATCH`/`DELETE`/`HEAD`/`OPTIONS` 等のHTTPメソッドも実行できるようにする（Management Canisterの`http_request`仕様に準拠）
+
+## 進捗
+- [ ] 仕様調査: Management Canister `http_request` のCandid型（`HttpRequestArgs`/`HttpResponsePayload`）を最終確認
+- [ ] 仕様調査: Transform関数のCandid型と呼び出し条件（query関数・引数構造・contextの意味）を最終確認
+- [ ] 設計: Nim側の型設計を確定（`HttpTransform`はNim procではなく`IcFunc`参照 + `context: blob` に寄せる）
+- [ ] 実装修正: `HttpRequestArgs -> Candid` エンコードでハードコードblobを廃止し、requestから動的にエンコードする
+- [ ] 実装修正: `method` を `variant { get | post | ... }` として正しくエンコードし、全メソッドが反映されることを確認
+- [ ] 実装修正: `transform` を `null` 固定から `opt record { function; context }` に対応（指定時のみ付与）
+- [ ] 実装修正: `HttpResponse` デコードで `headers: vec record { name; value }` を正しく復元する
+- [ ] 例示更新: `examples/http_outcall/nim` にPOST/PUT/DELETE等の呼び出し例（HTTPBin等）を追加
+- [ ] 例示更新: Transform関数を「決定論的な正規化」に限定して実装し、`No consensus could be reached` の回避方針を明文化
+- [ ] 動作確認: ローカルdfxでGET/POST等の最小動作確認（HTTPSエンドポイント前提）
+
+## 参考資料
+- IC HTTP Outcalls: https://internetcomputer.org/docs/current/developer-docs/integrations/http_requests/
+- HTTPS Outcalls How it Works: https://internetcomputer.org/docs/references/https-outcalls-how-it-works
+- IC Interface Spec（Management Canister）: https://internetcomputer.org/docs/current/references/ic-interface-spec/#ic-management-canister
+- DFINITY examples（Motoko/Rust）: https://github.com/dfinity/examples/tree/master/motoko/http_outcall
+- 設計書（本リポジトリ）: `docs/ja/refarence/httpoutcall.md`
+- 既存ブランチルール（関連）: `.cursor/rules/branch/37-http-outcall.mdc`
+
+## 調査結果・設計まとめ
+
+### 現状の問題（このブランチで解消すること）
+
+- `src/nicp_cdk/canisters/management_canister/http_outcall.nim` の `ManagementCanister.httpRequest` が、引数の `request` をエンコードせず、GET相当のCandidバイナリ（hex blob）を固定で送っているため、`request.method` を変更しても反映されない
+- 同ファイルの `proc % (request: HttpRequestArgs): CandidRecord` が `transform` を常に `null`（ctNull）にしており、Transform指定ができない
+- `candidValueToHttpResponse` のheaders復元ロジックが、IC仕様の `vec record { name; value }` とズレている可能性がある（タプル前提の処理が混在）
+- `examples/http_outcall/nim` はTransform呼び出し・各HTTPメソッド実行の「動作例」として未完成（現状はGET + transform無し前提）
+
+### IC Transform関数（実装方針として守るべきこと）
+
+- Transform関数は「コンセンサスのための正規化」目的であり、同一入力に対し常に同一出力となる決定論的処理のみを実装する
+- 正規化対象は主にレスポンスヘッダーの可変値（例: `Date`, `Server`, `Set-Cookie`, `ETag`, リクエストID系）で、必要最小限に留める
+- Transformは呼び出しキャニスター側のquery関数として実装し、`http_request` の引数 `transform` で `function` 参照と `context`（blob）を渡す
+
+### Nim CDK側の型設計（案）
+
+- `HttpTransform` は「Nimのproc」を直接保持しない（WASM上での関数ポインタ呼び出しではなく、Candidの`func`参照をエンコードする必要があるため）
+  - 代替として `HttpTransform = object function: IcFunc; context: seq[uint8]` に寄せる
+- `HttpRequestArgs` の `transform` は `Option[HttpTransform]` のまま維持し、`%` 変換で `opt record { function; context }` を生成する
+- `ManagementCanister.httpRequest` は `request` を `encodeCandidMessage(@[recordToCandidValue(%request)])` 等で動的にエンコードし、固定blobを廃止する
+
+### HTTPメソッド対応（ゴール）
+
+- `HttpMethod` enum の値を `variant { get | post | head | put | delete | patch | options }` としてCandidに正しくエンコードし、サンプル側でも各メソッドが実行できることを確認する
