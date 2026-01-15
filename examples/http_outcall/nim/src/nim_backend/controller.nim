@@ -2,72 +2,165 @@ import std/asyncdispatch
 import std/options
 import std/sequtils
 import std/strutils
+import std/tables
 import ../../../../../src/nicp_cdk
 import ../../../../../src/nicp_cdk/canisters/management_canister
 
 
-proc transform*() {.query.} =
+proc toBytes(value: string): seq[uint8] =
+  result = newSeq[uint8](value.len)
+  for i, c in value:
+    result[i] = uint8(ord(c))
+
+proc recordDesc(fields: seq[tuple[name: string, fieldType: CandidTypeDesc]]): CandidTypeDesc =
+  CandidTypeDesc(kind: ctRecord, recordFields: fields)
+
+proc vecDesc(element: CandidTypeDesc): CandidTypeDesc =
+  CandidTypeDesc(kind: ctVec, vecElementType: element)
+
+proc blobDesc(): CandidTypeDesc =
+  CandidTypeDesc(kind: ctBlob)
+
+proc textDesc(): CandidTypeDesc =
+  CandidTypeDesc(kind: ctText)
+
+proc natDesc(): CandidTypeDesc =
+  CandidTypeDesc(kind: ctNat)
+
+proc httpHeaderDesc(): CandidTypeDesc =
+  recordDesc(@[
+    (name: "name", fieldType: textDesc()),
+    (name: "value", fieldType: textDesc())
+  ])
+
+proc httpResponseDesc(): CandidTypeDesc =
+  recordDesc(@[
+    (name: "status", fieldType: natDesc()),
+    (name: "headers", fieldType: vecDesc(httpHeaderDesc())),
+    (name: "body", fieldType: blobDesc())
+  ])
+
+proc transformArgsDesc(): CandidTypeDesc =
+  recordDesc(@[
+    (name: "response", fieldType: httpResponseDesc()),
+    (name: "context", fieldType: blobDesc())
+  ])
+
+proc defaultTransformRef(): HttpTransform =
+  ## Transformはquery関数参照として渡す
+  let selfPrincipal = Principal.fromText("lqy7q-dh777-77777-aaaaq-cai")
+  let funcRef = IcFunc.new(selfPrincipal, FuncType.Query, "transform", @[ctRecord], some(ctRecord))
+  funcRef.argsDesc = @[transformArgsDesc()]
+  funcRef.returnsDesc = some(httpResponseDesc())
+  HttpTransform(function: funcRef, context: @[])
+
+proc buildTransformBodyValue(transformRef: HttpTransform): CandidValue =
+  var recordFields = initOrderedTable[string, CandidValue]()
+  recordFields["function"] = CandidValue(kind: ctFunc, funcVal: transformRef.function)
+  recordFields["context"] = newCandidBlob(transformRef.context)
+  let recordValue = newCandidRecord(CandidRecord(kind: ckRecord, fields: recordFields))
+  newCandidOptWithInnerType(ctRecord, some(recordValue))
+
+proc toHttpRequestArgs(
+  url: string,
+  httpMethod: HttpMethod,
+  headers: seq[HttpHeader],
+  body: Option[seq[uint8]]
+): HttpRequestArgs =
+  HttpRequestArgs(
+    url: url,
+    max_response_bytes: none(uint),
+    headers: headers,
+    body: body,
+    httpMethod: httpMethod,
+    transform: some(defaultTransformRef()),
+    is_replicated: some(false)
+  )
+
+proc transform*() =
   let request = Request.new()
   let args = request.getRecord(0)
-  let status = args["response"]["status"].getNat()
+  let statusRecord = args["response"]["status"]
+  let status =
+    case statusRecord.kind
+    of ckNat16:
+      statusRecord.getNat16()
+    of ckNat:
+      statusRecord.getNat().uint16
+    else:
+      raise newException(ValueError, "Expected Nat or Nat16 status in TransformArgs")
   let headers = args["response"]["headers"].getArray().map(
     proc(x: CandidRecord): HttpHeader =
       HttpHeader(name: x["name"].getStr(), value: x["value"].getStr())
   )
+  let filteredHeaders = headers.filterIt(
+    it.name.toLowerAscii() notin @[
+      "date", "server", "x-request-id", "x-timestamp",
+      "set-cookie", "etag", "last-modified", "expires",
+      "cache-control", "pragma", "vary", "age"
+    ]
+  )
   let body = args["response"]["body"].getBlob()
-  let response = HttpResponsePayload(status: status, headers: headers, body: body)
+  let response = HttpResponsePayload(status: status, headers: filteredHeaders, body: body)
   reply(response)
 
 
-proc get_icp_usd_exchange*() {.async.} =
-  ## シンプルなHTTP Outcall実装 - Transform関数なしでデバッグ
+proc get_httpbin*() {.async.} =
+  ## GETリクエストのサンプル
   try:
-    # Motokoと完全に同じ設定
-    const ONE_MINUTE: uint64 = 60
-    const START_TIMESTAMP: uint64 = 1682978460  # May 1, 2023 22:01:00 GMT
-    const HOST = "api.exchange.coinbase.com"
-    
-    let url = "https://" & HOST & "/products/ICP-USD/candles?start=" & 
-              $START_TIMESTAMP & "&end=" & $START_TIMESTAMP & 
-              "&granularity=" & $ONE_MINUTE
-    
-    echo "=== 🚀 Nim HTTP Outcall Test (NO Transform) ==="
-    echo "URL: ", url
-    
-    # Transform関数なしでテスト
+    let url = "https://httpbin.org/get"
     let request = HttpRequestArgs(
       url: url,
-      `method`: HttpMethod.GET,
-      headers: @[HttpHeader(name: "User-Agent", value: "price-feed")],  # Motokoと同じヘッダー
+      httpMethod: HttpMethod.GET,
+      headers: @[HttpHeader(name: "User-Agent", value: "nim-http-outcall")],
       body: none(seq[uint8]),
-      max_response_bytes: none(uint),  # Motokoと同じ（null指定）
-      transform: none(HttpTransform),  # Transform関数なし
-      # transform: some(IcFunc.new(FuncType.Query, "transform", @[ctHttpResponsePayload, ctBlob], ctHttpResponsePayload)),
+      max_response_bytes: none(uint),
+      transform: some(defaultTransformRef()),
+      # transform: none(HttpTransform),
       is_replicated: some(false)
     )
-    
-    echo "Calling HTTP Outcall without Transform function..."
-    echo "Request structure:"
-    echo "  URL: ", request.url
-    echo "  Method: ", request.`method`
-    echo "  Headers: ", request.headers.mapIt(it.name & "=" & it.value).join(", ")
-    echo "  Body: ", if request.body.isSome: "present" else: "none"
-    echo "  Max response bytes: ", if request.max_response_bytes.isSome: $request.max_response_bytes.get else: "none"
-    echo "  Transform: ", if request.transform.isSome: "present" else: "NONE"
-    echo "  Is replicated: ", if request.is_replicated.isSome: $request.is_replicated.get else: "none"
-    
+
     let response = await ManagementCanister.httpRequest(request)
-    
-    echo "✅ Success! Status: ", response.status
-    echo "Headers count: ", response.headers.len
-    echo "Response size: ", response.body.len, " bytes"
-    
-    let body = response.getTextBody()
-    echo "Response body: ", body
-    
-    reply(body)
-    
+    reply(response.getTextBody())
   except Exception as e:
-    echo "❌ HTTP Outcall Error: ", e.msg
-    echo "Error type: ", e.name
-    reject("HTTP Outcall failed: " & e.msg)
+    reject("GET httpbin failed: " & e.msg)
+
+
+proc post_httpbin*() {.async.} =
+  ## POSTリクエストのサンプル
+  try:
+    let url = "https://httpbin.org/post"
+    let body = toBytes("{\"message\":\"hello from nim\"}")
+    let request = HttpRequestArgs(
+      url: url,
+      httpMethod: HttpMethod.POST,
+      headers: @[
+        HttpHeader(name: "Content-Type", value: "application/json"),
+        HttpHeader(name: "User-Agent", value: "nim-http-outcall")
+      ],
+      body: some(body),
+      max_response_bytes: none(uint),
+      transform: some(defaultTransformRef()),
+      # transform: none(HttpTransform),
+      is_replicated: some(false)
+    )
+
+    let response = await ManagementCanister.httpRequest(request)
+    reply(response.getTextBody())
+  except Exception as e:
+    reject("POST httpbin failed: " & e.msg)
+
+
+proc transformFunc*() =
+  let transformRef = defaultTransformRef()
+  reply(transformRef.function)
+
+proc transformBody*() =
+  let transformRef = defaultTransformRef()
+  reply(buildTransformBodyValue(transformRef))
+
+proc httpRequestArgs*() =
+  let url = "https://httpbin.org/get"
+  let headers = @[HttpHeader(name: "User-Agent", value: "nim-http-outcall")]
+  let request = toHttpRequestArgs(url, HttpMethod.GET, headers, none(seq[uint8]))
+  reply(%request)

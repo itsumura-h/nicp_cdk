@@ -1,3 +1,8 @@
+discard """
+cmd: "nim c --skipUserCfg $file"
+"""
+# nim c -r --skipUserCfg tests/types/test_service.nim
+
 import unittest
 import ../../src/nicp_cdk/ic_types/candid_types
 import ../../src/nicp_cdk/ic_types/candid_message/candid_encode

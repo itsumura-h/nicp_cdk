@@ -42,7 +42,10 @@ proc getTypeSignature(typeDesc: TypeDescriptor): string =
     result.add(")->{")
     for ret in typeDesc.funcReturns:
       result.add(getTypeSignature(ret) & ",")
-    result.add("}")
+    result.add("}[")
+    for ann in typeDesc.funcAnnotations:
+      result.add($ann & ",")
+    result.add("]")
   of ctService:
     result = "service{"
     var sortedMethods = typeDesc.serviceMethods
@@ -59,6 +62,28 @@ proc getTypeSignature(typeDesc: TypeDescriptor): string =
 proc inferTypeDescriptor(value: CandidValue): TypeDescriptor =
   ## Infers type descriptor from CandidValue
   result = TypeDescriptor(kind: value.kind)
+  # Ensure variant fields are initialized for case objects
+  case value.kind:
+  of ctFunc:
+    # CRITICAL: Initialize all variant fields explicitly
+    # Ref objects with case variants may not auto-initialize fields
+    result.funcArgs = @[]
+    result.funcReturns = @[]
+    result.funcAnnotations = @[]  # This MUST be done before any other operations
+  of ctRecord:
+    result.recordFields = @[]
+  of ctVariant:
+    result.variantFields = @[]
+  of ctOpt:
+    result.optInnerType = TypeDescriptor(kind: ctEmpty)
+  of ctVec:
+    result.vecElementType = TypeDescriptor(kind: ctEmpty)
+  of ctService:
+    result.serviceMethods = @[]
+  else:
+    discard
+  
+  # Now process based on actual type
   case value.kind:
   of ctRecord:
     result.recordFields = @[]
@@ -95,21 +120,76 @@ proc inferTypeDescriptor(value: CandidValue): TypeDescriptor =
     discard
   of ctFunc:
     # Build function type descriptor from value.funcVal metadata
-    result.funcArgs = @[]
-    for argCt in value.funcVal.args:
-      # Only primitive kinds are supported directly here; others may require richer descriptors
-      result.funcArgs.add(TypeDescriptor(kind: argCt))
-    result.funcReturns = @[]
-    if value.funcVal.returns.isSome:
+    # Note: funcAnnotations must always come from value.funcVal.annotations,
+    # not from CandidTypeDesc, since annotations describe the function itself
+    # and are independent of the type signature
+    proc toTypeDescriptor(desc: CandidTypeDesc): TypeDescriptor =
+      var td = TypeDescriptor(kind: desc.kind)
+      case desc.kind:
+      of ctRecord:
+        td.recordFields = @[]
+        for field in desc.recordFields:
+          td.recordFields.add((
+            hash: candidHash(field.name),
+            fieldType: toTypeDescriptor(field.fieldType)
+          ))
+      of ctVariant:
+        td.variantFields = @[]
+        for field in desc.variantFields:
+          td.variantFields.add((
+            hash: candidHash(field.name),
+            fieldType: toTypeDescriptor(field.fieldType)
+          ))
+      of ctOpt:
+        td.optInnerType = toTypeDescriptor(desc.optInnerType)
+      of ctVec:
+        td.vecElementType = toTypeDescriptor(desc.vecElementType)
+      of ctFunc:
+        td.funcArgs = @[]
+        for argDesc in desc.funcArgs:
+          td.funcArgs.add(toTypeDescriptor(argDesc))
+        td.funcReturns = @[]
+        for retDesc in desc.funcReturns:
+          td.funcReturns.add(toTypeDescriptor(retDesc))
+        # funcAnnotations will be set separately from value.funcVal.annotations below
+        td.funcAnnotations = @[]
+      of ctService:
+        td.serviceMethods = @[]
+        for svcMethod in desc.serviceMethods:
+          td.serviceMethods.add((
+            hash: candidHash(svcMethod.name),
+            methodType: toTypeDescriptor(svcMethod.methodType)
+          ))
+      else:
+        discard
+      td
+
+    # Process function type descriptor
+    # Note: funcArgs, funcReturns, funcAnnotations already initialized above
+    
+    if value.funcVal.argsDesc.len > 0:
+      for argDesc in value.funcVal.argsDesc:
+        result.funcArgs.add(toTypeDescriptor(argDesc))
+    else:
+      for argCt in value.funcVal.args:
+        result.funcArgs.add(TypeDescriptor(kind: argCt))
+
+    if value.funcVal.returnsDesc.isSome:
+      result.funcReturns.add(toTypeDescriptor(value.funcVal.returnsDesc.get))
+    elif value.funcVal.returns.isSome:
       result.funcReturns.add(TypeDescriptor(kind: value.funcVal.returns.get))
-    # Encode annotations as bytes per spec
-    result.funcAnnotations = @[]
+
+    # Always get funcAnnotations from value.funcVal.annotations, regardless of whether
+    # argsDesc/returnsDesc are specified. This ensures consistency.
+    # CRITICAL: Recreate the sequence to ensure it's properly initialized
+    var annotations: seq[byte] = @[]
     for ann in value.funcVal.annotations:
       case ann
-      of "query": result.funcAnnotations.add(0x01'u8)
-      of "oneway": result.funcAnnotations.add(0x02'u8)
-      of "composite_query": result.funcAnnotations.add(0x03'u8)
+      of "query": annotations.add(0x01'u8)
+      of "oneway": annotations.add(0x02'u8)
+      of "composite_query": annotations.add(0x03'u8)
       else: discard
+    result.funcAnnotations = annotations
   else:
     discard
 
@@ -249,7 +329,11 @@ proc encodeTypeTableEntry(entry: TypeTableEntry): seq[byte] =
     for ret in entry.funcReturns:
       result.add(encodeSLEB128(int32(ret)))
     
-    result.add(encodeULEB128(uint(entry.funcAnnotations.len)))
+    # CRITICAL: Encode funcAnnotations
+    let annotLen = entry.funcAnnotations.len
+    let annotBytes = encodeULEB128(uint(annotLen))
+    
+    result.add(annotBytes)
     result.add(entry.funcAnnotations)
   
   of ctService:
@@ -432,8 +516,9 @@ proc encodeValue(value: CandidValue, typeRef: int, typeTable: seq[TypeTableEntry
     of ctFunc:
       # Function reference: ID form + principal + method name
       # Use same format as principal (ID form 0x01)
-      result.add(1.byte)  # ID form identifier
+      result.add(1.byte)  # ID form identifier (func reference)
       let principalBytes = value.funcVal.principal.bytes
+      result.add(1.byte)  # ID form identifier for principal
       result.add(encodeULEB128(uint(principalBytes.len)))
       result.add(principalBytes)
       
@@ -489,6 +574,7 @@ proc encodeCandidMessage*(values: seq[CandidValue]): seq[byte] =
   
   # 3. Encode type table
   result.add(encodeULEB128(uint(builder.typeTable.len)))
+  
   for entry in builder.typeTable:
     result.add(encodeTypeTableEntry(entry))
 

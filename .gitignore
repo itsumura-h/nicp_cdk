@@ -12,3 +12,4 @@ nimcache
 node_modules
 .pnpm-store
 .nimcache
+.diff

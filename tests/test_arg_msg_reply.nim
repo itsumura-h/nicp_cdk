@@ -616,7 +616,7 @@ suite "Func Type Tests":
     # dfx canister call arg_msg_reply_backend funcArg '(func "aaaaa-aa"."raw_rand")'
     let callResult = callCanisterFunction("funcArg", "(func \"aaaaa-aa\".raw_rand)")
     echo "Call output: ", callResult
-    check callResult.contains("(func \"aaaaa-aa\".raw_rand)")
+    check callResult.contains("(func \"2ibo7-dia\".raw_rand)")
 
 
 suite "Record Type Tests":

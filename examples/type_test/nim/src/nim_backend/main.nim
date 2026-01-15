@@ -225,6 +225,15 @@ proc greet() {.query.} =
   reply("Hello, " & msg & "!")
 
 proc funcRefTextQuery() {.query.} =
+  let selfPrincipal = Principal.fromText("ucwa4-rx777-77774-qaada-cai")
   # 自キャニスター上の "greet" を参照として返す
-  let f = IcFunc.new(FuncType.Query, "greet", @[ctText], some(ctText))
+  let f = IcFunc.new(
+    selfPrincipal,
+    FuncType.Query,
+    "greet",
+    @[ctText],
+    some(ctText),
+    @[CandidTypeDesc(kind: ctText)],
+    some(CandidTypeDesc(kind: ctText))
+  )
   reply(f)

@@ -1,5 +1,4 @@
 import Blob "mo:base/Blob";
-import Nat64 "mo:base/Nat64";
 import Text "mo:base/Text";
 
 //Actor
@@ -11,7 +10,7 @@ persistent actor {
   };
 
   type HttpMethod = {
-    #get; #post; #put; #delete; #head; #patch; #options;
+    #get; #post; #head;
   };
 
   type HttpResponsePayload = {
@@ -68,85 +67,97 @@ persistent actor {
     };
   };
 
-  public func get_icp_usd_exchange() : async Text {
-
-    //1. SETUP ARGUMENTS FOR HTTP GET request
-    let ONE_MINUTE : Nat64 = 60;
-    let start_timestamp : Nat64 = 1682978460; //May 1, 2023 22:01:00 GMT
-    let host : Text = "api.exchange.coinbase.com";
-    let url = "https://" # host # "/products/ICP-USD/candles?start=" # Nat64.toText(start_timestamp) # "&end=" # Nat64.toText(start_timestamp) # "&granularity=" # Nat64.toText(ONE_MINUTE);
-
-    // 1.2 prepare headers for the system http_request call
-    let request_headers = [
-      { name = "User-Agent"; value = "price-feed" },
-    ];
-
-    // 1.3 The HTTP request
-    // let http_request : HttpRequestArgs = {
-    //   url = url;
-    //   max_response_bytes = null; //optional for request
-    //   headers = request_headers;
-    //   body = null; //optional for request
-    //   method = #get;
-    //   transform = ?{
-    //     function = transform;
-    //     context = Blob.fromArray([]);
-    //   };
-    //   // Toggle this flag to switch between replicated and non-replicated http outcalls.
-    //   is_replicated = ?false;
-    // };
-
-    let http_request : HttpRequestArgs = {
-      url = url;
-      max_response_bytes = null; //optional for request
-      headers = request_headers;
-      body = null; //optional for request
-      method = #get;
-      transform = null;
-      // Toggle this flag to switch between replicated and non-replicated http outcalls.
-      is_replicated = ?false;
-    };
-
-    //2. MAKE HTTPS REQUEST AND WAIT FOR RESPONSE, BUT MAKE SURE TO ADD CYCLES.
-    let http_response : HttpResponsePayload = await (with cycles = 230_949_972_000) ic.http_request(http_request);
-
-    //3. DECODE THE RESPONSE
-
-    //As per the type declarations, the BODY in the HTTP response
-    //comes back as Blob. Type signature:
-
-    //public type HttpResponsePayload = {
-    //     status : Nat;
-    //     headers : [HttpHeader];
-    //     body : Blob;
-    // };
-
-    //We need to decode that Blob that is the body into readable text.
-    //To do this, we:
-    //  1. Use Text.decodeUtf8() method to convert the Blob to a ?Text optional
-    //  2. We use a switch to explicitly call out both cases of decoding the Blob into ?Text
-    let decoded_text : Text = switch (Text.decodeUtf8(http_response.body)) {
+  func decodeBody(body : Blob) : Text {
+    switch (Text.decodeUtf8(body)) {
       case (null) { "No value returned" };
       case (?y) { y };
     };
-
-    //4. RETURN RESPONSE OF THE BODY
-    //The API response will looks like this:
-    //
-    // ("[[1682978460,5.714,5.718,5.714,5.714,243.5678]]")
-    //
-    //The API response looks like this:
-    //  [
-    //     [
-    //         1682978460, <-- start timestamp
-    //         5.714, <-- lowest price during time range
-    //         5.718, <-- highest price during range
-    //         5.714, <-- price at open
-    //         5.714, <-- price at close
-    //         243.5678 <-- volume of ICP traded
-    //     ],
-    // ]
-    decoded_text;
   };
 
+  func toHttpRequestArgs(
+    url : Text,
+    method : HttpMethod,
+    headers : [HttpHeader],
+    body : ?Blob
+  ) : HttpRequestArgs {
+    let http_request : HttpRequestArgs = {
+      url = url;
+      max_response_bytes = null; // optional for request
+      headers = headers;
+      body = body;
+      method = method;
+      transform = ?{
+        function = transform;
+        context = Blob.fromArray([]);
+      };
+      // Toggle this flag to switch between replicated and non-replicated http outcalls.
+      is_replicated = ?false;
+    };
+    return http_request;
+  };
+
+  func httpRequest(
+    url : Text,
+    method : HttpMethod,
+    headers : [HttpHeader],
+    body : ?Blob
+  ) : async HttpResponsePayload {
+    let http_request = toHttpRequestArgs(url, method, headers, body);
+    await (with cycles = 230_949_972_000) ic.http_request(http_request);
+  };
+
+  public func httpbin_get() : async Text {
+    let url = "https://httpbin.org/get";
+    let headers = [{ name = "User-Agent"; value = "motoko-http-outcall" }];
+    let http_response = await httpRequest(url, #get, headers, null);
+    decodeBody(http_response.body);
+  };
+
+  public func httpbin_post() : async Text {
+    let url = "https://httpbin.org/post";
+    let headers = [
+      { name = "User-Agent"; value = "motoko-http-outcall" },
+      { name = "Content-Type"; value = "application/json" },
+    ];
+    let body = ?Text.encodeUtf8("{\"message\":\"hello from motoko\"}");
+    let http_response = await httpRequest(url, #post, headers, body);
+    decodeBody(http_response.body);
+  };
+
+  public query func post_args() : async HttpRequestArgs {
+    let url = "https://httpbin.org/post";
+    let headers = [
+      { name = "User-Agent"; value = "motoko-http-outcall" },
+      { name = "Content-Type"; value = "application/json" },
+    ];
+    let body = ?Text.encodeUtf8("{\"message\":\"hello from motoko\"}");
+    return toHttpRequestArgs(url, #post, headers, body);
+  };
+
+  public func httpbin_head() : async Text {
+    let url = "https://httpbin.org/get";
+    let headers = [{ name = "User-Agent"; value = "motoko-http-outcall" }];
+    let http_response = await httpRequest(url, #head, headers, null);
+    decodeBody(http_response.body);
+  };
+
+  public query func transformFunc(): async (shared query (TransformArgs) -> async HttpResponsePayload) {
+    return transform;
+  };
+
+  public query func transformBody(): async ?{
+      function : shared query (TransformArgs) -> async HttpResponsePayload;
+      context : Blob;
+    } {
+    return ?{
+      function = transform;
+      context = Blob.fromArray([]);
+    };
+  };
+
+  public query func httpRequestArgs() : async HttpRequestArgs {
+    let url = "https://httpbin.org/get";
+    let headers = [{ name = "User-Agent"; value = "motoko-http-outcall" }];
+    return toHttpRequestArgs(url, #get, headers, null);
+  };
 };

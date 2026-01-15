@@ -477,7 +477,9 @@ proc decodeValue(data: seq[byte], offset: var int, typeRef: int, typeTable: seq[
         methodName: methodName,
         args: funcArgs,
         returns: funcReturns,
-        annotations: funcAnnotations
+        annotations: funcAnnotations,
+        argsDesc: @[],
+        returnsDesc: none(CandidTypeDesc)
       )
     of ctService:
       # Service reference: principal only
