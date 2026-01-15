@@ -5,4 +5,6 @@ import ./controller
 proc get_httpbin() {.update.} = discard controller.get_httpbin()
 proc post_httpbin() {.update.} = discard controller.post_httpbin()
 proc transform() {.query.} = controller.transform()
-proc get_transform_funcion() {.query.} = controller.get_transform_funcion()
+proc transformFunc() {.query.} = controller.transformFunc()
+proc transformBody() {.query.} = controller.transformBody()
+proc httpRequestArgs() {.query.} = controller.httpRequestArgs()

@@ -2,6 +2,7 @@ import std/asyncdispatch
 import std/options
 import std/sequtils
 import std/strutils
+import std/tables
 import ../../../../../src/nicp_cdk
 import ../../../../../src/nicp_cdk/canisters/management_canister
 
@@ -23,8 +24,8 @@ proc blobDesc(): CandidTypeDesc =
 proc textDesc(): CandidTypeDesc =
   CandidTypeDesc(kind: ctText)
 
-proc nat16Desc(): CandidTypeDesc =
-  CandidTypeDesc(kind: ctNat16)
+proc natDesc(): CandidTypeDesc =
+  CandidTypeDesc(kind: ctNat)
 
 proc httpHeaderDesc(): CandidTypeDesc =
   recordDesc(@[
@@ -34,7 +35,7 @@ proc httpHeaderDesc(): CandidTypeDesc =
 
 proc httpResponseDesc(): CandidTypeDesc =
   recordDesc(@[
-    (name: "status", fieldType: nat16Desc()),
+    (name: "status", fieldType: natDesc()),
     (name: "headers", fieldType: vecDesc(httpHeaderDesc())),
     (name: "body", fieldType: blobDesc())
   ])
@@ -53,10 +54,41 @@ proc defaultTransformRef(): HttpTransform =
   funcRef.returnsDesc = some(httpResponseDesc())
   HttpTransform(function: funcRef, context: @[])
 
+proc buildTransformBodyValue(transformRef: HttpTransform): CandidValue =
+  var recordFields = initOrderedTable[string, CandidValue]()
+  recordFields["function"] = CandidValue(kind: ctFunc, funcVal: transformRef.function)
+  recordFields["context"] = newCandidBlob(transformRef.context)
+  let recordValue = newCandidRecord(CandidRecord(kind: ckRecord, fields: recordFields))
+  newCandidOptWithInnerType(ctRecord, some(recordValue))
+
+proc toHttpRequestArgs(
+  url: string,
+  httpMethod: HttpMethod,
+  headers: seq[HttpHeader],
+  body: Option[seq[uint8]]
+): HttpRequestArgs =
+  HttpRequestArgs(
+    url: url,
+    max_response_bytes: none(uint),
+    headers: headers,
+    body: body,
+    httpMethod: httpMethod,
+    transform: some(defaultTransformRef()),
+    is_replicated: some(false)
+  )
+
 proc transform*() =
   let request = Request.new()
   let args = request.getRecord(0)
-  let status = args["response"]["status"].getNat16()
+  let statusRecord = args["response"]["status"]
+  let status =
+    case statusRecord.kind
+    of ckNat16:
+      statusRecord.getNat16()
+    of ckNat:
+      statusRecord.getNat().uint16
+    else:
+      raise newException(ValueError, "Expected Nat or Nat16 status in TransformArgs")
   let headers = args["response"]["headers"].getArray().map(
     proc(x: CandidRecord): HttpHeader =
       HttpHeader(name: x["name"].getStr(), value: x["value"].getStr())
@@ -83,8 +115,8 @@ proc get_httpbin*() {.async.} =
       headers: @[HttpHeader(name: "User-Agent", value: "nim-http-outcall")],
       body: none(seq[uint8]),
       max_response_bytes: none(uint),
-      # transform: some(defaultTransformRef()),
-      transform: none(HttpTransform),
+      transform: some(defaultTransformRef()),
+      # transform: none(HttpTransform),
       is_replicated: some(false)
     )
 
@@ -108,8 +140,8 @@ proc post_httpbin*() {.async.} =
       ],
       body: some(body),
       max_response_bytes: none(uint),
-      # transform: some(defaultTransformRef()),
-      transform: none(HttpTransform),
+      transform: some(defaultTransformRef()),
+      # transform: none(HttpTransform),
       is_replicated: some(false)
     )
 
@@ -119,8 +151,16 @@ proc post_httpbin*() {.async.} =
     reject("POST httpbin failed: " & e.msg)
 
 
-proc get_transform_funcion*() =
-  # let transform = defaultTransformRef()
-  let selfPrincipal = Principal.fromText("lqy7q-dh777-77777-aaaaq-cai")
-  let transformFunc = newCandidFunc(selfPrincipal, "transform")
-  reply(transformFunc)
+proc transformFunc*() =
+  let transformRef = defaultTransformRef()
+  reply(transformRef.function)
+
+proc transformBody*() =
+  let transformRef = defaultTransformRef()
+  reply(buildTransformBodyValue(transformRef))
+
+proc httpRequestArgs*() =
+  let url = "https://httpbin.org/get"
+  let headers = @[HttpHeader(name: "User-Agent", value: "nim-http-outcall")]
+  let request = toHttpRequestArgs(url, HttpMethod.GET, headers, none(seq[uint8]))
+  reply(%request)

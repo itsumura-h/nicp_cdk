@@ -21,6 +21,7 @@ alwaysApply: false
 - [x] 実装修正: `transform` を `null` 固定から `opt record { function; context }` に対応（指定時のみ付与）
 - [x] 実装修正: `HttpResponse` デコードで `headers: vec record { name; value }` を正しく復元する
 - [x] 例示更新: `examples/http_outcall/nim` にPOST/PUT/DELETE等の呼び出し例（HTTPBin等）を追加
+- [x] 例示更新: Nim版に `transformFunc` / `transformBody` / `httpRequestArgs` を追加しMotoko側と同等のサンプルを揃える
 - [x] 例示更新: Transform関数を「決定論的な正規化」に限定して実装し、`No consensus could be reached` の回避方針を明文化
 - [ ] 動作確認: ローカルdfxでGET/POST等の最小動作確認（HTTPSエンドポイント前提）
 
