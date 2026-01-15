@@ -297,10 +297,6 @@ proc encodeTypeTableEntry(entry: TypeTableEntry): seq[byte] =
   let typeCode = typeCodeFromCandidType(entry.kind)
   result.add(encodeSLEB128(int32(typeCode)))
   
-  # DEBUG: Log entry type
-  stderr.write("encodeTypeTableEntry: kind=" & $entry.kind & " typeCode=" & $typeCode & "\n")
-  stderr.flushFile()
-  
   case entry.kind:
   of ctRecord:
     result.add(encodeULEB128(uint(entry.recordFields.len)))
@@ -337,22 +333,8 @@ proc encodeTypeTableEntry(entry: TypeTableEntry): seq[byte] =
     let annotLen = entry.funcAnnotations.len
     let annotBytes = encodeULEB128(uint(annotLen))
     
-    # DEBUG: Verify what we're about to add
-    var bytesInfo = ""
-    for b in annotBytes:
-      bytesInfo.add($int(b) & " ")
-    var annotInfo = ""
-    for a in entry.funcAnnotations:
-      annotInfo.add($int(a) & " ")
-    stderr.write("DEBUG: annotLen=" & $annotLen & " encoded=" & bytesInfo & " annotations=" & annotInfo & "\n")
-    stderr.flushFile()
-    
     result.add(annotBytes)
     result.add(entry.funcAnnotations)
-    
-    # DEBUG: Verify result length
-    stderr.write("  result.len after adding annotations: " & $result.len & "\n")
-    stderr.flushFile()
   
   of ctService:
     result.add(encodeULEB128(uint(entry.serviceMethods.len)))
@@ -592,15 +574,6 @@ proc encodeCandidMessage*(values: seq[CandidValue]): seq[byte] =
   
   # 3. Encode type table
   result.add(encodeULEB128(uint(builder.typeTable.len)))
-  
-  # DEBUG: Log type table structure
-  stderr.write("DEBUG: Type table has " & $builder.typeTable.len & " entries\n")
-  for i, entry in builder.typeTable:
-    if entry.kind == ctFunc:
-      stderr.write("  Entry " & $i & ": ctFunc with annotLen = " & $entry.funcAnnotations.len & "\n")
-    else:
-      stderr.write("  Entry " & $i & ": " & $entry.kind & "\n")
-  stderr.flushFile()
   
   for entry in builder.typeTable:
     result.add(encodeTypeTableEntry(entry))

@@ -200,7 +200,6 @@ proc reply*[T](msg: Option[T]) =
 proc reply*(msg: object) =
   let value = newCandidRecord(msg)
   let encoded = encodeCandidMessage(@[value])
-  echo "DEBUG: encoded = ", encoded
   ic0_msg_reply_data_append(ptrToInt(addr encoded[0]), encoded.len)
   ic0_msg_reply()
 

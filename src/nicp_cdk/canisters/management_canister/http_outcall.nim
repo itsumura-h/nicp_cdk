@@ -326,8 +326,6 @@ proc estimateHttpOutcallCostFallback(request: HttpRequestArgs): uint64 =
   cost = addCap(cost, mulCap(maxResponseSize, HttpOutcallFallbackPerResponseByteCycles))
 
   let finalCost = addMargin20(cost)
-  echo "📊 Estimated HTTP Outcall cost (fallback): ", cost, " cycles + 20% margin = ", finalCost,
-       " (request_size: ", requestSize, " bytes, max_response_bytes: ", maxResponseSize, " bytes)"
   finalCost
 
 when defined(release):
@@ -349,16 +347,13 @@ when defined(release):
       
       # 計算結果が0の場合はフォールバック値を使用
       if exactCost == 0:
-        echo "⚠️ ic0_cost_http_request returned 0 cycles"
         return none(uint64)
       
       # 20%の安全マージンを追加
       let finalCost = addMargin20(exactCost)
-      echo "📊 Estimated HTTP Outcall cost (dynamic): ", exactCost, " cycles + 20% margin = ", finalCost, " cycles"
       return some(finalCost)
       
-    except Exception as e:
-      echo "⚠️ Failed to estimate HTTP Outcall cost dynamically: ", e.msg
+    except Exception:
       return none(uint64)
 
 proc estimateHttpOutcallCost(request: HttpRequestArgs): uint64 =
@@ -372,13 +367,12 @@ proc estimateHttpOutcallCost(request: HttpRequestArgs): uint64 =
   when defined(release):
     # メインネット/テストネット用: 動的計算を試行
     try:
-      echo "🔍 Attempting dynamic HTTP Outcall cost estimation..."
       let dynamicCost = estimateHttpOutcallCostDynamic(request)
       if dynamicCost.isSome:
         return dynamicCost.get
-    except Exception as e:
-      echo "⚠️ Dynamic cost estimation failed: ", e.msg
+    except Exception:
       # フォールバックへ続行
+      discard
   
   # デフォルト: サイズベースのフォールバック推定（ローカルレプリカ対応）
   return estimateHttpOutcallCostFallback(request)
@@ -394,8 +388,6 @@ proc httpRequest*(_:type ManagementCanister, request: HttpRequestArgs): Future[H
   let destLen = mgmtPrincipalBytes.len
 
   let methodName = "http_request".cstring
-  echo "=== 🔧 HTTP Outcall Debug ==="
-  echo "Calling ic0_call_new for http_request method"
   
   ic0_call_new(
     callee_src = cast[int](destPtr),
@@ -411,21 +403,12 @@ proc httpRequest*(_:type ManagementCanister, request: HttpRequestArgs): Future[H
   ## 2. Calculate and add required cycles
   # HTTP Outcallに必要なcycle量を計算して追加
   let requiredCycles = estimateHttpOutcallCost(request)
-  echo "Adding cycles for HTTP Outcall: ", requiredCycles
   ic0_call_cycles_add128(0, requiredCycles)
 
   ## 3. Attach argument data and execute
   try:
     let record = %request
     let encoded = encodeCandidMessage(@[recordToCandidValue(record)])
-
-    echo "=== Nim HTTP Request Candid Debug ==="
-    echo "Encoded message size: ", encoded.len, " bytes"
-    echo "Encoded message: ", encoded
-    var candidMessage = ""
-    for b in encoded:
-      candidMessage.add(b.toHex())
-    echo "candid message: ", candidMessage
 
     ic0_call_data_append(ptrToInt(addr encoded[0]), encoded.len)
     let err = ic0_call_perform()
@@ -695,4 +678,3 @@ proc getBodySize*(response: HttpResponse): int =
 #     bodyBytes.add(uint8(ord(c)))
   
 #   return ManagementCanister.httpPost(url, bodyBytes, requestHeaders, maxResponseBytes, some(createJsonTransform()))
-
