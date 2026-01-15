@@ -1,5 +1,5 @@
 discard """
-cmd: nim c --skipUserCfg tests/types/test_func.nim
+cmd: "nim c --skipUserCfg $file"
 """
 # nim c -r --skipUserCfg tests/types/test_func.nim
 
@@ -8,6 +8,7 @@ import std/options
 import std/sequtils
 import std/strutils
 import ../../src/nicp_cdk/ic_types/candid_types
+import ../../src/nicp_cdk/ic_types/ic_func
 import ../../src/nicp_cdk/ic_types/ic_principal
 import ../../src/nicp_cdk/ic_types/candid_message/candid_encode
 import ../../src/nicp_cdk/ic_types/candid_message/candid_decode
@@ -61,23 +62,23 @@ suite "IcFunc Candid encoding":
     # NOTE: There is a known encoding difference when argsDesc is provided
     # that needs to be investigated. This test documents the expected output
     # from Motoko for reference.
-    let transformFunc = newCandidFunc(
+    let transformFunc = IcFunc.new(
       principal,
+      FuncType.Query,
       "transform",
       @[ctRecord],  # argument: TransformArgs record
       some(ctRecord),  # return: HttpResponsePayload record
-      @["query"],  # annotation: query
       @[transformArgsType],  # argument type descriptor
       some(httpResponseType)  # return type descriptor
     )
     
     # Debug: Check if funcAnnotations is set in the function value
-    echo "DEBUG: transformFunc.funcVal.annotations = ", transformFunc.funcVal.annotations
-    echo "DEBUG: transformFunc.funcVal.annotations.len = ", transformFunc.funcVal.annotations.len
+    echo "DEBUG: transformFunc.annotations = ", transformFunc.annotations
+    echo "DEBUG: transformFunc.annotations.len = ", transformFunc.annotations.len
     
     # Additional debug: manually process annotations to see what we get
     var manualAnnotations: seq[byte] = @[]
-    for ann in transformFunc.funcVal.annotations:
+    for ann in transformFunc.annotations:
       case ann
       of "query": manualAnnotations.add(0x01'u8)
       of "oneway": manualAnnotations.add(0x02'u8)
@@ -86,7 +87,7 @@ suite "IcFunc Candid encoding":
     echo "DEBUG: manualAnnotations = ", manualAnnotations
     echo "DEBUG: manualAnnotations.len = ", manualAnnotations.len
     
-    let encoded = encodeCandidMessage(@[transformFunc])
+    let encoded = encodeCandidMessage(@[CandidValue(kind: ctFunc, funcVal: transformFunc)])
     let encodedHex = encoded.map(proc (b: byte): string = b.toHex()).join("").toLowerAscii()
     
     # NOTE: This test will fail until the annotation encoding issue is resolved
@@ -101,20 +102,19 @@ suite "IcFunc Candid encoding":
     let principalStr = "uxrrr-q7777-77774-qaaaq-cai"
     let principal = Principal.fromText(principalStr)
     
-    let transformFunc = newCandidFunc(
+    let transformFunc = IcFunc.new(
       principal,
+      FuncType.Query,
       "transform",
       @[],
-      none(CandidType),
-      @["query"]
+      none(CandidType)
     )
     
     # Verify properties
-    check transformFunc.kind == ctFunc
-    check transformFunc.funcVal.methodName == "transform"
-    check transformFunc.funcVal.principal == principal
-    check transformFunc.funcVal.annotations.len == 1
-    check transformFunc.funcVal.annotations[0] == "query"
+    check transformFunc.methodName == "transform"
+    check transformFunc.principal == principal
+    check transformFunc.annotations.len == 1
+    check transformFunc.annotations[0] == "query"
 
   test "func encodes with proper annotation encoding":
     # Test that "query" annotation is correctly encoded as 0x01
@@ -122,15 +122,15 @@ suite "IcFunc Candid encoding":
     let principal = Principal.fromText(principalStr)
     
     # Create simple function with no arguments
-    let queryFunc = newCandidFunc(
+    let queryFunc = IcFunc.new(
       principal,
+      FuncType.Query,
       "transform",
       @[],  # no arguments
-      none(CandidType),  # no return type specified
-      @["query"]  # annotation: query
+      none(CandidType)  # no return type specified
     )
     
-    let encoded = encodeCandidMessage(@[queryFunc])
+    let encoded = encodeCandidMessage(@[CandidValue(kind: ctFunc, funcVal: queryFunc)])
     let encodedHex = encoded.map(proc (b: byte): string = b.toHex()).join("").toLowerAscii()
     
     # The encoded message should contain the query annotation byte (0x01)
@@ -139,4 +139,3 @@ suite "IcFunc Candid encoding":
     # Should contain annotation: 01 for query
     # and method name: 09 74 72 61 6e 73 66 6f 72 6d (length + "transform")
     check encodedHex.contains("09747261" & "6e73666f726d")  # "transform" in hex
-

@@ -1,7 +1,6 @@
 discard """
-  cmd : "nim c --skipUserCfg $file"
+cmd: "nim c --skipUserCfg $file"
 """
-
 # nim c -r --skipUserCfg tests/types/test_int.nim
 
 import unittest

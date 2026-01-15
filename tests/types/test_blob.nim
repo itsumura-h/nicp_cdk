@@ -1,5 +1,5 @@
 discard """
-cmd: nim c --skipUserCfg tests/types/test_blob.nim
+cmd: "nim c --skipUserCfg $file"
 """
 # nim c -r --skipUserCfg tests/types/test_blob.nim
 
