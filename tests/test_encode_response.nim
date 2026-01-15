@@ -1,5 +1,5 @@
 discard """
-  cmd: "nim c --skipUserCfg -d:nimOldCaseObjects $file"
+  cmd: "nim c --skipUserCfg $file"
 """
 # nim c -r --skipUserCfg tests/test_encode_response.nim
 
@@ -259,7 +259,7 @@ suite "Candid compare with Motoko tests":
     let motokoDecoded = decodeCandidMessage(motokoBytes)
     let motokoRequest = newMockRequest(motokoDecoded.values)
     let motokoFunc = motokoRequest.getFunc(0)
-    echo "Motoko func: ", motokoFunc.repr
+    echo "Motoko func: ", motokoFunc.methodName
 
     let nimResult = callNimCanisterFunction("funcRefTextQuery")
     echo "Nim result:    ", nimResult
@@ -267,8 +267,9 @@ suite "Candid compare with Motoko tests":
     let nimDecoded = decodeCandidMessage(nimBytes)
     let nimRequest = newMockRequest(nimDecoded.values)
     let nimFunc = nimRequest.getFunc(0)
-    echo "Nim func: ", nimFunc.repr
+    echo "Nim func: ", nimFunc.methodName
 
+    check motokoResult == nimResult
     check motokoFunc.methodName == nimFunc.methodName
     check motokoFunc.args == nimFunc.args
     check motokoFunc.returns == nimFunc.returns
