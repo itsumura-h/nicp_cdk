@@ -1,4 +1,27 @@
+type HttpHeader = 
+ record {
+   name: text;
+   value: text;
+ };
+type HttpResponsePayload = 
+ record {
+   body: blob;
+   headers: vec HttpHeader;
+   status: nat;
+ };
+type TransformArgs = 
+ record {
+   context: blob;
+   response: HttpResponsePayload;
+ };
 service : {
-  "greet" : (text) -> (text) query;
-  "get_icp_usd_exchange": () -> (text);
+  get_httpbin: () -> (text);
+  post_httpbin: () -> (text);
+  transform: (args: TransformArgs) -> (HttpResponsePayload) query;
+  get_transform_funcion: () ->
+   (opt
+     record {
+       context: blob;
+       function: func (TransformArgs) -> (HttpResponsePayload) query;
+     }) query;
 };

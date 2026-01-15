@@ -18,6 +18,27 @@ type
     ctRecord, ctVariant, ctOpt, ctVec, ctBlob,
     ctFunc, ctService, ctQuery, ctOneway, ctCompositeQuery
 
+  CandidTypeDesc* = ref object
+    case kind*: CandidType
+    of ctRecord:
+      recordFields*: seq[tuple[name: string, fieldType: CandidTypeDesc]]
+    of ctVariant:
+      variantFields*: seq[tuple[name: string, fieldType: CandidTypeDesc]]
+    of ctOpt:
+      optInnerType*: CandidTypeDesc
+    of ctVec:
+      vecElementType*: CandidTypeDesc
+    of ctBlob:
+      discard
+    of ctFunc:
+      funcArgs*: seq[CandidTypeDesc]
+      funcReturns*: seq[CandidTypeDesc]
+      funcAnnotations*: seq[string]
+    of ctService:
+      serviceMethods*: seq[tuple[name: string, methodType: CandidTypeDesc]]
+    else:
+      discard
+
 
   # 相互参照する型を同一typeブロック内で定義
   CandidValue* = ref object
@@ -147,6 +168,8 @@ type
     args*: seq[CandidType]         # 引数の型リスト
     returns*: Option[CandidType]   # 戻り値の型（単一、nilの場合は戻り値なし）
     annotations*: seq[string]      # query, oneway, composite_queryなど
+    argsDesc*: seq[CandidTypeDesc]
+    returnsDesc*: Option[CandidTypeDesc]
 
 
 # ================================================================================
@@ -544,13 +567,23 @@ proc newCandidVec*[T](values: seq[T]): CandidValue =
     else:
       result.vecVal.add(newCandidValue(item))
 
-proc newCandidFunc*(principal: Principal, methodName: string, args: seq[CandidType] = @[], returns: Option[CandidType] = none(CandidType), annotations: seq[string] = @[]): CandidValue =
+proc newCandidFunc*(
+  principal: Principal,
+  methodName: string,
+  args: seq[CandidType] = @[],
+  returns: Option[CandidType] = none(CandidType),
+  annotations: seq[string] = @[],
+  argsDesc: seq[CandidTypeDesc] = @[],
+  returnsDesc: Option[CandidTypeDesc] = none(CandidTypeDesc)
+): CandidValue =
   let funcRef = IcFunc(
     principal: principal,
     methodName: methodName,
     args: args,
     returns: returns,
-    annotations: annotations
+    annotations: annotations,
+    argsDesc: argsDesc,
+    returnsDesc: returnsDesc
   )
   CandidValue(kind: ctFunc, funcVal: funcRef)
 
@@ -677,7 +710,9 @@ proc newSimpleFunc*(principal: Principal, methodName: string): IcFunc =
     methodName: methodName,
     args: @[],
     returns: none(CandidType),
-    annotations: @[]
+    annotations: @[],
+    argsDesc: @[],
+    returnsDesc: none(CandidTypeDesc)
   )
 
   

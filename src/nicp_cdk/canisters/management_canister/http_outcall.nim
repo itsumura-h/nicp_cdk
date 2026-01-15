@@ -31,7 +31,7 @@ type
     value*: string
 
   HttpResponsePayload* = object
-    status*: uint
+    status*: uint16
     headers*: seq[HttpHeader]
     body*: seq[byte]
 
@@ -40,20 +40,16 @@ type
     GET = 0
     POST = 1
     HEAD = 2
-    PUT = 3
-    DELETE = 4
-    PATCH = 5
-    OPTIONS = 6
 
   HttpResponse* = object
-    status*: uint
+    status*: uint16
     headers*: seq[HttpHeader]
     body*: seq[byte]
 
   HttpTransformFunction* = proc(response: HttpResponse): HttpResponse {.nimcall.}
 
   HttpTransform* = object
-    function*: HttpTransformFunction
+    function*: IcFunc
     context*: seq[uint8]
 
   HttpRequestArgs* = object
@@ -61,7 +57,7 @@ type
     max_response_bytes*: Option[uint]
     headers*: seq[HttpHeader]
     body*: Option[seq[byte]]
-    `method`*: HttpMethod
+    httpMethod*: HttpMethod
     transform*: Option[HttpTransform]
     is_replicated*: Option[bool]
 
@@ -165,69 +161,74 @@ type
 
 proc `%`*(request: HttpRequestArgs): CandidRecord =
   ## HttpRequestをCandidRecordに変換（IC Management Canister仕様準拠）
-  ## Motokoサンプルと完全に同じCandid形式を生成
-  
+  ## Transformは opt record { function; context } としてエンコードする
+
   # IC公式仕様：ヘッダーは {name: Text, value: Text} 形式のレコード
-  var headersArray: seq[CandidRecord] = @[]
+  var headersValues: seq[CandidValue] = @[]
   for header in request.headers:
-    headersArray.add(%* {
+    let headerRecord = %* {
       "name": header.name,
       "value": header.value
-    })
-  
+    }
+    headersValues.add(recordToCandidValue(headerRecord))
+
   # IC仕様：メソッドはVariant型（小文字ラベル + 空のRecord）
-  # Motokoサンプルでは #get, #post 等の値なしVariantとして実装されている
   var methodVariant: CandidRecord
-  let emptyRecord = %* {}  # 空のRecord
-  case request.`method`
+  case request.httpMethod
   of HttpMethod.GET:
-    methodVariant = %* {"get": emptyRecord}
+    methodVariant = newCVariant("get")
   of HttpMethod.POST:
-    methodVariant = %* {"post": emptyRecord}
+    methodVariant = newCVariant("post")
   of HttpMethod.HEAD:
-    methodVariant = %* {"head": emptyRecord}
-  of HttpMethod.PUT:
-    methodVariant = %* {"put": emptyRecord}
-  of HttpMethod.DELETE:
-    methodVariant = %* {"delete": emptyRecord}
-  of HttpMethod.PATCH:
-    methodVariant = %* {"patch": emptyRecord}
-  of HttpMethod.OPTIONS:
-    methodVariant = %* {"options": emptyRecord}
-  
-  # Motokoと完全同一形式：null値は直接nullとして扱う
-  # {"none": null}形式ではなく、直接null値を使用
-  
-  # 直接CandidRecordを構築（%*マクロのOption自動変換を回避）
+    methodVariant = newCVariant("head")
+
   var fields = initOrderedTable[string, CandidValue]()
-  
-  fields["url"] = recordToCandidValue(%request.url)
-  
-  # max_response_bytes: Motokoの「null」と同等にする（ctNullとして直接エンコード）
+
+  fields["url"] = newCandidText(request.url)
+
   if request.max_response_bytes.isSome:
-    fields["max_response_bytes"] = recordToCandidValue(%(request.max_response_bytes.get.int))
+    fields["max_response_bytes"] = newCandidOptWithInnerType(
+      ctNat,
+      some(newCandidNat(request.max_response_bytes.get))
+    )
   else:
-    fields["max_response_bytes"] = newCandidNull()  # ctNull（非Option型）
-  
-  fields["headers"] = recordToCandidValue(%(headersArray))
-  
-  # body: Motokoの「null」と同等にする（ctNullとして直接エンコード）
+    fields["max_response_bytes"] = newCandidOptWithInnerType(ctNat, none(CandidValue))
+
+  fields["headers"] = newCandidVec(headersValues)
+
   if request.body.isSome:
-    fields["body"] = recordToCandidValue(%(request.body.get))
+    fields["body"] = newCandidOptWithInnerType(
+      ctBlob,
+      some(newCandidBlob(request.body.get))
+    )
   else:
-    fields["body"] = newCandidNull()  # ctNull（非Option型）
-  
+    fields["body"] = newCandidOptWithInnerType(ctBlob, none(CandidValue))
+
   fields["method"] = recordToCandidValue(methodVariant)
-  
-  # transform: 常にnull（ctNullとして直接エンコード）
-  fields["transform"] = newCandidNull()  # ctNull（非Option型）
-  
-  # is_replicated: Motoko式（false固定）
-  if request.is_replicated.isSome:
-    fields["is_replicated"] = recordToCandidValue(%(request.is_replicated.get))
+
+  if request.transform.isSome:
+    let transformValue = request.transform.get
+    var transformRecord = CandidRecord(
+      kind: ckRecord,
+      fields: initOrderedTable[string, CandidValue]()
+    )
+    transformRecord.fields["function"] = CandidValue(kind: ctFunc, funcVal: transformValue.function)
+    transformRecord.fields["context"] = newCandidBlob(transformValue.context)
+    fields["transform"] = newCandidOptWithInnerType(
+      ctRecord,
+      some(newCandidRecord(transformRecord))
+    )
   else:
-    fields["is_replicated"] = recordToCandidValue(%false)  # falseデフォルト値
-  
+    fields["transform"] = newCandidOptWithInnerType(ctRecord, none(CandidValue))
+
+  if request.is_replicated.isSome:
+    fields["is_replicated"] = newCandidOptWithInnerType(
+      ctBool,
+      some(newCandidBool(request.is_replicated.get))
+    )
+  else:
+    fields["is_replicated"] = newCandidOptWithInnerType(ctBool, some(newCandidBool(false)))
+
   result = CandidRecord(kind: ckRecord, fields: fields)
 
 
@@ -237,7 +238,15 @@ proc candidValueToHttpResponse(candidValue: CandidValue): HttpResponse =
     raise newException(CandidDecodeError, "Expected record type for HttpResponse")
 
   let recordVal = candidValueToCandidRecord(candidValue)
-  let statusVal = recordVal["status"].getNat()
+  let statusRecord = recordVal["status"]
+  let statusVal =
+    case statusRecord.kind
+    of ckNat16:
+      statusRecord.getNat16()
+    of ckNat:
+      statusRecord.getNat().uint16
+    else:
+      raise newException(CandidDecodeError, "Expected Nat16 status in HttpResponse")
   let headersVal = recordVal["headers"]
   let bodyVal = recordVal["body"].getBlob()
 
@@ -246,26 +255,10 @@ proc candidValueToHttpResponse(candidValue: CandidValue): HttpResponse =
   if headersVal.kind == ckArray:
     for headerItem in headersVal.elems:
       if headerItem.kind == ckRecord:
-        # ヘッダーはタプル形式 (key, value) として格納されている
-        if headerItem.fields.len >= 2:
-          var foundKey, foundValue: bool = false
-          var key, value: string
-          
-          # orderedTableから最初の2つの値を取得
-          var count = 0
-          for fieldName, fieldValue in headerItem.fields:
-            let candidRecord = candidValueToCandidRecord(fieldValue)
-            if count == 0:
-              key = candidRecord.getStr()
-              foundKey = true
-            elif count == 1:
-              value = candidRecord.getStr()
-              foundValue = true
-              break
-            count += 1
-          
-          if foundKey and foundValue:
-            headers.add(HttpHeader(name: key, value: value))
+        if headerItem.fields.hasKey("name") and headerItem.fields.hasKey("value"):
+          let nameRecord = candidValueToCandidRecord(headerItem.fields["name"])
+          let valueRecord = candidValueToCandidRecord(headerItem.fields["value"])
+          headers.add(HttpHeader(name: nameRecord.getStr(), value: valueRecord.getStr()))
 
   return HttpResponse(
     status: statusVal,
@@ -319,7 +312,7 @@ proc calcHttpRequestSize(request: HttpRequestArgs): uint64 =
     requestSize = addCap(requestSize, header.value.len.uint64)
   if request.body.isSome:
     requestSize = addCap(requestSize, request.body.get.len.uint64)
-  requestSize = addCap(requestSize, ($request.`method`).len.uint64)
+  requestSize = addCap(requestSize, ($request.httpMethod).len.uint64)
   if request.transform.isSome:
     requestSize = addCap(requestSize, 100'u64)
   requestSize
@@ -345,7 +338,7 @@ when defined(release):
     ## ic0_cost_http_request APIを使用した動的なcycle計算
     try:
       let requestSize = calcHttpRequestSize(request)
-      let maxResponseSize = request.max_response_bytes.get(2_000_000'u)
+      let maxResponseSize = request.max_response_bytes.get(2_000_000'u).uint64
       
       # IC System APIを使用して正確なコスト計算
       var costBuffer: array[16, uint8]  # 128bit for cycles
@@ -423,15 +416,16 @@ proc httpRequest*(_:type ManagementCanister, request: HttpRequestArgs): Future[H
 
   ## 3. Attach argument data and execute
   try:
-    # let record = newCandidRecord(request)
-    # let encoded = encodeCandidMessage(@[record])
-    # echo "Encoded message: ", encoded.toString()
-    const blob = "4449444c0d6c07efd6e40271e1edeb4a07e8d6d8930106a2f5ed880401ecdaccac0408c6a4a198060390f8f6fc09056e026d7b6d046c02f1fee18d0371cbe4fdc704716e7e6e7d6b079681ba027fcfc5d5027fa0d2aca8047fe088f2d2047fab80e3d6067fc88ddcea0b7fdee6f8ff0d7f6e096c0298d6caa2010aefabdecb01026a010b010c01016c02efabdecb010281ddb2900a0c6c03b2ceef2f7da2f5ed880402c6a4a198060301006968747470733a2f2f6170692e65786368616e67652e636f696e626173652e636f6d2f70726f64756374732f4943502d5553442f63616e646c65733f73746172743d3136383239373834363026656e643d31363832393738343630266772616e756c61726974793d363000000000010a70726963652d666565640a557365722d4167656e740100"
-    let encoded = hexToBytes(blob)
+    let record = %request
+    let encoded = encodeCandidMessage(@[recordToCandidValue(record)])
 
-    # Debug: Print the encoded bytes in hex format
     echo "=== Nim HTTP Request Candid Debug ==="
     echo "Encoded message size: ", encoded.len, " bytes"
+    echo "Encoded message: ", encoded
+    var candidMessage = ""
+    for b in encoded:
+      candidMessage.add(b.toHex())
+    echo "candid message: ", candidMessage
 
     ic0_call_data_append(ptrToInt(addr encoded[0]), encoded.len)
     let err = ic0_call_perform()
@@ -477,8 +471,8 @@ proc onTransformCallback(env: uint32) {.exportc.} =
     if decoded.values.len < 2:
       # エラー: 引数不足
       let errorResponse = %* {
-        "status": 500.uint64,
-        "headers": newSeq[(string, string)](),
+        "status": 500'u16,
+        "headers": newSeq[CandidRecord](),
         "body": toBytes("Transform function error: insufficient arguments")
       }
       let encoded = encodeCandidMessage(@[recordToCandidValue(errorResponse)])
@@ -501,7 +495,10 @@ proc onTransformCallback(env: uint32) {.exportc.} =
     # 変換されたレスポンスをCandidValueに変換して返す
     var headersArray: seq[CandidRecord] = @[]
     for header in transformedResponse.headers:
-      headersArray.add(%(@[%header.name, %header.value]))
+      headersArray.add(%* {
+        "name": header.name,
+        "value": header.value
+      })
     
     let resultResponse = %* {
       "status": transformedResponse.status,
@@ -516,8 +513,8 @@ proc onTransformCallback(env: uint32) {.exportc.} =
   except Exception as e:
     # Transform処理でエラーが発生した場合
     let errorResponse = %* {
-      "status": 500.uint64,
-      "headers": newSeq[HttpHeader](),
+      "status": 500'u16,
+      "headers": newSeq[CandidRecord](),
       "body": toBytes("Transform function error: " & e.msg)
     }
     let encoded = encodeCandidMessage(@[recordToCandidValue(errorResponse)])
@@ -699,43 +696,3 @@ proc getBodySize*(response: HttpResponse): int =
   
 #   return ManagementCanister.httpPost(url, bodyBytes, requestHeaders, maxResponseBytes, some(createJsonTransform()))
 
-
-# proc httpPut*(
-#   _: type ManagementCanister,
-#   url: string,
-#   body: seq[uint8],
-#   headers: seq[(string, string)] = @[],
-#   maxResponseBytes: Option[uint64] = none(uint64),
-#   transform: Option[HttpTransform] = none(HttpTransform)
-# ): Future[HttpResponse] =
-#   ## Convenient PUT request
-#   let finalTransform = if transform.isSome: transform else: some(createDefaultTransform())
-#   let request = HttpRequestArgs(
-#     url: url,
-#     httpMethod: HttpMethod.PUT,
-#     headers: headers,
-#     body: some(body),
-#     max_response_bytes: maxResponseBytes,
-#     transform: finalTransform
-#   )
-#   return ManagementCanister.httpRequest(request)
-
-
-# proc httpDelete*(
-#   _: type ManagementCanister,
-#   url: string,
-#   headers: seq[(string, string)] = @[],
-#   maxResponseBytes: Option[uint64] = none(uint64),
-#   transform: Option[HttpTransform] = none(HttpTransform)
-# ): Future[HttpResponse] =
-#   ## Convenient DELETE request
-#   let finalTransform = if transform.isSome: transform else: some(createDefaultTransform())
-#   let request = HttpRequestArgs(
-#     url: url,
-#     httpMethod: HttpMethod.DELETE,
-#     headers: headers,
-#     body: none(seq[uint8]),
-#     max_response_bytes: maxResponseBytes,
-#     transform: finalTransform
-#   )
-#   return ManagementCanister.httpRequest(request)

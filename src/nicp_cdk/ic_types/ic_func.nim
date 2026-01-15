@@ -28,13 +28,24 @@ proc parseFunc*(s: string): FuncType =
 
 
 # Query annotation を持つ func 参照を作成（CandidType 指定版）
-proc new*(_:type IcFunc, principal: Principal, funcType: FuncType, methodName: string, args: seq[CandidType] = @[], returns = none(CandidType)): IcFunc =
+proc new*(
+  _: type IcFunc,
+  principal: Principal,
+  funcType: FuncType,
+  methodName: string,
+  args: seq[CandidType] = @[],
+  returns = none(CandidType),
+  argsDesc: seq[CandidTypeDesc] = @[],
+  returnsDesc: Option[CandidTypeDesc] = none(CandidTypeDesc)
+): IcFunc =
   result = new(IcFunc)
   result.principal = principal
   result.methodName = methodName
   result.args = args
   result.returns = returns
   result.annotations = @[$funcType]
+  result.argsDesc = argsDesc
+  result.returnsDesc = returnsDesc
 
 
 proc isQuery*(f: IcFunc): bool =
@@ -47,7 +58,15 @@ proc isOneway*(f: IcFunc): bool =
 # Self principal helper and overload without principal argument
 # =============================================================
 
-proc new*(_:type IcFunc, funcType: FuncType, methodName: string, args: seq[CandidType] = @[], returnType = none(CandidType)): IcFunc =
+proc new*(
+  _: type IcFunc,
+  funcType: FuncType,
+  methodName: string,
+  args: seq[CandidType] = @[],
+  returnType = none(CandidType),
+  argsDesc: seq[CandidTypeDesc] = @[],
+  returnsDesc: Option[CandidTypeDesc] = none(CandidTypeDesc)
+): IcFunc =
   ## Create a query func reference on the current canister
   let p = selfPrincipal()
-  result = IcFunc.new(p, funcType, methodName, args, returnType)
+  result = IcFunc.new(p, funcType, methodName, args, returnType, argsDesc, returnsDesc)

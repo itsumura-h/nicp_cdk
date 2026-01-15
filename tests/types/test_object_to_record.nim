@@ -97,11 +97,7 @@ suite("ecdsa"):
       HttpMethod {.pure.} = enum
         get = 0
         post = 1
-        put = 2
-        delete = 3
-        head = 4
-        patch = 5
-        options = 6
+        head = 2
 
       HttpResponsePayload = ref object
         status: uint
@@ -118,7 +114,7 @@ suite("ecdsa"):
         headers: seq[HttpHeader]
         body: Option[seq[byte]]
         transform: Option[TransformArgs]
-        `method`: HttpMethod
+        httpMethod: HttpMethod
         is_replicated: Option[bool]
 
     let ONE_MINUTE: uint64 = 60
@@ -135,7 +131,7 @@ suite("ecdsa"):
       max_response_bytes: none(uint), # optional for request
       headers: request_headers,
       body: none(seq[byte]), # optional for request
-      `method`: HttpMethod.get,
+      httpMethod: HttpMethod.get,
       transform: none(TransformArgs),
       # Toggle this flag to switch between replicated and non-replicated http outcalls.
       is_replicated: some(false)
