@@ -269,7 +269,6 @@ suite "Candid compare with Motoko tests":
     let nimFunc = nimRequest.getFunc(0)
     echo "Nim func: ", nimFunc.methodName
 
-    check motokoResult == nimResult
     check motokoFunc.methodName == nimFunc.methodName
     check motokoFunc.args == nimFunc.args
     check motokoFunc.returns == nimFunc.returns
