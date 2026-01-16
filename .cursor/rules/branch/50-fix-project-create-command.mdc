@@ -1,0 +1,35 @@
+---
+description: 50-fix-project-create-commandブランチでの開発時に読み込む
+alwaysApply: false
+---
+50-fix-project-create-command
+===
+
+このブランチで実装することは以下の通りです。
+- `ndfx build` コマンド（本番ビルド）を追加し、`-d:release` を有効にしてWASMを生成する
+- `ndfx dev` コマンド（ローカル開発ビルド）を追加し、`-d:release` を付けずにWASMを生成する
+- `ndfx new` で `build.sh` を生成しない（`dfx.json` の `build` 指定を見直す）
+- これまで `build.sh` で実行していた処理（`nim c` → `wasi2ic` → 後片付け）を `ndfx build/dev` コマンド内に移す
+- devビルド時のみ有効な標準出力（`ic0.debug_print` 相当）用APIを追加する（`-d:release` の有無で判別）
+
+## 進捗
+- [x] ブランチルール作成
+- [ ] 調査: `dfx.json` の `type: "custom"` における `build` が「任意コマンド文字列」を許容するか確認（`build.sh` 不要化の可否）
+- [ ] 実装: devビルド時のみ有効な標準出力APIを追加（`when not defined(release)`）
+- [ ] 実装: `ndfx dev` 実装（旧 `build.sh` のdebug相当の処理を内包）
+- [ ] 実装: `ndfx build` 実装（旧 `build.sh` のrelease相当の処理を内包、常に `-d:release`）
+- [ ] 実装: `ndfx new` から `build.sh` 生成を削除し、`dfx.json` の `build` を `ndfx build/dev` 呼び出しへ変更
+- [ ] 実装: `src/bin/cli` のCLIバイナリ更新
+
+## 参考資料
+- `src/cli/ndfx.nim`
+- `src/cli/functions/new_impl.nim`
+- `src/nicp_cdk/ic_api.nim`
+- `docs/ja/README.md`
+
+## 調査結果・設計まとめ
+- ビルドプロファイルは `ndfx dev`（ローカル開発）と `ndfx build`（本番）で分ける
+- dev専用の標準出力は `-d:release` の有無で判別し、`when not defined(release)` のときだけ出力する（引数評価も抑制できるよう `template` を採用）
+- `ndfx build` は `-d:release` を常に付与し、`ndfx dev` は `-d:release` を付与しない
+- `build.sh` は新規作成しない方針とし、旧 `build.sh` 相当の処理は `ndfx build/dev` 内で完結させる
+- `dfx.json` の `build` 指定を `ndfx build/dev` 呼び出しに変更できるか（コマンド文字列指定が可能か）を事前に確認する
