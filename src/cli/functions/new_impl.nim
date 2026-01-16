@@ -65,7 +65,7 @@ proc greet() {.query.} =
 
 const didContent = """
 service : {
-  "greet" : (text) -> (text) query;
+  greet : (text) -> (text) query;
 };
 """
 
