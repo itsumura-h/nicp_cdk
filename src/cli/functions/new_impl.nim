@@ -69,24 +69,6 @@ service : {
 };
 """
 
-proc buildContent(projectName: string):string = &"""
-#!/bin/bash
-rm -fr ./*.wasm
-rm -fr ./*.wat
-
-# for debug build
-echo "nim c -o:wasi.wasm src/{projectName}_backend/main.nim"
-nim c -o:wasi.wasm src/{projectName}_backend/main.nim
-
-# for release build
-# echo "nim c -d:release -o:wasi.wasm src/{projectName}_backend/main.nim"
-# nim c -d:release -o:wasi.wasm src/{projectName}_backend/main.nim
-
-echo "wasi2ic wasi.wasm main.wasm"
-wasi2ic wasi.wasm main.wasm
-rm -f wasi.wasm
-"""
-
 proc new*(args: seq[string]):int =
   ## Creates a new Nim project
   # ───────────────────────────────────────────────────────────────────────────────
@@ -106,7 +88,6 @@ proc new*(args: seq[string]):int =
   # ───────────────────────────────────────────────────────────────────────────────
   # 初期化
   illwillInit(fullscreen = false)
-  # defer: illwillDeinit()
 
   let termW = terminalWidth()
   let termH = terminalHeight()
@@ -221,15 +202,14 @@ proc new*(args: seq[string]):int =
   writeFile(getCurrentDir() / projectName / &"src/{projectName}_backend/config.nims", configContent)
   writeFile(getCurrentDir() / projectName / &"src/{projectName}_backend/main.nim", mainCode)
   writeFile(getCurrentDir() / projectName / &"{projectName}.did", didContent)
-  writeFile(getCurrentDir() / projectName / &"build.sh", buildContent(projectName))
-  discard execCmd("chmod +x " & getCurrentDir() / projectName / &"build.sh")
 
   # replace dfx.json
+  let buildCmd = "bash -c 'if [ \"${DFX_NETWORK:-local}\" = \"local\" ]; then ndfx development_build; else ndfx production_build; fi'"
   let dfxJson = readFile(getCurrentDir() / projectName / "dfx.json").parseJson()
   dfxJson["canisters"][&"{projectName}_backend"] = %*{
     "candid": &"{projectName}.did",
     "package": &"{projectName}_backend",
-    "build": "build.sh",
+    "build": buildCmd,
     "main": &"src/{projectName}_backend/main.nim",
     "wasm": "main.wasm",
     "type": "custom",

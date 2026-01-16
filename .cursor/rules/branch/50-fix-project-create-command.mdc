@@ -15,10 +15,10 @@ alwaysApply: false
 ## 進捗
 - [x] ブランチルール作成
 - [ ] 調査: `dfx.json` の `type: "custom"` における `build` が「任意コマンド文字列」を許容するか確認（`build.sh` 不要化の可否）
-- [ ] 実装: devビルド時のみ有効な標準出力APIを追加（`when not defined(release)`）
-- [ ] 実装: `ndfx dev` 実装（旧 `build.sh` のdebug相当の処理を内包）
-- [ ] 実装: `ndfx build` 実装（旧 `build.sh` のrelease相当の処理を内包、常に `-d:release`）
-- [ ] 実装: `ndfx new` から `build.sh` 生成を削除し、`dfx.json` の `build` を `ndfx build/dev` 呼び出しへ変更
+- [x] 実装: devビルド時のみ有効な標準出力APIを追加（`when not defined(release)`）
+- [x] 実装: `ndfx dev` 実装（旧 `build.sh` のdebug相当の処理を内包）
+- [x] 実装: `ndfx build` 実装（旧 `build.sh` のrelease相当の処理を内包、常に `-d:release`）
+- [x] 実装: `ndfx new` から `build.sh` 生成を削除し、`dfx.json` の `build` を `ndfx build/dev` 呼び出しへ変更
 - [ ] 実装: `src/bin/cli` のCLIバイナリ更新
 
 ## 参考資料
@@ -32,4 +32,4 @@ alwaysApply: false
 - dev専用の標準出力は `-d:release` の有無で判別し、`when not defined(release)` のときだけ出力する（引数評価も抑制できるよう `template` を採用）
 - `ndfx build` は `-d:release` を常に付与し、`ndfx dev` は `-d:release` を付与しない
 - `build.sh` は新規作成しない方針とし、旧 `build.sh` 相当の処理は `ndfx build/dev` 内で完結させる
-- `dfx.json` の `build` 指定を `ndfx build/dev` 呼び出しに変更できるか（コマンド文字列指定が可能か）を事前に確認する
+- `dfx.json` の `build` は `bash -c` で `DFX_NETWORK` を見て `ndfx dev/build` を切り替える想定（コマンド文字列指定の可否は要確認）

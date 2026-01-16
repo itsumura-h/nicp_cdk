@@ -3,7 +3,7 @@
     "counter_backend": {
       "candid": "counter.did",
       "package": "counter_backend",
-      "build": "build.sh",
+      "build":"build.sh",
       "main": "src/counter_backend/main.nim",
       "wasm": "main.wasm",
       "type": "custom",
