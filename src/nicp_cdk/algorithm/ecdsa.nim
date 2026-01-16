@@ -12,7 +12,7 @@ type
   EcdsaError* = object of ValueError
 
 
-proc keccak256Hash*(message: string): seq[uint8] =
+func keccak256Hash*(message: string): seq[uint8] =
   ## Calculate Keccak-256 hash of message
   var keccakCtx: keccak256
   keccakCtx.init()
