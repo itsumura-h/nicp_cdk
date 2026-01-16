@@ -14,7 +14,7 @@
     "t_ecdsa_backend": {
       "candid": "t_ecdsa.did",
       "package": "t_ecdsa_backend",
-      "build": "build.sh",
+      "build": "bash -c 'if [ \"${DFX_NETWORK:-local}\" = \"local\" ]; then ndfx development_build; else ndfx production_build; fi'",
       "main": "src/t_ecdsa_backend/main.nim",
       "wasm": "main.wasm",
       "type": "custom",

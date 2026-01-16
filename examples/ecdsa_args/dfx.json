@@ -3,7 +3,7 @@
     "ecdsa_args_backend": {
       "candid": "ecdsa_args.did",
       "package": "ecdsa_args_backend",
-      "build": "build.sh",
+      "build": "bash -c 'if [ \"${DFX_NETWORK:-local}\" = \"local\" ]; then ndfx development_build; else ndfx production_build; fi'",
       "main": "src/ecdsa_args_backend/main.nim",
       "wasm": "main.wasm",
       "type": "custom",
