@@ -50,7 +50,7 @@ proc decompressPublicKey*(compressedKey: seq[uint8]): seq[uint8] =
     raise newException(EthereumConversionError, "secp256k1 decompression failed")
 
 
-proc keccak256Hash*(data: string): seq[uint8] =
+func keccak256Hash*(data: string): seq[uint8] =
   ## Hash string data using Keccak-256 with EIP-191 format
   ## This follows the Ethereum personal_sign standard: "\x19Ethereum Signed Message:\n" + length + message
   
