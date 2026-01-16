@@ -7,6 +7,7 @@
 import nimcrypto/keccak
 import secp256k1
 import ./hex_bytes
+import ../ic_api
 
 type
   EcdsaError* = object of ValueError
@@ -39,13 +40,13 @@ proc validateSignatureWithSecp256k1*(
     
     # Check if all parsing succeeded
     if sigResult.isErr or msgResult.isErr or pubKeyResult.isErr:
-      echo "Error parsing signature components:"
+      devEcho "Error parsing signature components:"
       if sigResult.isErr:
-        echo "  Signature error: ", sigResult.error
+        devEcho "  Signature error: ", sigResult.error
       if msgResult.isErr:
-        echo "  Message error: ", msgResult.error
+        devEcho "  Message error: ", msgResult.error
       if pubKeyResult.isErr:
-        echo "  Public key error: ", pubKeyResult.error
+        devEcho "  Public key error: ", pubKeyResult.error
       return false
     
     # Verify signature
@@ -54,11 +55,11 @@ proc validateSignatureWithSecp256k1*(
       msgResult.get(),
       pubKeyResult.get()
     )
-    echo "Signature validation result: ", isValid
+    devEcho "Signature validation result: ", isValid
     return isValid
     
   except Exception as e:
-    echo "Exception in validateSignatureWithSecp256k1: ", e.msg
+    devEcho "Exception in validateSignatureWithSecp256k1: ", e.msg
     return false
 
 
@@ -76,13 +77,13 @@ proc verifySignatureWithSecp256k1*(
     let pubKeyResult = SkPublicKey.fromRaw(hexToBytes(publicKeyHex))
 
     if sigResult.isErr or msgResult.isErr or pubKeyResult.isErr:
-      echo "Error parsing components for verification:"
+      devEcho "Error parsing components for verification:"
       if sigResult.isErr:
-        echo "  Signature error: ", sigResult.error
+        devEcho "  Signature error: ", sigResult.error
       if msgResult.isErr:
-        echo "  Message error: ", msgResult.error
+        devEcho "  Message error: ", msgResult.error
       if pubKeyResult.isErr:
-        echo "  Public key error: ", pubKeyResult.error
+        devEcho "  Public key error: ", pubKeyResult.error
       return false
 
     let isValid = secp256k1.verify(
@@ -90,9 +91,9 @@ proc verifySignatureWithSecp256k1*(
       msgResult.get(),
       pubKeyResult.get()
     )
-    echo "Signature verification result: ", isValid
+    devEcho "Signature verification result: ", isValid
     return isValid
 
   except Exception as e:
-    echo "Exception in verifySignatureWithSecp256k1: ", e.msg
+    devEcho "Exception in verifySignatureWithSecp256k1: ", e.msg
     return false
