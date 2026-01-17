@@ -68,5 +68,5 @@ proc new*(
   returnsDesc: Option[CandidTypeDesc] = none(CandidTypeDesc)
 ): IcFunc =
   ## Create a query func reference on the current canister
-  let p = selfPrincipal()
-  result = IcFunc.new(p, funcType, methodName, args, returnType, argsDesc, returnsDesc)
+  let self = Principal.self()
+  result = IcFunc.new(self, funcType, methodName, args, returnType, argsDesc, returnsDesc)

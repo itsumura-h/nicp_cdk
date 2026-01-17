@@ -6,7 +6,7 @@ stop:
 	docker compose stop
 
 diff:
-	git diff --cached >> .diff
+	git diff --cached > .diff
 
 reinstall:
 	-nimble uninstall nicp_cdk -iy

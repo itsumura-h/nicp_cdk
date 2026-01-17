@@ -3,7 +3,7 @@
     "counter_backend": {
       "candid": "counter.did",
       "package": "counter_backend",
-      "build": "build.sh",
+      "build": "bash -c 'if [ \"${DFX_NETWORK:-local}\" = \"local\" ]; then ndfx development_build; else ndfx production_build; fi'",
       "main": "src/counter_backend/main.nim",
       "wasm": "main.wasm",
       "type": "custom",

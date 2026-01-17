@@ -48,7 +48,7 @@ proc transformArgsDesc(): CandidTypeDesc =
 
 proc defaultTransformRef(): HttpTransform =
   ## Transformはquery関数参照として渡す
-  let selfPrincipal = Principal.fromText("lqy7q-dh777-77777-aaaaq-cai")
+  let selfPrincipal = Principal.self()
   let funcRef = IcFunc.new(selfPrincipal, FuncType.Query, "transform", @[ctRecord], some(ctRecord))
   funcRef.argsDesc = @[transformArgsDesc()]
   funcRef.returnsDesc = some(httpResponseDesc())

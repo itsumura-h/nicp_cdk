@@ -14,7 +14,7 @@
     "stable_memory_backend": {
       "candid": "stable_memory.did",
       "package": "stable_memory_backend",
-      "build": "build.sh",
+      "build": "bash -c 'if [ \"${DFX_NETWORK:-local}\" = \"local\" ]; then ndfx development_build; else ndfx production_build; fi'",
       "main": "src/stable_memory_backend/main.nim",
       "wasm": "main.wasm",
       "type": "custom",

@@ -112,8 +112,9 @@ proc readPrincipal*(data: seq[byte]; offset: var int): Principal =
   let principal = Principal.fromBlob(principalBytes)
   return principal
 
-proc selfPrincipal*(): Principal =
-  ## Get the principal of the current canister
+
+proc self*(_: type Principal): Principal =
+  ## Get the canister ID from the canister runtime.
   let n = ic0_canister_self_size()
   var data = newSeq[byte](n)
   ic0_canister_self_copy(cast[int](addr data[0]), 0, n)

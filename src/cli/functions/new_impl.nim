@@ -65,26 +65,50 @@ proc greet() {.query.} =
 
 const didContent = """
 service : {
-  "greet" : (text) -> (text) query;
+  greet : (text) -> (text) query;
 };
 """
 
-proc buildContent(projectName: string):string = &"""
-#!/bin/bash
-rm -fr ./*.wasm
-rm -fr ./*.wat
+proc parseNimVersion(output: string): string =
+  const marker = "Nim Compiler Version"
+  for line in output.splitLines:
+    let pos = line.find(marker)
+    if pos >= 0:
+      let rest = line[(pos + marker.len) .. ^1].strip()
+      let parts = rest.splitWhitespace()
+      if parts.len > 0:
+        return parts[0]
+  return ""
 
-# for debug build
-echo "nim c -o:wasi.wasm src/{projectName}_backend/main.nim"
-nim c -o:wasi.wasm src/{projectName}_backend/main.nim
+proc resolveNimVersion(): string =
+  let (nimOut, nimExit) = execCmdEx("nim -v")
+  if nimExit != 0:
+    stderr.writeLine("Error: failed to execute `nim -v`.")
+    if nimOut.len > 0:
+      stderr.writeLine(nimOut)
+    return ""
+  result = parseNimVersion(nimOut)
+  if result.len == 0:
+    stderr.writeLine("Error: failed to parse Nim version from `nim -v` output.")
+    if nimOut.len > 0:
+      stderr.writeLine(nimOut)
+  return result
 
-# for release build
-# echo "nim c -d:release -o:wasi.wasm src/{projectName}_backend/main.nim"
-# nim c -d:release -o:wasi.wasm src/{projectName}_backend/main.nim
+proc renderNimbleContent(projectName, nimVersion: string): string =
+  result = &"""# Package
 
-echo "wasi2ic wasi.wasm main.wasm"
-wasi2ic wasi.wasm main.wasm
-rm -f wasi.wasm
+version       = "0.1.0"
+author        = "Anonymous"
+description   = "A new awesome nimble package"
+license       = "MIT"
+srcDir        = "src/{projectName}_backend"
+bin           = @["main"]
+
+
+# Dependencies
+
+requires "nim >= {nimVersion}"
+requires "https://github.com/itsumura-h/nicp_cdk >= 0.1.0"
 """
 
 proc new*(args: seq[string]):int =
@@ -106,7 +130,6 @@ proc new*(args: seq[string]):int =
   # ───────────────────────────────────────────────────────────────────────────────
   # 初期化
   illwillInit(fullscreen = false)
-  # defer: illwillDeinit()
 
   let termW = terminalWidth()
   let termH = terminalHeight()
@@ -217,19 +240,23 @@ proc new*(args: seq[string]):int =
     echo "Error: ", output
     return 1
 
-  removeFile(getCurrentDir() / projectName / &"src/{projectName}_backend/main.mo")
-  writeFile(getCurrentDir() / projectName / &"src/{projectName}_backend/config.nims", configContent)
-  writeFile(getCurrentDir() / projectName / &"src/{projectName}_backend/main.nim", mainCode)
-  writeFile(getCurrentDir() / projectName / &"{projectName}.did", didContent)
-  writeFile(getCurrentDir() / projectName / &"build.sh", buildContent(projectName))
-  discard execCmd("chmod +x " & getCurrentDir() / projectName / &"build.sh")
+  let nimVersion = resolveNimVersion()
+  if nimVersion.len == 0:
+    return 1
+
+  removeFile(projectPath / &"src/{projectName}_backend/main.mo")
+  writeFile(projectPath / &"src/{projectName}_backend/config.nims", configContent)
+  writeFile(projectPath / &"src/{projectName}_backend/main.nim", mainCode)
+  writeFile(projectPath / &"{projectName}.did", didContent)
+  writeFile(projectPath / &"{projectName}.nimble", renderNimbleContent(projectName, nimVersion))
 
   # replace dfx.json
-  let dfxJson = readFile(getCurrentDir() / projectName / "dfx.json").parseJson()
+  let buildCmd = "bash -c 'if [ \"${DFX_NETWORK:-local}\" = \"local\" ]; then ndfx development_build; else ndfx production_build; fi'"
+  let dfxJson = readFile(projectPath / "dfx.json").parseJson()
   dfxJson["canisters"][&"{projectName}_backend"] = %*{
     "candid": &"{projectName}.did",
     "package": &"{projectName}_backend",
-    "build": "build.sh",
+    "build": buildCmd,
     "main": &"src/{projectName}_backend/main.nim",
     "wasm": "main.wasm",
     "type": "custom",

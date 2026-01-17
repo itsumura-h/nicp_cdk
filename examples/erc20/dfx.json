@@ -3,7 +3,7 @@
     "erc20_backend": {
       "candid": "erc20.did",
       "package": "erc20_backend",
-      "build": "build.sh",
+      "build": "bash -c 'if [ \"${DFX_NETWORK:-local}\" = \"local\" ]; then ndfx development_build; else ndfx production_build; fi'",
       "main": "src/erc20_backend/main.nim",
       "wasm": "main.wasm",
       "type": "custom",

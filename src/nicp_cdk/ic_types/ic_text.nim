@@ -1,6 +1,5 @@
 import std/sequtils
 import std/strutils
-import ./consts
 import ../algorithm/leb128
 
 
