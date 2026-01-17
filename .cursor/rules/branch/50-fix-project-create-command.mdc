@@ -9,6 +9,7 @@ alwaysApply: false
 - `ndfx build` コマンド（本番ビルド）を追加し、`-d:release` を有効にしてWASMを生成する
 - `ndfx dev` コマンド（ローカル開発ビルド）を追加し、`-d:release` を付けずにWASMを生成する
 - `ndfx new` で `build.sh` を生成しない（`dfx.json` の `build` 指定を見直す）
+- `ndfx new` でプロジェクトディレクトリ直下に `{projectName}.nimble` を生成する（`srcDir = "src/{projectName}_backend"`, `bin = @["main"]`, `requires "nim >= {nimVersion}"`）
 - これまで `build.sh` で実行していた処理（`nim c` → `wasi2ic` → 後片付け）を `ndfx build/dev` コマンド内に移す
 - devビルド時のみ有効な標準出力（`ic0.debug_print` 相当）用APIを追加する（`-d:release` の有無で判別）
 - `.env` の `CANISTER_ID`（/ `CANISTER_ID_<NAME>`）をNimから取得できるようにし、`Principal.self()` で参照できるようにする（ローカル実行/テスト時のフォールバック）
@@ -16,20 +17,25 @@ alwaysApply: false
 ## 進捗
 - [x] ブランチルール作成
 - [ ] 調査: `dfx.json` の `type: "custom"` における `build` が「任意コマンド文字列」を許容するか確認（`build.sh` 不要化の可否）
+- [ ] 調査: Nimbleファイル仕様（最低限: `version/author/description/license/srcDir/bin/requires`、ファイル名=package名、`bin`/`srcDir`/`binDir` の関係）を整理
 - [x] 実装: devビルド時のみ有効な標準出力APIを追加（`when not defined(release)`）
 - [x] 実装: `ndfx dev` 実装（旧 `build.sh` のdebug相当の処理を内包）
 - [x] 実装: `ndfx build` 実装（旧 `build.sh` のrelease相当の処理を内包、常に `-d:release`）
 - [x] 実装: `ndfx new` から `build.sh` 生成を削除し、`dfx.json` の `build` を `ndfx build/dev` 呼び出しへ変更
-- [ ] 実装: `src/bin/cli` のCLIバイナリ更新
+- [x] 設計: `ndfx new` が生成する `{projectName}.nimble` のテンプレート確定（Nimバージョン取得: `ndfx new` 実行時に内部的に `nim -v` を実行してパース）
+- [x] 実装: `ndfx new` で `{projectName}.nimble` を生成（プロジェクト直下）
+- [x] 実装: `src/bin/cli` のCLIバイナリ更新
 - [x] 設計: `staticRead`で`.env`を読み込み、`CANISTER_ID`（→ `CANISTER_ID_<NAME>`）を解決する仕様（優先順位・パス・パース仕様）
 - [x] 実装: `Principal.self()` を追加し、canister実行時はsystem API、ローカル実行時は `.env` へフォールバック
-- [ ] テスト: `examples/http_outcall/nim` 等で `transformFunc` の principal が実canister IDになることを確認
+- [x] テスト: `examples/http_outcall/nim` 等で `transformFunc` の principal が実canister IDになることを確認
 
 ## 参考資料
 - `src/cli/ndfx.nim`
 - `src/cli/functions/new_impl.nim`
 - `src/nicp_cdk/ic_api.nim`
 - `src/nicp_cdk/ic_types/ic_principal.nim`
+- `examples/test2/test2.nimble`
+- `nicp_cdk.nimble`
 - `examples/http_outcall/nim/.env`
 - `docs/ja/README.md`
 
@@ -39,6 +45,26 @@ alwaysApply: false
 - `ndfx build` は `-d:release` を常に付与し、`ndfx dev` は `-d:release` を付与しない
 - `build.sh` は新規作成しない方針とし、旧 `build.sh` 相当の処理は `ndfx build/dev` 内で完結させる
 - `dfx.json` の `build` は `bash -c` で `DFX_NETWORK` を見て `ndfx dev/build` を切り替える想定（コマンド文字列指定の可否は要確認）
+- Nimbleファイル（`.nimble`）は「Nimのスクリプト」で、パッケージメタデータ（`version/author/description/license` 等）や `requires` による依存関係、`bin` 等のビルド対象を宣言できる（例: `examples/test2/test2.nimble`, `nicp_cdk.nimble`）。
+- パッケージ名は基本的に `.nimble` ファイル名から決まるため、`ndfx new` 生成物はプロジェクト直下に `{projectName}.nimble` を置く。
+- `bin` はビルドするバイナリ（メインモジュール）名の配列。`nimble dump` の結果では `binDir` が空のとき `entryPoints` は `"{srcDir}/{bin}.nim, {bin}.nim"` となるため（例: `examples/test2/test2.nimble`）、このブランチでは `srcDir = "src/{projectName}_backend"` なので `main` は `src/{projectName}_backend/main.nim` を指す想定。
+- Nimのバージョンは `ndfx new` 実行時点で内部的に `nim -v` を実行し、出力の `Nim Compiler Version X.Y.Z` をパースして使用する（例: `2.2.6`）。パースできない場合は `ndfx new` を失敗させ、理由をエラー表示する。
+- `{projectName}.nimble` の最小テンプレート案:
+  ```
+  # Package
+  
+  version       = "0.1.0"
+  author        = "Anonymous"
+  description   = "A new awesome nimble package"
+  license       = "MIT"
+  srcDir        = "src/{projectName}_backend"
+  bin           = @["main"]
+  
+  
+  # Dependencies
+  
+  requires "nim >= {nimVersion}"
+  ```
 - `CANISTER_ID` は「環境変数名」であり、canister内から `ic0_*` で直接読めるものではない。canister内では `ic0_canister_self_size()` + `ic0_canister_self_copy()` により self principal のバイト列を取得でき、これを `Principal.fromBlob(...)` でテキスト化したものが（結果として）canister id（= `.env` の `CANISTER_ID` と同形式）になる
 - そのため `Principal.self()` は基本的に「canister内実行時は `ic0_canister_self_*` による self principal を返す」APIとして設計する（現 `selfPrincipal()` 相当）
 - `nicp_cdk` を import する環境はWASMのcanister実行のみとし、`Principal.self()` は常に `ic0_canister_self_*` を使って self principal（= canister id）を取得する

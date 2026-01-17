@@ -54,30 +54,3 @@ proc compileWasm*(release: bool, wasiTmp = "wasi.wasm"): int =
     removeFile(wasiTmp)
 
   return 0
-
-proc buildWasm*(release: bool, wasiTmp = "wasi.wasm"): int =
-  let projectDir = getCurrentDir()
-  let dfxJsonPath = projectDir / "dfx.json"
-  if not fileExists(dfxJsonPath):
-    stderr.writeLine("Error: dfx.json not found in current directory.")
-    return 1
-
-  let createCmd = "dfx canister create --all"
-  echo createCmd
-  let (createOut, createExit) = execCmdEx(createCmd)
-  if createExit != 0:
-    stderr.writeLine(createOut)
-    return createExit
-
-  let compileExit = compileWasm(release = release, wasiTmp = wasiTmp)
-  if compileExit != 0:
-    return compileExit
-
-  let installCmd = "dfx canister install --all"
-  echo installCmd
-  let (installOut, installExit) = execCmdEx(installCmd)
-  if installExit != 0:
-    stderr.writeLine(installOut)
-    return installExit
-
-  return 0

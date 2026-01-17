@@ -69,6 +69,47 @@ service : {
 };
 """
 
+proc parseNimVersion(output: string): string =
+  const marker = "Nim Compiler Version"
+  for line in output.splitLines:
+    let pos = line.find(marker)
+    if pos >= 0:
+      let rest = line[(pos + marker.len) .. ^1].strip()
+      let parts = rest.splitWhitespace()
+      if parts.len > 0:
+        return parts[0]
+  return ""
+
+proc resolveNimVersion(): string =
+  let (nimOut, nimExit) = execCmdEx("nim -v")
+  if nimExit != 0:
+    stderr.writeLine("Error: failed to execute `nim -v`.")
+    if nimOut.len > 0:
+      stderr.writeLine(nimOut)
+    return ""
+  result = parseNimVersion(nimOut)
+  if result.len == 0:
+    stderr.writeLine("Error: failed to parse Nim version from `nim -v` output.")
+    if nimOut.len > 0:
+      stderr.writeLine(nimOut)
+  return result
+
+proc renderNimbleContent(projectName, nimVersion: string): string =
+  result = &"""# Package
+
+version       = "0.1.0"
+author        = "Anonymous"
+description   = "A new awesome nimble package"
+license       = "MIT"
+srcDir        = "src/{projectName}_backend"
+bin           = @["main"]
+
+
+# Dependencies
+
+requires "nim >= {nimVersion}"
+"""
+
 proc new*(args: seq[string]):int =
   ## Creates a new Nim project
   # ───────────────────────────────────────────────────────────────────────────────
@@ -198,14 +239,19 @@ proc new*(args: seq[string]):int =
     echo "Error: ", output
     return 1
 
-  removeFile(getCurrentDir() / projectName / &"src/{projectName}_backend/main.mo")
-  writeFile(getCurrentDir() / projectName / &"src/{projectName}_backend/config.nims", configContent)
-  writeFile(getCurrentDir() / projectName / &"src/{projectName}_backend/main.nim", mainCode)
-  writeFile(getCurrentDir() / projectName / &"{projectName}.did", didContent)
+  let nimVersion = resolveNimVersion()
+  if nimVersion.len == 0:
+    return 1
+
+  removeFile(projectPath / &"src/{projectName}_backend/main.mo")
+  writeFile(projectPath / &"src/{projectName}_backend/config.nims", configContent)
+  writeFile(projectPath / &"src/{projectName}_backend/main.nim", mainCode)
+  writeFile(projectPath / &"{projectName}.did", didContent)
+  writeFile(projectPath / &"{projectName}.nimble", renderNimbleContent(projectName, nimVersion))
 
   # replace dfx.json
   let buildCmd = "bash -c 'if [ \"${DFX_NETWORK:-local}\" = \"local\" ]; then ndfx development_build; else ndfx production_build; fi'"
-  let dfxJson = readFile(getCurrentDir() / projectName / "dfx.json").parseJson()
+  let dfxJson = readFile(projectPath / "dfx.json").parseJson()
   dfxJson["canisters"][&"{projectName}_backend"] = %*{
     "candid": &"{projectName}.did",
     "package": &"{projectName}_backend",
