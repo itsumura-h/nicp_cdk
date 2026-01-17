@@ -108,6 +108,7 @@ bin           = @["main"]
 # Dependencies
 
 requires "nim >= {nimVersion}"
+requires "https://github.com/itsumura-h/nicp_cdk >= 0.1.0"
 """
 
 proc new*(args: seq[string]):int =
