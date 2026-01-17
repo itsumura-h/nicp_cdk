@@ -3,16 +3,14 @@ import std/asyncfutures
 import std/asyncdispatch
 import std/tables
 import std/strutils
-import std/sequtils
 import ../../ic0/ic0
-import ../../ic0/wasm
-import ../../algorithm/hex_bytes
 import ../../ic_types/candid_types
 import ../../ic_types/ic_principal
 import ../../ic_types/ic_record
 import ../../ic_types/candid_message/candid_encode
 import ../../ic_types/candid_message/candid_decode
 import ../../ic_types/candid_message/candid_message_types
+import ../../ic_api
 import ./estimateGas
 import ./management_canister_type
 
@@ -283,6 +281,9 @@ proc onCallHttpRequestSuccess(env: uint32) {.exportc.} =
     ic0_msg_arg_data_copy(ptrToInt(addr buf[0]), 0, size)
     let decoded = decodeCandidMessage(buf)
     let httpResponse = candidValueToHttpResponse(decoded.values[0])
+    devEcho "http_request success status=", httpResponse.status,
+            " headers=", httpResponse.headers.len,
+            " bodyBytes=", httpResponse.body.len
     complete(fut, httpResponse)
   except Exception as e:
     fail(fut, e)
@@ -295,6 +296,7 @@ proc onCallHttpRequestReject(env: uint32) {.exportc.} =
     return
   # reject コールバック内では ic0_msg_arg_data_size は使用できない
   let msg = "HTTP request call was rejected by the management canister"
+  devEcho msg
   fail(fut, newException(ValueError, msg))
 
 
@@ -326,6 +328,10 @@ proc estimateHttpOutcallCostFallback(request: HttpRequestArgs): uint64 =
   cost = addCap(cost, mulCap(maxResponseSize, HttpOutcallFallbackPerResponseByteCycles))
 
   let finalCost = addMargin20(cost)
+  devEcho "http_outcall fallback cost requestBytes=", requestSize,
+          " maxResponseBytes=", maxResponseSize,
+          " cost=", cost,
+          " finalCost=", finalCost
   finalCost
 
 when defined(release):
@@ -347,10 +353,12 @@ when defined(release):
       
       # 計算結果が0の場合はフォールバック値を使用
       if exactCost == 0:
+        devEcho "http_outcall dynamic cost returned 0"
         return none(uint64)
       
       # 20%の安全マージンを追加
       let finalCost = addMargin20(exactCost)
+      devEcho "http_outcall dynamic cost exact=", exactCost, " finalCost=", finalCost
       return some(finalCost)
       
     except Exception:
@@ -369,6 +377,7 @@ proc estimateHttpOutcallCost(request: HttpRequestArgs): uint64 =
     try:
       let dynamicCost = estimateHttpOutcallCostDynamic(request)
       if dynamicCost.isSome:
+        devEcho "http_outcall cost using dynamic value=", dynamicCost.get
         return dynamicCost.get
     except Exception:
       # フォールバックへ続行
@@ -381,6 +390,12 @@ proc estimateHttpOutcallCost(request: HttpRequestArgs): uint64 =
 proc httpRequest*(_:type ManagementCanister, request: HttpRequestArgs): Future[HttpResponse] =
   ## HTTP Outcallをマネジメントキャニスター経由で実行（Rust方式: 自動サイクル送信）
   result = newFuture[HttpResponse]("httpRequest")
+
+  devEcho "http_outcall request url=", request.url,
+          " method=", $request.httpMethod,
+          " headers=", request.headers.len,
+          " bodyBytes=", (if request.body.isSome: request.body.get.len else: 0),
+          " maxResponseBytes=", request.max_response_bytes.get(2_000_000'u)
 
   # Management Canisterの呼び出し（t_ecdsa.nimと同じパターン）
   let mgmtPrincipalBytes: seq[uint8] = @[]
@@ -403,12 +418,18 @@ proc httpRequest*(_:type ManagementCanister, request: HttpRequestArgs): Future[H
   ## 2. Calculate and add required cycles
   # HTTP Outcallに必要なcycle量を計算して追加
   let requiredCycles = estimateHttpOutcallCost(request)
+  devEcho "http_outcall cycles=", requiredCycles
   ic0_call_cycles_add128(0, requiredCycles)
 
   ## 3. Attach argument data and execute
   try:
     let record = %request
     let encoded = encodeCandidMessage(@[recordToCandidValue(record)])
+    devEcho "encoded: ", encoded
+    var cansisMessage = ""
+    for i, v in encoded:
+      cansisMessage.add(v.toHex())
+    devEcho "cansisMessage: ", cansisMessage
 
     ic0_call_data_append(ptrToInt(addr encoded[0]), encoded.len)
     let err = ic0_call_perform()
@@ -453,6 +474,7 @@ proc onTransformCallback(env: uint32) {.exportc.} =
     let decoded = decodeCandidMessage(buf)
     if decoded.values.len < 2:
       # エラー: 引数不足
+      devEcho "transform callback insufficient args count=", decoded.values.len
       let errorResponse = %* {
         "status": 500'u16,
         "headers": newSeq[CandidRecord](),
@@ -466,6 +488,9 @@ proc onTransformCallback(env: uint32) {.exportc.} =
     # 第一引数: HttpResponse
     let responseValue = decoded.values[0]
     let httpResponse = candidValueToHttpResponse(responseValue)
+    devEcho "transform callback status=", httpResponse.status,
+            " headers=", httpResponse.headers.len,
+            " bodyBytes=", httpResponse.body.len
     
     # 第二引数: Transform context
     # let contextValue = decoded.values[1]
@@ -495,6 +520,7 @@ proc onTransformCallback(env: uint32) {.exportc.} =
     
   except Exception as e:
     # Transform処理でエラーが発生した場合
+    devEcho "transform callback error: ", e.msg
     let errorResponse = %* {
       "status": 500'u16,
       "headers": newSeq[CandidRecord](),
