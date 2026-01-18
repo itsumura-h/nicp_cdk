@@ -7,10 +7,12 @@ proc removeByGlob(pattern: string) =
     removeFile(path)
 
 proc resolveProjectName(projectDir: string): string =
-  result = splitPath(projectDir).tail
+  for pattern in [projectDir / "*.nimble", projectDir / "*.did"]:
+    for path in walkFiles(pattern):
+      return splitFile(path).name
+  return ""
 
-proc resolveMainPath(projectDir: string): string =
-  let projectName = resolveProjectName(projectDir)
+proc resolveMainPath(projectDir: string, projectName: string): string =
   result = projectDir / "src" / (projectName & "_backend") / "main.nim"
 
 proc compileWasm*(release: bool, wasiTmp = "wasi.wasm"): int =
@@ -20,7 +22,12 @@ proc compileWasm*(release: bool, wasiTmp = "wasi.wasm"): int =
     stderr.writeLine("Error: dfx.json not found in current directory.")
     return 1
 
-  let mainPath = resolveMainPath(projectDir)
+  let projectName = resolveProjectName(projectDir)
+  if projectName.len == 0:
+    stderr.writeLine("Error: project name not found (.nimble or .did file not found in current directory).")
+    return 1
+
+  let mainPath = resolveMainPath(projectDir, projectName)
   if not fileExists(mainPath):
     stderr.writeLine("Error: main.nim not found at: " & mainPath)
     return 1
