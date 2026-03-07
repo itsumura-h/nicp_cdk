@@ -14,7 +14,7 @@ reinstall:
 
 run:
 	export TERM=xterm-256color
-	nimble uninstall nicp_cdk -iy || true
+	-nimble uninstall nicp_cdk -iy
 	nimble install -y
 	ndfx cHeaders
 	dfx killall
