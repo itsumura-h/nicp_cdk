@@ -1,6 +1,6 @@
 import ../../../../src/nicp_cdk
 
-var counter:Natural = 0
+var counter:uint = 0
 
 proc get() {.query.} =
   reply(counter)

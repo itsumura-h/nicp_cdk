@@ -60,4 +60,24 @@ proc compileWasm*(release: bool, wasiTmp = "wasi.wasm"): int =
   if fileExists(wasiTmp):
     removeFile(wasiTmp)
 
+  # ic-wasm: optimize O3 (both debug and release)
+  const icWasmTmp = "main_ic_wasm.wasm"
+  let optimizeCmd = "ic-wasm main.wasm -o " & icWasmTmp & " optimize O3"
+  echo optimizeCmd
+  let (optOut, optExit) = execCmdEx(optimizeCmd)
+  if optExit != 0:
+    stderr.writeLine(optOut)
+    return optExit
+  moveFile(icWasmTmp, "main.wasm")
+
+  # ic-wasm: shrink (release only)
+  if release:
+    let shrinkCmd = "ic-wasm main.wasm -o " & icWasmTmp & " shrink"
+    echo shrinkCmd
+    let (shrOut, shrExit) = execCmdEx(shrinkCmd)
+    if shrExit != 0:
+      stderr.writeLine(shrOut)
+      return shrExit
+    moveFile(icWasmTmp, "main.wasm")
+
   return 0

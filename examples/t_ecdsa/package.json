@@ -16,6 +16,9 @@
     "src/t_ecdsa_frontend"
   ],
   "dependencies": {
-    "@dfinity/agent": "^3.4.3"
+    "@icp-sdk/core": "^5.0.0"
+  },
+  "devDependencies": {
+    "@icp-sdk/bindgen": "^0.2.2"
   }
 }

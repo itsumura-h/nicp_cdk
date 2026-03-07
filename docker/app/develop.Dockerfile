@@ -26,6 +26,9 @@ RUN cargo build --release --target wasm32-wasip1
 WORKDIR /root
 RUN cargo install wasi2ic
 
+# ic-wasm (https://github.com/dfinity/ic-wasm) → /root/.cargo/bin
+RUN curl --proto '=https' --tlsv1.2 -LsSf https://github.com/dfinity/ic-wasm/releases/latest/download/ic-wasm-installer.sh | sh
+
 
 # ================================================================================
 FROM ubuntu:24.04 AS app
@@ -68,7 +71,7 @@ RUN dfx --version
 # reference: https://github.com/ICPorts-labs/chico/blob/main/examples/HelloWorld/Dockerfile#L48-L59
 # https://github.com/WebAssembly/wasi-sdk/releases/latest
 WORKDIR /root
-ENV WASI_VERSION="27"
+ENV WASI_VERSION="30"
 ENV WASI_VERSION_FULL="$WASI_VERSION.0"
 RUN curl -L -o wasi-sdk.tar.gz https://github.com/WebAssembly/wasi-sdk/releases/download/wasi-sdk-${WASI_VERSION}/wasi-sdk-${WASI_VERSION_FULL}-x86_64-linux.tar.gz
 RUN tar -xzf wasi-sdk.tar.gz
@@ -101,7 +104,7 @@ RUN mv nimlangserver /root/.nimble/bin/
 # node
 # https://nodejs.org/en/download/prebuilt-binaries
 WORKDIR /root
-ARG NODE_VERSION=22.19.0
+ARG NODE_VERSION=24.14.0
 RUN curl -OL https://nodejs.org/dist/v${NODE_VERSION}/node-v${NODE_VERSION}-linux-x64.tar.xz
 RUN tar -xvf node-v${NODE_VERSION}-linux-x64.tar.xz
 RUN rm node-v${NODE_VERSION}-linux-x64.tar.xz
@@ -124,21 +127,14 @@ ENV IC_WASI_POLYFILL_PATH "/root/.ic-wasi-polyfill"
 COPY --from=wasi-tools /root/.cargo/bin/* /root/.cargo/bin/
 ENV PATH $PATH:/root/.cargo/bin
 
-# # build ic-wasi-polyfill
-# WORKDIR /root
-# RUN git clone https://github.com/wasm-forge/ic-wasi-polyfill
-# WORKDIR /root/ic-wasi-polyfill
-# RUN git checkout acac95360d4be9c78fd3f3d5e1a1a58998e59264
-# RUN rustup target add wasm32-wasip1
-# RUN cargo build --release --target wasm32-wasip1
-# ENV IC_WASI_POLYFILL_PATH "/root/ic-wasi-polyfill/target/wasm32-wasip1/release"
-
-# # wasi2ic
-# WORKDIR /root
-# RUN git clone https://github.com/wasm-forge/wasi2ic
-# WORKDIR /root/wasi2ic
-# RUN cargo build --release
-# ENV PATH $PATH:/root/wasi2ic/target/release
+# check command installed successfully
+RUN nim -v
+RUN nimble -v
+RUN node -v
+RUN pnpm -v
+RUN forge --version
+RUN ic-wasm --version
+RUN wasi2ic --version
 
 
 RUN git config --global --add safe.directory /application
