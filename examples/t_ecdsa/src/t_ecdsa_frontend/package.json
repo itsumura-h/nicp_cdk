@@ -16,6 +16,8 @@
 	},
 	"devDependencies": {
 		"@preact/preset-vite": "^2.10.2",
+		"@types/node": "^22.10.1",
+		"dotenv": "^17.3.1",
 		"eslint": "^9.39.2",
 		"eslint-config-preact": "^2.0.0",
 		"typescript": "^5.9.3",

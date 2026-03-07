@@ -23,54 +23,10 @@ import {
 import { toAccount } from 'viem/accounts';
 import { AuthClient } from '@icp-sdk/auth/client';
 import { HttpAgent } from '@icp-sdk/core/agent';
-import type { _SERVICE as TEcdsaBackendService } from '../../../declarations/t_ecdsa_backend/t_ecdsa_backend.did';
-import { canisterId as tEcdsaBackendCanisterId, createActor } from '../../../declarations/t_ecdsa_backend';
+// import type { _SERVICE as TEcdsaBackendService } from '../../../declarations/t_ecdsa_backend/t_ecdsa_backend.did';
+// import { canisterId as tEcdsaBackendCanisterId, createActor } from '../../../declarations/t_ecdsa_backend';
+import { createActor, type T_ecdsa_backend } from "../bindings/t_ecdsa_backend";
 
-const createBackendActor = async (authClient: AuthClient): Promise<TEcdsaBackendService> => {
-  const identity = authClient.getIdentity();
-  const agent = await HttpAgent.create({ identity });
-
-  const isDev = import.meta.env.DEV || import.meta.env.MODE !== 'production';
-  if (isDev) {
-    await agent.fetchRootKey();
-  }
-  
-  // The declarations were generated with @dfinity/agent, but we're using @icp-sdk/core/agent
-  // Both HttpAgent implementations are compatible at runtime despite type differences
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const actor = createActor(tEcdsaBackendCanisterId, {
-    agent: agent as any,
-  }) as TEcdsaBackendService;
-  
-  return actor;
-};
-
-const ensurePublicKey = async (actor: TEcdsaBackendService) => {
-  try {
-    await actor.getPublicKey();
-  } catch (error) {
-    console.warn('Failed to fetch existing public key, requesting a new one.', error);
-    await actor.getNewPublicKey();
-  }
-};
-
-const resolveAddress = async (actor: TEcdsaBackendService): Promise<Address> => {
-  const evmAddress = await (async ():Promise<string>=>{
-    try{
-      return await actor.getEvmAddress();
-    } catch (error) {
-      console.warn('Failed to fetch Ethereum address, requesting a new one.', error);
-      // 公開鍵を生成してから、EVMアドレスを再取得
-      await actor.getNewPublicKey();
-      return await actor.getEvmAddress();
-    }
-  })()
-
-  if (!evmAddress) {
-    throw new Error('Failed to resolve Ethereum address from canister.');
-  }
-  return evmAddress as Address;
-};
 
 const normaliseSignableMessage = (message: SignableMessage): string => {
   if (typeof message === 'string') {
@@ -85,9 +41,15 @@ const normaliseSignableMessage = (message: SignableMessage): string => {
 };
 
 const toIcpAccount = async (authClient: AuthClient): Promise<LocalAccount> => {
-  const actor = await createBackendActor(authClient);
-  await ensurePublicKey(actor);
-  const address = await resolveAddress(actor);
+  const canisterId = process.env.CANISTER_ID_T_ECDSA_BACKEND;
+  if (!canisterId) {
+    throw new Error('CANISTER_ID_T_ECDSA_BACKEND is not set');
+  }
+  const identity = authClient.getIdentity();
+  const agent = await HttpAgent.create({ identity });
+
+  const actor = createActor(canisterId, { agent });
+  const address = await actor.getEvmAddress() as `0x${string}`;
 
   const signMessage = async ({
     message,

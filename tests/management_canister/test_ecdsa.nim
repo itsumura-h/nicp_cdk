@@ -36,6 +36,9 @@ proc callCanisterFunction(functionName: string, args: string = ""): string =
 
 proc runCommand(command: string) =
   let (output, code) = execCmdEx(command)
+  echo "command: ", command
+  echo "output: ", output
+  echo "―――――――――――――――――――"
   # echo output
   check code == 0
 
