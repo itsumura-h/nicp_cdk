@@ -36,6 +36,18 @@ const injectedProcessEnv = {
 
 // https://vitejs.dev/config/
 export default defineConfig({
+	server: {
+		watch: {
+			usePolling: true, // Docker/リモート環境でホットリロードを確実に
+		},
+		// ICPレプリカへのAPIリクエストをプロキシ（CORS回避・同一オリジン化）
+		proxy: {
+			'/api': {
+				target: 'http://127.0.0.1:4943',
+				changeOrigin: true,
+			},
+		},
+	},
 	plugins: [
 		preact({
 			prerender: {

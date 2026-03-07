@@ -23,33 +23,42 @@ import {
 import { toAccount } from 'viem/accounts';
 import { AuthClient } from '@icp-sdk/auth/client';
 import { HttpAgent } from '@icp-sdk/core/agent';
-// import type { _SERVICE as TEcdsaBackendService } from '../../../declarations/t_ecdsa_backend/t_ecdsa_backend.did';
-// import { canisterId as tEcdsaBackendCanisterId, createActor } from '../../../declarations/t_ecdsa_backend';
-import { createActor, type T_ecdsa_backend } from "../bindings/t_ecdsa_backend";
+import { createActor } from "../bindings/t_ecdsa_backend";
 
-
-const normaliseSignableMessage = (message: SignableMessage): string => {
-  if (typeof message === 'string') {
-    return message;
-  }
-
-  if (typeof message.raw === 'string') {
-    throw new Error('Hex-encoded messages are not supported yet.');
-  }
-
-  throw new Error('Binary signable messages are not supported yet.');
-};
 
 const toIcpAccount = async (authClient: AuthClient): Promise<LocalAccount> => {
   const canisterId = process.env.CANISTER_ID_T_ECDSA_BACKEND;
   if (!canisterId) {
     throw new Error('CANISTER_ID_T_ECDSA_BACKEND is not set');
   }
+  // 開発時はViteプロキシ経由で同一オリジンにし、本番はレプリカ直指定
+  const isLocal =
+    process.env.DFX_NETWORK === 'local' ||
+    typeof process !== 'undefined' &&
+      process.env?.NODE_ENV === 'development';
+  const host =
+    typeof window !== 'undefined' && isLocal
+      ? window.location.origin // Viteの/apiプロキシ経由でレプリカへ
+      : 'http://127.0.0.1:4943';
   const identity = authClient.getIdentity();
-  const agent = await HttpAgent.create({ identity });
+  const agent = await HttpAgent.create({
+    identity,
+    host,
+    shouldFetchRootKey: isLocal,
+  });
 
   const actor = createActor(canisterId, { agent });
-  const address = await actor.getEvmAddress() as `0x${string}`;
+  // 公開鍵が未生成だとgetEvmAddressは空を返すため、先に生成する
+  await actor.getNewPublicKey();
+  const rawAddress = await actor.getEvmAddress();
+  const address = (typeof rawAddress === 'string' ? rawAddress : String(rawAddress)).trim();
+  if (!address || address.length !== 42 || !/^0x[0-9a-fA-F]{40}$/.test(address)) {
+    throw new Error(
+      `Invalid EVM address from canister: "${rawAddress}". ` +
+        'Ensure the local replica is running (dfx start) and the backend canister is deployed.'
+    );
+  }
+  const evmAddress = address as Address;
 
   const signMessage = async ({
     message,
@@ -103,7 +112,7 @@ const toIcpAccount = async (authClient: AuthClient): Promise<LocalAccount> => {
       });
     }
     const serialized = args.serializer(transaction);
-    const hash = keccak256(serialized as `0x${string}`);
+    const hash = keccak256(serialized as Address);
     const hashBytes = hexToBytes(hash);
     const signature = await actor.signWithEvmWallet(hashBytes);
 
@@ -146,7 +155,7 @@ const toIcpAccount = async (authClient: AuthClient): Promise<LocalAccount> => {
   };
 
   return toAccount({
-    address,
+    address: evmAddress,
     signMessage,
     signTransaction,
     signTypedData,
