@@ -120,7 +120,7 @@ proc get_httpbin*() {.async.} =
       is_replicated: some(false)
     )
 
-    let response = await ManagementCanister.httpRequest(request)
+    let response = await ManagementCanister.httpOutcall(request)
     reply(response.getTextBody())
   except Exception as e:
     reject("GET httpbin failed: " & e.msg)
@@ -145,7 +145,7 @@ proc post_httpbin*() {.async.} =
       is_replicated: some(false)
     )
 
-    let response = await ManagementCanister.httpRequest(request)
+    let response = await ManagementCanister.httpOutcall(request)
     reply(response.getTextBody())
   except Exception as e:
     reject("POST httpbin failed: " & e.msg)
@@ -159,7 +159,7 @@ proc transformBody*() =
   let transformRef = defaultTransformRef()
   reply(buildTransformBodyValue(transformRef))
 
-proc httpRequestArgs*() =
+proc httpOutcallArgs*() =
   let url = "https://httpbin.org/get"
   let headers = @[HttpHeader(name: "User-Agent", value: "nim-http-outcall")]
   let request = toHttpRequestArgs(url, HttpMethod.GET, headers, none(seq[uint8]))

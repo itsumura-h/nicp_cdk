@@ -387,9 +387,9 @@ proc estimateHttpOutcallCost(request: HttpRequestArgs): uint64 =
   return estimateHttpOutcallCostFallback(request)
 
 
-proc httpRequest*(_:type ManagementCanister, request: HttpRequestArgs): Future[HttpResponse] =
+proc httpOutcall*(_:type ManagementCanister, request: HttpRequestArgs): Future[HttpResponse] =
   ## HTTP Outcallをマネジメントキャニスター経由で実行（Rust方式: 自動サイクル送信）
-  result = newFuture[HttpResponse]("httpRequest")
+  result = newFuture[HttpResponse]("httpOutcall")
 
   devEcho "http_outcall request url=", request.url,
           " method=", $request.httpMethod,
@@ -426,10 +426,10 @@ proc httpRequest*(_:type ManagementCanister, request: HttpRequestArgs): Future[H
     let record = %request
     let encoded = encodeCandidMessage(@[recordToCandidValue(record)])
     devEcho "encoded: ", encoded
-    var cansisMessage = ""
+    var canisterMessage = ""
     for i, v in encoded:
-      cansisMessage.add(v.toHex())
-    devEcho "cansisMessage: ", cansisMessage
+      canisterMessage.add(v.toHex())
+    devEcho "canisterMessage: ", canisterMessage
 
     ic0_call_data_append(ptrToInt(addr encoded[0]), encoded.len)
     let err = ic0_call_perform()
@@ -639,7 +639,7 @@ proc getBodySize*(response: HttpResponse): int =
 #     max_response_bytes: maxResponseBytes,
 #     transform: none(HttpTransform)
 #   )
-#   return ManagementCanister.httpRequest(request)
+#   return ManagementCanisterhttpOutcall(request)
 
 
 # proc httpPost*(
@@ -660,7 +660,7 @@ proc getBodySize*(response: HttpResponse): int =
 #     max_response_bytes: maxResponseBytes,
 #     transform: finalTransform
 #   )
-#   return ManagementCanister.httpRequest(request)
+#   return ManagementCanisterhttpOutcall(request)
 
 
 # proc httpPost*(
