@@ -2,6 +2,8 @@ import std/tables
 import std/strutils
 import std/strformat
 import std/options
+import std/streams
+import std/parsejson
 import std/base64
 import std/hashes
 import std/macros
@@ -796,6 +798,77 @@ proc candidValueToJsonString(cv: CandidRecord, indent: int = 0): string =
 proc `$`*(cv: CandidRecord): string =
   ## CandidRecordをJSON風文字列に変換
   candidValueToJsonString(cv)
+
+proc parseRecord*(json: string): CandidRecord =
+  ## Json文字列をCandidRecordに変換（parseJson相当）
+  ## 不正なJSONの場合はJsonParsingErrorを送出
+  proc parseValue(parser: var JsonParser): CandidRecord =
+    case parser.kind:
+    of jsonNull:
+      result = CandidRecord(kind: ckNull)
+    of jsonTrue:
+      result = CandidRecord(kind: ckBool, boolVal: true)
+    of jsonFalse:
+      result = CandidRecord(kind: ckBool, boolVal: false)
+    of jsonInt:
+      let valueText = parser.str()
+      try:
+        let value = parseBiggestInt(valueText)
+        let minInt = BiggestInt(low(int))
+        let maxInt = BiggestInt(high(int))
+        if value < minInt or value > maxInt:
+          result = CandidRecord(kind: ckInt64, int64Val: int64(value))
+        else:
+          result = CandidRecord(kind: ckInt, intVal: int(value))
+      except ValueError:
+        # parseJson(rawIntegers=false) 互換: 範囲外整数は文字列扱い
+        result = CandidRecord(kind: ckText, strVal: valueText)
+    of jsonFloat:
+      result = CandidRecord(kind: ckFloat64, f64Val: parser.getFloat())
+    of jsonString:
+      result = CandidRecord(kind: ckText, strVal: parser.str())
+    of jsonObjectStart:
+      result = CandidRecord(kind: ckRecord, fields: initOrderedTable[string, CandidValue]())
+      parser.next()
+      while parser.kind != jsonObjectEnd:
+        if parser.kind == jsonError:
+          raise newException(JsonParsingError, parser.errorMsg())
+        if parser.kind != jsonString:
+          raiseParseErr(parser, "string literal as key")
+        let key = parser.str()
+        parser.next()
+        if parser.kind == jsonError:
+          raise newException(JsonParsingError, parser.errorMsg())
+        result.fields[key] = recordToCandidValue(parseValue(parser))
+        parser.next()
+    of jsonArrayStart:
+      result = CandidRecord(kind: ckArray, elems: @[])
+      parser.next()
+      while parser.kind != jsonArrayEnd:
+        if parser.kind == jsonError:
+          raise newException(JsonParsingError, parser.errorMsg())
+        result.elems.add(parseValue(parser))
+        parser.next()
+    of jsonError:
+      raise newException(JsonParsingError, parser.errorMsg())
+    of jsonEof, jsonObjectEnd, jsonArrayEnd:
+      raiseParseErr(parser, "value")
+
+  var parser: JsonParser
+  parser.open(newStringStream(json), "parseRecord")
+  defer:
+    parser.close()
+
+  parser.next()
+  if parser.kind == jsonError:
+    raise newException(JsonParsingError, parser.errorMsg())
+
+  result = parseValue(parser)
+  parser.next()
+  if parser.kind == jsonError:
+    raise newException(JsonParsingError, parser.errorMsg())
+  if parser.kind != jsonEof:
+    raiseParseErr(parser, "EOF")
 
 # ===== JsonNode風 % 演算子の実装 =====
 

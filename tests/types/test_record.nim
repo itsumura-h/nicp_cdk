@@ -5,6 +5,7 @@ cmd: "nim c --skipUserCfg $file"
 
 import std/unittest
 import std/options
+import std/parsejson
 import ../../src/nicp_cdk/request
 import ../../src/nicp_cdk/reply
 import ../../src/nicp_cdk/ic_types/candid_types
@@ -255,6 +256,40 @@ suite("record array"):
     check record["value"].getArray()[0].getInt() == 1
     check record["value"].getArray()[1].getInt() == 2
     check record["value"].getArray()[2].getInt() == 3
+
+suite("parseRecord"):
+  test "JSON文字列をCandidRecordに変換できる":
+    let record = parseRecord("""
+      {
+        "name": "Alice",
+        "age": 20,
+        "active": true,
+        "score": 1.5,
+        "tags": ["a", "b"],
+        "meta": {"region": "jp"},
+        "nothing": null
+      }
+    """)
+
+    check record["name"].getStr() == "Alice"
+    check record["age"].getInt() == 20
+    check record["active"].getBool() == true
+    check record["score"].getFloat64() == 1.5
+    check record["tags"][0].getStr() == "a"
+    check record["tags"][1].getStr() == "b"
+    check record["meta"]["region"].getStr() == "jp"
+    check record["nothing"].isNull()
+
+  test "トップレベル配列も変換できる":
+    let record = parseRecord("""[1, 2, 3]""")
+    check record.kind == ckArray
+    check record[0].getInt() == 1
+    check record[1].getInt() == 2
+    check record[2].getInt() == 3
+
+  test "不正なJSONは例外になる":
+    expect(JsonParsingError):
+      discard parseRecord("""{"name":""")
 
 
 suite("ecdsa arg"):
