@@ -35,8 +35,11 @@ proc callCanisterFunction(functionName: string, args: string = ""): string =
     setCurrentDir(originalDir)
 
 proc runCommand(command: string) =
-  let (_, code) = execCmdEx(command)
+  let (output, code) = execCmdEx(command)
   check code == 0
+  if code != 0:
+    echo "command: ", command
+    echo "output: ", output
 
 proc ensureFrontendBuilt() =
   let originalDir = getCurrentDir()
