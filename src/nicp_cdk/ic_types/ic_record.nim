@@ -261,6 +261,42 @@ proc len*(cv: CandidRecord): int =
   else:
     0
 
+# ===== JsonNode互換 iterator（ckArray 向け） =====
+
+iterator items*(cv: CandidRecord): CandidRecord =
+  ## 配列の要素を順序通りに走査する。ckArray 以外では assert で失敗する。
+  assert cv.kind == ckArray, "items() can not iterate a CandidRecord of kind " & $cv.kind
+  for elem in cv.elems:
+    yield elem
+
+iterator mitems*(cv: var CandidRecord): var CandidRecord =
+  ## 配列の要素を順序通りに走査する。要素の破壊的更新が可能。ckArray 以外では assert で失敗する。
+  assert cv.kind == ckArray, "mitems() can not iterate a CandidRecord of kind " & $cv.kind
+  for elem in mitems(cv.elems):
+    yield elem
+
+# ===== JsonNode互換 iterator（ckRecord 向け） =====
+
+iterator pairs*(cv: CandidRecord): tuple[key: string, val: CandidRecord] =
+  ## レコードのフィールドを登録順で走査する。ckRecord 以外では assert で失敗する。
+  assert cv.kind == ckRecord, "pairs() can not iterate a CandidRecord of kind " & $cv.kind
+  for key, val in cv.fields:
+    yield (key, candidValueToCandidRecord(val))
+
+iterator keys*(cv: CandidRecord): string =
+  ## レコードのフィールド名を登録順で走査する。ckRecord 以外では assert で失敗する。
+  assert cv.kind == ckRecord, "keys() can not iterate a CandidRecord of kind " & $cv.kind
+  for key in cv.fields.keys:
+    yield key
+
+iterator mpairs*(cv: var CandidRecord): tuple[key: string, val: var CandidValue] =
+  ## レコードのフィールドを登録順で走査する。値の破壊的更新が可能。ckRecord 以外では assert で失敗する。
+  ## 内部表現が CandidValue のため、値は `var CandidValue` で返す。CandidRecord API で更新する場合は
+  ## `v = recordToCandidValue(modifiedRecord)` のように変換して代入すること。
+  assert cv.kind == ckRecord, "mpairs() can not iterate a CandidRecord of kind " & $cv.kind
+  for key, val in mpairs(cv.fields):
+    yield (key, val)
+
 # ===== 削除操作 =====
 
 proc delete*(cv: CandidRecord, key: string) =
