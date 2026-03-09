@@ -1,0 +1,67 @@
+---
+description: 83-iterators-for-icrecordブランチでの開発時に読み込む
+alwaysApply: false
+---
+83 Iterators For IcRecord
+===
+
+このブランチで実装することは以下の通りです。
+- `src/nicp_cdk/ic_types/ic_record.nim` に、Nim標準ライブラリ `JsonNode` と同名・同用途の iterator を追加し、`CandidRecord` を配列・レコードとして走査できるようにする
+- `ckArray` に対して `items` / `mitems` を提供し、要素の読み取りと破壊的更新をサポートする
+- `ckRecord` に対して `pairs` / `mpairs` / `keys` を提供し、フィールド名と値の走査、および値の破壊的更新をサポートする
+- `JsonNode` と同様に、不正な kind に対して iterator を使った場合は即座に失敗する振る舞いを揃える
+- 既存の `[]` / `[]=` / `contains` / `len` / `delete` と iterator 群の整合性を確認し、利用者が `for` 構文で自然に扱える API にする
+
+## 進捗
+- [ ] `JsonNode` の `items` / `mitems` / `pairs` / `mpairs` / `keys` のシグネチャと前提条件を確認する
+- [ ] `CandidRecord` の内部表現（`elems`, `fields`, `CandidValue` 変換）から、各 iterator の返却型と可変参照の成立条件を整理する
+- [ ] `ckArray` 向け `items` / `mitems` の仕様を決める
+- [ ] `ckRecord` 向け `pairs` / `mpairs` / `keys` の仕様を決める
+- [ ] レコードのフィールド値を iterator で返す際に `CandidValue` と `CandidRecord` のどちらを公開境界にするべきか確認し、既存 API と矛盾しない方針に確定する
+- [ ] `mpairs` / `mitems` で更新した内容が `CandidRecord` 本体へ反映されることを確認できるよう、実装方針を整理する
+- [ ] 正常系テストを追加する
+- [ ] 異常系テストを追加する
+- [ ] ドキュメントコメントまたは使用例が不足する場合は最小限補う
+
+## 参考資料
+- Nim標準ライブラリ json: https://nim-lang.org/docs/json.html#15
+- Nim実装: `/root/.choosenim/toolchains/nim-2.2.8/lib/pure/json.nim`
+- 対象実装: `src/nicp_cdk/ic_types/ic_record.nim`
+- 関連型定義: `src/nicp_cdk/ic_types/candid_types.nim`
+- 既存ブランチルール: `.cursor/rules/branch/19-record.mdc`
+
+## 調査結果・設計まとめ
+
+### `JsonNode` 側で揃えるべき iterator
+
+Nim 2.2.8 の `json.nim` では、`JsonNode` に対して以下の iterator が定義されている。
+
+- `iterator items*(node: JsonNode): JsonNode`
+- `iterator mitems*(node: var JsonNode): var JsonNode`
+- `iterator pairs*(node: JsonNode): tuple[key: string, val: JsonNode]`
+- `iterator keys*(node: JsonNode): string`
+- `iterator mpairs*(node: var JsonNode): tuple[key: string, val: var JsonNode]`
+
+また、前提条件を満たさない kind に対しては `assert` で即失敗する実装になっている。
+
+### `CandidRecord` での対応方針
+
+- `ckArray` は `JsonNode.JArray` 相当として扱い、`items` / `mitems` を提供する
+- `ckRecord` は `JsonNode.JObject` 相当として扱い、`pairs` / `mpairs` / `keys` を提供する
+- それ以外の kind に対して iterator を使った場合は、`JsonNode` と同様に前提違反として失敗させる方針を第一候補とする
+
+### API設計の論点
+
+- `fields` の実体は `OrderedTable[string, CandidValue]` なので、`pairs` / `mpairs` の外部 API は `CandidRecord` 利用者にとって自然な型に揃える必要がある
+- 読み取り系 iterator は既存の `[]` と同じく `CandidRecord` を返す方が一貫性が高い
+- 可変 iterator は `var CandidRecord` を安全に返せるかを要確認とする。内部表現が `CandidValue` ベースであるため、単純な `yield` では更新が元テーブルへ反映されない可能性がある
+- もし `mpairs` / `mitems` の完全互換が難しい場合でも、理由を明文化したうえで、API境界を崩さない代替設計を先に整理してから実装する
+
+### テストで確認すべきこと
+
+- `ckArray` に対する `for x in record.items` が全要素を順序通り走査すること
+- `ckArray` に対する `for x in record.mitems` の更新が元配列へ反映されること
+- `ckRecord` に対する `for k, v in record.pairs` が登録順で全フィールドを返すこと
+- `ckRecord` に対する `for k in record.keys` が全キーを返すこと
+- `ckRecord` に対する `for k, v in record.mpairs` の更新が元レコードへ反映されること
+- 配列以外に `items` / `mitems` を使った場合、レコード以外に `pairs` / `mpairs` / `keys` を使った場合に失敗すること
