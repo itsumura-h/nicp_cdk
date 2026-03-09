@@ -230,6 +230,93 @@ suite("record option"):
     check record["value"].isNone() == true
 
 
+suite("iterators - ckArray items/mitems"):
+  test "items で配列を順序通り走査できる":
+    let arr = %* [1, 2, 3]
+    var collected: seq[int] = @[]
+    for x in arr.items:
+      collected.add(x.getInt())
+    check collected == @[1, 2, 3]
+
+  test "mitems で配列要素を破壊的更新できる":
+    var arr = %* [1, 2, 3]
+    for x in arr.mitems:
+      x = %(x.getInt() * 10)
+    check arr[0].getInt() == 10
+    check arr[1].getInt() == 20
+    check arr[2].getInt() == 30
+
+suite("iterators - ckRecord pairs/keys/mpairs"):
+  test "pairs でレコードを登録順に走査できる":
+    let rec = %* {"a": 1, "b": 2, "c": 3}
+    var keys: seq[string] = @[]
+    var vals: seq[int] = @[]
+    for k, v in rec.pairs:
+      keys.add(k)
+      vals.add(v.getInt())
+    check keys == @["a", "b", "c"]
+    check vals == @[1, 2, 3]
+
+  test "keys でレコードのキーを走査できる":
+    let rec = %* {"x": "foo", "y": "bar"}
+    var keys: seq[string] = @[]
+    for k in rec.keys:
+      keys.add(k)
+    check keys == @["x", "y"]
+
+  test "mpairs でレコードの値を破壊的更新できる":
+    var rec = %* {"a": 1, "b": 2}
+    for k, v in rec.mpairs:
+      v = newCandidInt(v.intVal * 100)
+    check rec["a"].getInt() == 100
+    check rec["b"].getInt() == 200
+
+suite("iterators - 異常系（不正な kind）"):
+  test "ckArray 以外に items を使うと assert で失敗する":
+    let rec = %* {"x": 1}
+    when defined(danger) or defined(release):
+      discard  # assert は release では無効化される場合がある
+    else:
+      expect AssertionDefect:
+        for x in rec.items:
+          discard x
+
+  test "ckArray 以外に mitems を使うと assert で失敗する":
+    var rec = %* {"x": 1}
+    when defined(danger) or defined(release):
+      discard
+    else:
+      expect AssertionDefect:
+        for x in rec.mitems:
+          discard x
+
+  test "ckRecord 以外に pairs を使うと assert で失敗する":
+    let arr = %* [1, 2, 3]
+    when defined(danger) or defined(release):
+      discard
+    else:
+      expect AssertionDefect:
+        for k, v in arr.pairs:
+          discard (k, v)
+
+  test "ckRecord 以外に keys を使うと assert で失敗する":
+    let arr = %* [1, 2, 3]
+    when defined(danger) or defined(release):
+      discard
+    else:
+      expect AssertionDefect:
+        for k in arr.keys:
+          discard k
+
+  test "ckRecord 以外に mpairs を使うと assert で失敗する":
+    var arr = %* [1, 2, 3]
+    when defined(danger) or defined(release):
+      discard
+    else:
+      expect AssertionDefect:
+        for k, v in arr.mpairs:
+          discard (k, v)
+
 suite("record array"):
   test "record seq":
     let record = %*{
